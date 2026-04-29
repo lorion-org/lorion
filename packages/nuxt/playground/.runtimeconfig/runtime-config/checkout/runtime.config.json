@@ -1,0 +1,20 @@
+{
+  "public": {
+    "currency": "EUR",
+    "successPath": "/orders/confirmed",
+    "taxMode": "inclusive"
+  },
+  "private": {
+    "signingSecret": "checkout_signing_secret_demo"
+  },
+  "contexts": {
+    "eu-store": {
+      "public": {
+        "currency": "EUR"
+      },
+      "private": {
+        "merchantAccount": "merchant_demo_eu"
+      }
+    }
+  }
+}

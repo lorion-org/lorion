@@ -1,0 +1,9 @@
+{
+  "id": "shop",
+  "version": "1.0.0",
+  "publicRuntimeConfig": {
+    "shop": {
+      "title": "Selected Shop"
+    }
+  }
+}

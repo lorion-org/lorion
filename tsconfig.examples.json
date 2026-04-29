@@ -1,0 +1,23 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "declaration": false,
+    "declarationMap": false,
+    "isolatedDeclarations": false,
+    "noEmit": true,
+    "paths": {
+      "@lorion-org/composition-graph": ["./packages/composition-graph/src/index.ts"],
+      "@lorion-org/descriptor-discovery": ["./packages/descriptor-discovery/src/index.ts"],
+      "@lorion-org/provider-selection": ["./packages/provider-selection/src/index.ts"],
+      "@lorion-org/registry-hub": ["./packages/registry-hub/src/index.ts"],
+      "@lorion-org/runtime-config": ["./packages/runtime-config/src/index.ts"],
+      "@lorion-org/runtime-config-node": ["./packages/runtime-config-node/src/index.ts"],
+      "@lorion-org/nuxt": ["./packages/nuxt/src/index.ts"],
+      "@lorion-org/nuxt/composables": ["./packages/nuxt/src/runtime-composables.ts"],
+      "@lorion-org/nuxt/runtime-config": ["./packages/nuxt/src/runtime-config.ts"],
+      "@lorion-org/nuxt/runtime-config-node": ["./packages/nuxt/src/runtime-config-node.ts"]
+    }
+  },
+  "include": ["examples-globals.d.ts", "packages/*/examples/**/*.ts"]
+}

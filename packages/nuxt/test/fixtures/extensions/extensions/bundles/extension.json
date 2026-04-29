@@ -1,0 +1,20 @@
+{
+  "id": "bundles",
+  "version": "1.0.0",
+  "bundles": [
+    {
+      "id": "default",
+      "version": "1.0.0",
+      "dependencies": {
+        "shop": "^1.0.0"
+      }
+    },
+    {
+      "id": "admin-profile",
+      "version": "1.0.0",
+      "dependencies": {
+        "admin": "^1.0.0"
+      }
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "bundles",
+  "version": "1.0.0",
+  "bundles": [
+    {
+      "id": "default",
+      "version": "1.0.0",
+      "dependencies": {
+        "web": "^1.0.0"
+      }
+    },
+    {
+      "id": "web",
+      "version": "1.0.0",
+      "dependencies": {
+        "checkout": "^1.0.0",
+        "payment-provider-invoice": "^1.0.0",
+        "payment-provider-stripe": "^1.0.0",
+        "payments": "^1.0.0",
+        "shops": "^1.0.0",
+        "shop-coffee": "^1.0.0",
+        "shop-stationery": "^1.0.0"
+      }
+    }
+  ]
+}

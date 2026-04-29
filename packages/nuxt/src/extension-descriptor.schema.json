@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://lorion.dev/schemas/nuxt-extension-descriptor.schema.json",
+  "$ref": "#/$defs/extension",
+  "$defs": {
+    "semver": {
+      "type": "string",
+      "pattern": "^(\\^|~)?\\d+\\.\\d+\\.\\d+$"
+    },
+    "dependencyMap": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/semver" }
+    },
+    "extension": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": { "$ref": "#/$defs/semver" },
+        "providesFor": {
+          "type": "string",
+          "minLength": 1
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "dependencies": { "$ref": "#/$defs/dependencyMap" },
+        "disabled": { "type": "boolean" },
+        "location": { "type": "string" },
+        "providerPreferences": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "publicRuntimeConfig": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "bundles": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/extension" }
+        }
+      },
+      "required": ["id", "version"],
+      "additionalProperties": true
+    }
+  }
+}

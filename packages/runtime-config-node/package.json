@@ -1,0 +1,62 @@
+{
+  "name": "@lorion-org/runtime-config-node",
+  "version": "1.0.0-beta.0",
+  "description": "Node file-system helpers for runtime-config directories and files.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lorion-org/lorion.git",
+    "directory": "packages/runtime-config-node"
+  },
+  "homepage": "https://github.com/lorion-org/lorion/tree/main/packages/runtime-config-node#readme",
+  "bugs": {
+    "url": "https://github.com/lorion-org/lorion/issues"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "examples",
+    "LICENSE"
+  ],
+  "keywords": [
+    "runtime-config",
+    "filesystem",
+    "node",
+    "typescript"
+  ],
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts",
+    "clean": "rimraf coverage dist tsconfig.tsbuildinfo",
+    "lint": "eslint src --ext .ts",
+    "prepack": "pnpm build",
+    "test": "vitest run --root ../.. --config vitest.config.mts packages/runtime-config-node/src/index.spec.ts",
+    "package:check": "pnpm build && pnpm pack --dry-run && publint",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@lorion-org/runtime-config": "workspace:^",
+    "ajv": "^8.17.1"
+  }
+}

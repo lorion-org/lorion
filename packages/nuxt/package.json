@@ -1,0 +1,90 @@
+{
+  "name": "@lorion-org/nuxt",
+  "version": "1.0.0-beta.0",
+  "description": "Nuxt module for LORION libraries and framework adapters.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lorion-org/lorion.git",
+    "directory": "packages/nuxt"
+  },
+  "homepage": "https://github.com/lorion-org/lorion/tree/main/packages/nuxt#readme",
+  "bugs": {
+    "url": "https://github.com/lorion-org/lorion/issues"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./runtime-config": {
+      "types": "./dist/runtime-config.d.ts",
+      "import": "./dist/runtime-config.js",
+      "default": "./dist/runtime-config.js"
+    },
+    "./runtime-config-node": {
+      "types": "./dist/runtime-config-node.d.ts",
+      "import": "./dist/runtime-config-node.js",
+      "default": "./dist/runtime-config-node.js"
+    },
+    "./descriptor-schema": {
+      "types": "./dist/descriptor-schema.d.ts",
+      "import": "./dist/descriptor-schema.js",
+      "default": "./dist/descriptor-schema.js"
+    }
+  },
+  "files": [
+    "dist",
+    "examples",
+    "LICENSE"
+  ],
+  "keywords": [
+    "lorion",
+    "nuxt",
+    "module",
+    "runtime-config"
+  ],
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "build": "rimraf dist && tsup src/index.ts src/runtime-config.ts src/runtime-config-node.ts src/descriptor-schema.ts --format esm --dts --splitting false",
+    "clean": "rimraf coverage dist tsconfig.tsbuildinfo",
+    "lint": "eslint src --ext .ts",
+    "prepack": "pnpm build",
+    "package:check": "pnpm build && pnpm pack --dry-run && publint",
+    "test": "pnpm test:unit && pnpm test:e2e",
+    "test:unit": "vitest run --config test/vitest.unit.config.mts",
+    "test:e2e": "vitest run --config test/vitest.e2e.config.mts",
+    "build:playground": "nuxi build playground",
+    "dev:playground": "nuxi dev playground",
+    "typecheck:playground": "nuxi typecheck playground",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@lorion-org/composition-graph": "workspace:^",
+    "@lorion-org/descriptor-discovery": "workspace:^",
+    "@lorion-org/provider-selection": "workspace:^",
+    "@lorion-org/runtime-config": "workspace:^",
+    "@lorion-org/runtime-config-node": "workspace:^"
+  },
+  "peerDependencies": {
+    "@nuxt/kit": "^4.0.0",
+    "nuxt": "^4.0.0"
+  },
+  "devDependencies": {
+    "@lorion-org/registry-hub": "workspace:^",
+    "@nuxt/kit": "^4.2.1",
+    "@nuxt/schema": "^4.4.2",
+    "@nuxt/test-utils": "^3.23.0",
+    "nuxt": "^4.4.2"
+  }
+}

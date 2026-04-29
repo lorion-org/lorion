@@ -1,0 +1,8 @@
+{
+  "id": "payment-provider-invoice",
+  "version": "1.0.0",
+  "providesFor": "payment-checkout",
+  "dependencies": {
+    "payments": "^1.0.0"
+  }
+}

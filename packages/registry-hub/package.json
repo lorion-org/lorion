@@ -1,0 +1,61 @@
+{
+  "name": "@lorion-org/registry-hub",
+  "version": "1.0.0-beta.0",
+  "description": "Framework-free typed registry and registry-hub primitives.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lorion-org/lorion.git",
+    "directory": "packages/registry-hub"
+  },
+  "homepage": "https://github.com/lorion-org/lorion/tree/main/packages/registry-hub#readme",
+  "bugs": {
+    "url": "https://github.com/lorion-org/lorion/issues"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "examples",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts",
+    "clean": "rimraf coverage dist tsconfig.tsbuildinfo",
+    "example:node": "node ./examples/node-basic.js",
+    "example:renderer": "node ./examples/renderer-registry.js",
+    "lint": "eslint src --ext .ts",
+    "prepack": "pnpm build",
+    "test": "vitest run --root ../.. --config vitest.config.mts packages/registry-hub/src/index.spec.ts",
+    "coverage": "vitest run --coverage --coverage.include=packages/registry-hub/src/index.ts --root ../.. --config vitest.config.mts packages/registry-hub/src/index.spec.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "package:check": "pnpm build && pnpm pack --dry-run && publint"
+  },
+  "keywords": [
+    "registry",
+    "hub",
+    "typed",
+    "typescript"
+  ],
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  }
+}

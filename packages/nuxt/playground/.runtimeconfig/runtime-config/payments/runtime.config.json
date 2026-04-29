@@ -1,0 +1,8 @@
+{
+  "public": {
+    "configuredProvider": "payment-provider-stripe",
+    "mode": "demo",
+    "paymentMethods": ["card", "invoice"],
+    "statementDescriptor": "DEMO STORE"
+  }
+}

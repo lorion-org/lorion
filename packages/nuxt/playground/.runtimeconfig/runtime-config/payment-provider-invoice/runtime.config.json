@@ -1,0 +1,10 @@
+{
+  "public": {
+    "settlement": "manual",
+    "testMode": true
+  },
+  "private": {
+    "senderAccount": "invoice_sender_demo",
+    "signingSecret": "invoice_signing_secret_demo"
+  }
+}

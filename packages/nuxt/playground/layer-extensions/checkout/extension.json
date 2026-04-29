@@ -1,0 +1,7 @@
+{
+  "id": "checkout",
+  "version": "1.0.0",
+  "dependencies": {
+    "payments": "^1.0.0"
+  }
+}

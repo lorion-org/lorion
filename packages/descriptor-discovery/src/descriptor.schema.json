@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://lorion.dev/schemas/descriptor.schema.json",
+  "$ref": "#/$defs/descriptor",
+  "$defs": {
+    "semver": {
+      "type": "string",
+      "pattern": "^(\\^|~)?\\d+\\.\\d+\\.\\d+$"
+    },
+    "dependencyMap": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/semver" }
+    },
+    "descriptor": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": { "$ref": "#/$defs/semver" },
+        "providesFor": {
+          "type": "string",
+          "minLength": 1
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "dependencies": { "$ref": "#/$defs/dependencyMap" },
+        "disabled": { "type": "boolean" },
+        "location": { "type": "string" }
+      },
+      "required": ["id", "version"],
+      "additionalProperties": true
+    }
+  }
+}

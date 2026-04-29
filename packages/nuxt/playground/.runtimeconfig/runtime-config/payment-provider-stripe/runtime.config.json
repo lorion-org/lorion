@@ -1,0 +1,10 @@
+{
+  "public": {
+    "settlement": "instant",
+    "testMode": true
+  },
+  "private": {
+    "apiKey": "stripe_provider_secret_demo",
+    "webhookSecret": "stripe_webhook_secret_demo"
+  }
+}
