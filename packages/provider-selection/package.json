@@ -1,6 +1,6 @@
 {
   "name": "@lorion-org/provider-selection",
-  "version": "1.0.0-beta.0",
+  "version": "1.0.0",
   "description": "Framework-free capability provider selection primitives.",
   "license": "MIT",
   "repository": {

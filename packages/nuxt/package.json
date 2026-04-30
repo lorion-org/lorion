@@ -1,6 +1,6 @@
 {
   "name": "@lorion-org/nuxt",
-  "version": "1.0.0-beta.0",
+  "version": "1.0.0",
   "description": "Nuxt module for LORION libraries and framework adapters.",
   "license": "MIT",
   "repository": {
