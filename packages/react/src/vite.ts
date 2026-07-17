@@ -54,7 +54,22 @@ const resolvedServerRuntimeConfigModuleId = `\0${serverRuntimeConfigModuleId}`;
 const defaultRuntimeConfigFileName = 'capability.runtime.json';
 const defaultRuntimeConfigSchemaFileName = 'capability.schema.json';
 
+export type CapabilityActivationEntry = {
+  exportName?: string;
+  exportSubpath?: string;
+};
+
+// Returning a nullish activation marks the capability as graph-only: it takes
+// part in dependency resolution but activates nothing (no import is emitted).
+export type ResolveCapabilityActivation = (input: {
+  capabilityDir: string;
+  descriptor: Descriptor;
+  packageJson: Record<string, unknown>;
+  packageName: string;
+}) => CapabilityActivationEntry | null | undefined;
+
 export type CapabilityLoaderOptions = {
+  activation?: ResolveCapabilityActivation;
   capabilitiesDir?: string;
   baseDescriptors?: readonly DescriptorId[];
   defaultSelection?: readonly DescriptorId[];
@@ -118,9 +133,11 @@ export type LorionReactViteSetup = {
 export type DiscoveredCapability = {
   capabilityDir: string;
   disabled: boolean;
-  entryFile: string;
+  entryFile?: string;
+  // Absent for graph-only capabilities that resolve but do not activate.
+  exportName?: string;
   id: string;
-  importSpecifier: string;
+  importSpecifier?: string;
   manifest: Descriptor;
   packageName: string;
   routesDirectory?: string;
@@ -154,7 +171,7 @@ export type ViteResolvedConfig = {
 export type VitePlugin = {
   configResolved: (resolvedConfig: ViteResolvedConfig) => void;
   enforce: 'pre';
-  load: (id: string, options?: { ssr?: boolean }) => string | null;
+  load: (id: string, options?: { ssr?: boolean | undefined }) => string | null;
   name: string;
   resolveId: (id: string) => string | undefined;
 };
@@ -257,7 +274,7 @@ export function lorionReact(options: LorionReactViteOptions): LorionReactViteSet
 
 export function discoverCapabilities(
   workspaceRoot: string,
-  options: Pick<CapabilityLoaderOptions, 'capabilitiesDir'> = {},
+  options: Pick<CapabilityLoaderOptions, 'activation' | 'capabilitiesDir'> = {},
 ): DiscoveredCapability[] {
   const capabilitiesRoot = resolve(workspaceRoot, options.capabilitiesDir ?? 'capabilities');
 
@@ -266,7 +283,7 @@ export function discoverCapabilities(
   }
 
   return discoverCapabilityDescriptors(workspaceRoot, options)
-    .map(discoverCapability)
+    .map((entry) => discoverCapability(entry, options.activation))
     .sort((left, right) => left.id.localeCompare(right.id));
 }
 
@@ -381,13 +398,19 @@ export function renderCapabilityModule(
   capabilities: readonly DiscoveredCapability[],
   selected: readonly DescriptorId[] = [],
 ): string {
-  const imports = capabilities
+  // Only capabilities with a resolved activation entry are imported and
+  // registered. Graph-only capabilities take part in dependency resolution and
+  // still appear in resolvedCapabilityIds, but emit no import.
+  const activated = capabilities.filter(
+    (capability) => capability.exportName && capability.importSpecifier,
+  );
+  const imports = activated
     .map(
       (capability) =>
-        `import { capability as ${capability.variableName} } from '${capability.importSpecifier}'`,
+        `import { ${capability.exportName} as ${capability.variableName} } from '${capability.importSpecifier}'`,
     )
     .join('\n');
-  const variables = capabilities.map((capability) => `  ${capability.variableName},`).join('\n');
+  const variables = activated.map((capability) => `  ${capability.variableName},`).join('\n');
   const capabilityIds = capabilities.map((capability) => capability.id);
 
   return `${imports}
@@ -468,7 +491,10 @@ function discoverCapabilityDescriptors(
   });
 }
 
-function discoverCapability(entry: DiscoveredDescriptor): DiscoveredCapability {
+function discoverCapability(
+  entry: DiscoveredDescriptor,
+  resolveActivation?: ResolveCapabilityActivation,
+): DiscoveredCapability {
   const capabilityDir = entry.cwd;
   const packagePath = resolve(capabilityDir, 'package.json');
 
@@ -485,17 +511,27 @@ function discoverCapability(entry: DiscoveredDescriptor): DiscoveredCapability {
     throw new Error(`Capability package is missing "name": ${packagePath}`);
   }
 
-  const activationEntry = resolveActivationEntry(capabilityDir, packageJson);
+  const activationEntry = resolveActivationEntry(
+    capabilityDir,
+    packageJson,
+    entry.descriptor,
+    resolveActivation,
+  );
   const routesDirectory = resolveRouteDirectory(capabilityDir);
 
   return {
     capabilityDir,
     id: entry.descriptor.id,
     disabled: entry.descriptor.disabled === true,
-    entryFile: activationEntry.entryFile,
-    importSpecifier: activationEntry.importSpecifier,
     manifest: entry.descriptor,
     packageName,
+    ...(activationEntry
+      ? {
+          exportName: activationEntry.exportName,
+          importSpecifier: activationEntry.importSpecifier,
+          ...(activationEntry.entryFile ? { entryFile: activationEntry.entryFile } : {}),
+        }
+      : {}),
     ...(routesDirectory ? { routesDirectory } : {}),
     variableName: toVariableName(entry.descriptor.id),
   };
@@ -614,9 +650,7 @@ function readRuntimeConfigSchemas(
     const schemaPath = resolve(capability.capabilityDir, schemaFileName);
     const schema = readJsonFile<object>(schemaPath, {
       onParseError: (error, filePath) => {
-        throw new Error(
-          `RuntimeConfig schema JSON parse error in "${filePath}": ${String(error)}`,
-        );
+        throw new Error(`RuntimeConfig schema JSON parse error in "${filePath}": ${String(error)}`);
       },
     });
 
@@ -633,7 +667,10 @@ function isJsonSchemaObject(value: unknown): value is { properties?: Record<stri
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function getRuntimeConfigSchemaSectionKeys(schema: object | undefined, visibility: string): string[] {
+function getRuntimeConfigSchemaSectionKeys(
+  schema: object | undefined,
+  visibility: string,
+): string[] {
   if (!isJsonSchemaObject(schema)) return [];
 
   const section = schema.properties?.[visibility];
@@ -754,9 +791,11 @@ function getCapabilityRuntimeConfigPolicy(
   capability: DiscoveredCapability,
   validation: ReactRuntimeConfigValidationOptions,
 ): RuntimeConfigValidationPolicyInput {
-  return (capability.manifest.runtimeConfig as RuntimeConfigValidationPolicyInput | undefined)
-    ?? validation.policy
-    ?? 'optional';
+  return (
+    (capability.manifest.runtimeConfig as RuntimeConfigValidationPolicyInput | undefined) ??
+    validation.policy ??
+    'optional'
+  );
 }
 
 function shouldValidateRuntimeConfigFragment(input: {
@@ -822,9 +861,10 @@ function resolveRouteDirectory(capabilityDir: string): string | undefined {
 function resolveActivationEntry(
   capabilityDir: string,
   packageJson: Record<string, unknown>,
-): { entryFile: string; importSpecifier: string } {
+  descriptor: Descriptor,
+  resolveActivation?: ResolveCapabilityActivation,
+): { entryFile?: string; exportName: string; importSpecifier: string } | null {
   const packageName = packageJson.name;
-  const packageExports = packageJson.exports;
 
   if (typeof packageName !== 'string') {
     throw new Error(
@@ -832,14 +872,32 @@ function resolveActivationEntry(
     );
   }
 
-  if (!isRecord(packageExports) || typeof packageExports['./capability'] !== 'string') {
-    throw new Error(`Capability package is missing a "./capability" export: ${capabilityDir}`);
+  // Without a custom activation resolver the default convention stays strict:
+  // the package must declare a string "./capability" export that LORION
+  // self-resolves to a local file.
+  if (!resolveActivation) {
+    const packageExports = packageJson.exports;
+
+    if (!isRecord(packageExports) || typeof packageExports['./capability'] !== 'string') {
+      throw new Error(`Capability package is missing a "./capability" export: ${capabilityDir}`);
+    }
+
+    return {
+      entryFile: resolve(capabilityDir, packageExports['./capability']),
+      exportName: 'capability',
+      importSpecifier: `${packageName}/capability`,
+    };
   }
 
-  return {
-    entryFile: resolve(capabilityDir, packageExports['./capability']),
-    importSpecifier: `${packageName}/capability`,
-  };
+  // A custom resolver may target any package export and leaves specifier
+  // resolution to the host bundler. A nullish result marks a graph-only
+  // capability: resolved for the dependency graph, but not activated.
+  const activation = resolveActivation({ capabilityDir, descriptor, packageJson, packageName });
+  if (!activation) return null;
+
+  const exportName = activation.exportName ?? 'capability';
+  const exportSubpath = activation.exportSubpath ?? './capability';
+  return { exportName, importSpecifier: `${packageName}${exportSubpath.replace(/^\./, '')}` };
 }
 
 function hasRouteDirectory(

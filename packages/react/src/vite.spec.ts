@@ -44,6 +44,77 @@ describe('React capability Vite helpers', () => {
     expect(capability?.importSpecifier).toBe('@react-workspace/settings/capability');
   });
 
+  it('supports a custom activation resolver targeting an existing package export', () => {
+    const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-capability-loader-'));
+
+    writeCapability(workspaceRoot, 'home', '@react-workspace/home', {
+      exports: { './web': './src/web/index.ts' },
+    });
+
+    const capabilities = discoverCapabilities(workspaceRoot, {
+      activation: ({ descriptor }) => ({
+        exportName: `${descriptor.id}WebPlugin`,
+        exportSubpath: './web',
+      }),
+    });
+    const [home] = capabilities;
+
+    expect(home?.importSpecifier).toBe('@react-workspace/home/web');
+    expect(home?.exportName).toBe('homeWebPlugin');
+    // A custom activation is host-resolved: LORION does not self-resolve the
+    // specifier, so the host bundler owns resolution.
+    expect(home?.entryFile).toBeUndefined();
+    expect(renderCapabilityModule(capabilities)).toContain(
+      "import { homeWebPlugin as homeCapability } from '@react-workspace/home/web'",
+    );
+  });
+
+  it('does not require a "./capability" export when a custom activation is used', () => {
+    const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-capability-loader-'));
+
+    writeCapability(workspaceRoot, 'home', '@react-workspace/home', {
+      exports: { './web': './src/web/index.ts' },
+    });
+
+    expect(() =>
+      discoverCapabilities(workspaceRoot, {
+        activation: () => ({ exportName: 'homeWebPlugin', exportSubpath: './web' }),
+      }),
+    ).not.toThrow();
+  });
+
+  it('treats a nullish activation as graph-only: resolved but not activated', () => {
+    const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-capability-loader-'));
+
+    writeCapability(workspaceRoot, 'ui', '@react-workspace/ui', {
+      exports: { '.': './src/index.ts' },
+    });
+    writeCapability(workspaceRoot, 'home', '@react-workspace/home', {
+      dependencies: { ui: '0.0.0' },
+      exports: { './web': './src/web/index.ts' },
+    });
+
+    const activation = ({ descriptor }: { descriptor: { id: string } }) =>
+      descriptor.id === 'home'
+        ? { exportSubpath: './web', exportName: 'homeWebPlugin' }
+        : undefined;
+    const capabilities = discoverSelectedCapabilities(workspaceRoot, {
+      selected: ['home'],
+      activation,
+    });
+
+    // The graph-only capability (ui) is resolved through the dependency graph...
+    expect(capabilities.map((capability) => capability.id).sort()).toEqual(['home', 'ui']);
+
+    const rendered = renderCapabilityModule(capabilities);
+    expect(rendered).toContain('resolvedCapabilityIds = ["home","ui"]');
+    // ...but only the activated capability (home) is imported and registered.
+    expect(rendered).toContain(
+      "import { homeWebPlugin as homeCapability } from '@react-workspace/home/web'",
+    );
+    expect(rendered).not.toContain('@react-workspace/ui');
+  });
+
   it('builds a TanStack virtual route config from enabled capability route directories', () => {
     const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-capability-loader-'));
     const hostRoutesDirectory = join(workspaceRoot, 'hosts', 'web', 'src', 'routes');
@@ -427,9 +498,7 @@ describe('React capability Vite helpers', () => {
     expect(() => plugin.load(resolvedId!, { ssr: false })).toThrow(
       'virtual:capability-runtime-config/server may only be imported from SSR/server code.',
     );
-    expect(plugin.load(resolvedId!, { ssr: true })).toContain(
-      'capabilityServerRuntimeConfig',
-    );
+    expect(plugin.load(resolvedId!, { ssr: true })).toContain('capabilityServerRuntimeConfig');
   });
 
   it('validates startup runtime config against capability schemas', () => {
