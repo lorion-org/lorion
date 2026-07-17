@@ -1,0 +1,40 @@
+name: Feature request
+description: Propose a change or addition to a LORION package
+labels: ['enhancement', 'triage']
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do that LORION does not support today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: The API or behavior you have in mind. Prefer additive, framework-free changes.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package
+      options:
+        - '@lorion-org/composition-graph'
+        - '@lorion-org/descriptor-discovery'
+        - '@lorion-org/provider-selection'
+        - '@lorion-org/registry-hub'
+        - '@lorion-org/runtime-config'
+        - '@lorion-org/runtime-config-node'
+        - '@lorion-org/react'
+        - '@lorion-org/nuxt'
+        - New package / cross-cutting
+    validations:
+      required: true

@@ -21,9 +21,11 @@ React.
 
 - [Changesets](./changesets.md)
 - [Release workflow](./release.md)
+- [Roadmap and stability](./roadmap.md)
 
 ## Package Documentation
 
+- [capability-composition](../packages/capability-composition/README.md)
 - [composition-graph](../packages/composition-graph/README.md)
 - [descriptor-discovery](../packages/descriptor-discovery/README.md)
 - [provider-selection](../packages/provider-selection/README.md)

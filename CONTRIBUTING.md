@@ -32,6 +32,8 @@ Run commands from the LORION repository root:
 - `pnpm tests` is an alias for `pnpm test`
 - `pnpm examples:check` type-checks runnable examples
 - `pnpm package:check` validates package contents and publish shape
+- `pnpm attw` verifies published types resolve across module resolvers
+- `pnpm changeset` records a release note for a package change
 - `pnpm check` runs the full local gate used by CI
 
 ## Release model

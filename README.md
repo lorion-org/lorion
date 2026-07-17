@@ -2,6 +2,12 @@
 
 LORION is the **Layer Orchestration Runtime for Node.js**.
 
+[![CI](https://github.com/lorion-org/lorion/actions/workflows/ci.yml/badge.svg)](https://github.com/lorion-org/lorion/actions/workflows/ci.yml)
+[![npm @lorion-org/react](https://img.shields.io/npm/v/@lorion-org/react?label=%40lorion-org%2Freact)](https://www.npmjs.com/package/@lorion-org/react)
+[![license](https://img.shields.io/github/license/lorion-org/lorion)](./LICENSE)
+
+Status: `1.0.0-beta`. See the [roadmap and stability policy](./docs/roadmap.md) for the path to a stable 1.0.
+
 ![LORION hero](./docs/assets/lorion-hero.png)
 
 It is a small TypeScript package ecosystem for applications that are assembled

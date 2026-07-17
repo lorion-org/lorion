@@ -60,3 +60,16 @@ jobs:
 
       - name: Check package output
         run: pnpm run package:check
+
+      - name: Check types across resolvers
+        run: pnpm run attw
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Verify playgrounds
+        run: |
+          pnpm --filter @lorion-org/react typecheck:playground
+          pnpm --filter @lorion-org/react typecheck:playground-runtime
+          pnpm --filter @lorion-org/react build:playground
+          pnpm --filter @lorion-org/react build:playground-runtime
