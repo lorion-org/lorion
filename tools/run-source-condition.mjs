@@ -51,17 +51,37 @@ function extractSelectionArgs(args) {
 }
 
 const selectionArgs = extractSelectionArgs(commandArgs);
-const nodeOptions = [process.env.NODE_OPTIONS, '--conditions=lorion-source']
-  .filter(Boolean)
-  .join(' ');
+const isWindows = process.platform === 'win32';
 
-const result = spawnSync(command, selectionArgs.remainingArgs, {
-  env: {
-    ...process.env,
-    ...selectionArgs.env,
-    NODE_OPTIONS: nodeOptions,
-  },
-  shell: process.platform === 'win32',
+// The `lorion-source` export condition points `@lorion-org/*` at TypeScript
+// source. Prefer Bun, which resolves those `.ts` sources and extensionless
+// specifiers natively under the condition; this keeps tools whose config loader
+// otherwise externalizes and natively imports the source (for example Vite's
+// config loading) working without a build step. Fall back to Node with
+// `--conditions` when Bun is unavailable.
+const hasBun = spawnSync('bun', ['--version'], { stdio: 'ignore', shell: isWindows }).status === 0;
+
+const runner = hasBun
+  ? {
+      bin: 'bun',
+      args: ['--conditions=lorion-source', 'x', command, ...selectionArgs.remainingArgs],
+      env: { ...process.env, ...selectionArgs.env },
+    }
+  : {
+      bin: command,
+      args: selectionArgs.remainingArgs,
+      env: {
+        ...process.env,
+        ...selectionArgs.env,
+        NODE_OPTIONS: [process.env.NODE_OPTIONS, '--conditions=lorion-source']
+          .filter(Boolean)
+          .join(' '),
+      },
+    };
+
+const result = spawnSync(runner.bin, runner.args, {
+  env: runner.env,
+  shell: isWindows,
   stdio: 'inherit',
 });
 
