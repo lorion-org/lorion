@@ -1,8 +1,15 @@
 # @lorion-org/react
 
+[![npm](https://img.shields.io/npm/v/@lorion-org/react)](https://www.npmjs.com/package/@lorion-org/react)
+[![CI](https://github.com/lorion-org/lorion/actions/workflows/ci.yml/badge.svg)](https://github.com/lorion-org/lorion/actions/workflows/ci.yml)
+
 React capability runtime and Vite helpers for LORION descriptor-based applications.
 
-Use this package when a React application is assembled from local capability packages that expose a `capability.json` descriptor and a `./capability` activation export.
+Use this package when a React application is assembled from local capability
+packages that each expose a `capability.json` descriptor. It supports two
+deliberate consumption models over the same LORION discovery and composition
+graph, and both are first-class: pick one per product (see Two Composition
+Models).
 
 ## Install
 
@@ -16,6 +23,29 @@ should declare that package directly too.
 Add Vite, TanStack Router, or another router in the host application as needed.
 The runtime helpers do not own routing; the Vite entry point only prepares
 capability discovery and TanStack-compatible virtual route config.
+
+## Quick start
+
+Add the Vite capability loader, then consume the resolved capabilities with your
+own runtime (this is the loader-only path, Model B):
+
+```ts
+// vite.config.ts
+import { capabilityLoader } from '@lorion-org/react/vite';
+
+export default defineConfig({
+  plugins: [capabilityLoader({ workspaceRoot: import.meta.dirname })],
+});
+```
+
+```ts
+// main.ts
+import { capabilityModules } from 'virtual:capabilities';
+// register the pre-resolved capabilities with your own plugin runtime
+```
+
+For a batteries-included React runtime and file-based routing instead, use
+`lorionReact()` (Model A). Both are described under Two Composition Models.
 
 ## What It Is
 
@@ -32,7 +62,41 @@ capability discovery and TanStack-compatible virtual route config.
 - not a package manager
 - not an application naming convention
 
-## Basic Runtime
+## Two Composition Models
+
+Both models build on the same LORION discovery, composition graph, provider
+selection, and `virtual:capabilities` build output. They differ only in how much
+of the React side the host delegates to this package. Neither is a special case;
+choose one per product.
+
+### Model A: composition runtime and capability routing
+
+`lorionReact()` wires the Vite capability loader, the React capability runtime
+(`createCapabilityRuntime`), and TanStack file-based route composition together.
+Capabilities activate through the `./capability` convention and own route
+folders. Use this when the product wants a batteries-included React runtime and
+file-based routing from LORION.
+
+### Model B: capability loader with your own runtime
+
+`capabilityLoader()` on its own resolves the descriptor graph at build time and
+emits `virtual:capabilities`; the host consumes that pre-resolved module list
+with its own plugin registry, its own routing, and its own lifecycle. Nothing
+from the React runtime or route config is required. Capabilities activate through
+an explicit `activation` resolver against their existing package exports, and
+dependency-only libraries stay graph-only. Use this when the product already owns
+a plugin system, or when one package set ships as several product distributions,
+and only needs LORION for selection and activation.
+
+|               | Model A                                  | Model B                                              |
+| ------------- | ---------------------------------------- | ---------------------------------------------------- |
+| Vite entry    | `lorionReact()`                          | `capabilityLoader()`                                 |
+| React runtime | `createCapabilityRuntime` (this package) | host-owned                                           |
+| Routing       | TanStack file-based via `routeConfig`    | host-owned (for example code-based)                  |
+| Activation    | `./capability` convention                | explicit `activation` resolver, graph-only otherwise |
+| Host consumes | provider and contribution contracts      | `capabilityModules` from `virtual:capabilities`      |
+
+## Composition Runtime (Model A)
 
 ```ts
 import { CapabilityRuntimeProvider, createCapabilityRuntime } from '@lorion-org/react';
@@ -115,10 +179,13 @@ to TanStack Router as a capability-owned route subtree.
 ## Vite
 
 ```ts
-import { lorionReact } from '@lorion-org/react/vite';
+import { capabilityLoader, lorionReact } from '@lorion-org/react/vite';
 ```
 
-The Vite helper discovers `capabilities/*/capability.json`, validates the descriptor shape with LORION, resolves selected descriptors through the LORION composition graph, resolves each package `./capability` export, and exposes `virtual:capabilities`.
+`capabilityLoader` is the standalone loader used by Model B. `lorionReact()`
+bundles that loader with the Model A route config.
+
+The Vite helper discovers `capabilities/*/capability.json`, validates the descriptor shape with LORION, resolves selected descriptors through the LORION composition graph, resolves each active capability's activation entry, and exposes `virtual:capabilities`.
 
 ```ts
 const lorion = lorionReact({
@@ -154,6 +221,75 @@ Use `indexRouteFile: false` when `/` is owned by a capability route.
 The virtual module exports `capabilityModules`, `selectedCapabilityIds`, and
 `resolvedCapabilityIds` so host code can distinguish the seed from the final
 graph resolution.
+
+### Activation
+
+Activation binds a resolved descriptor to the module the host imports. LORION
+supports two models, chosen by the host.
+
+Convention (default): each capability activates through a `./capability` package
+export with a `capability` named export. No option is required.
+
+Explicit resolver: pass an `activation` resolver to bind against an existing
+package export, so capabilities that already expose their contribution from
+another entry point need no dedicated activation file:
+
+```ts
+capabilityLoader({
+  workspaceRoot,
+  activation: ({ descriptor }) => ({
+    exportSubpath: './web',
+    exportName: `${descriptor.id}WebPlugin`,
+  }),
+});
+```
+
+The generated import then uses the resolved subpath and export name (for example
+`import { homeWebPlugin as homeCapability } from '@scope/home/web'`), and
+specifier resolution is left to the host bundler rather than self-resolved by
+LORION.
+
+Graph-only: when the resolver returns a nullish activation for a descriptor, that
+capability still takes part in dependency resolution but activates nothing. No
+import is emitted and it never reaches `capabilityModules`. Use this for
+dependency-only libraries that shape the graph without contributing a runtime
+plugin.
+
+## Bring Your Own Runtime (Model B)
+
+In Model B the host uses only the Vite capability loader and composes the
+resolved modules with its own runtime. The build resolves the descriptor graph
+(base, selected features, transitive dependencies, and exactly one provider per
+capability) and emits `capabilityModules` already ordered and filtered.
+
+```ts
+// vite.config.ts
+capabilityLoader({
+  workspaceRoot,
+  capabilitiesDir: 'packages',
+  baseDescriptors: ['shell', 'auth'], // always-on platform base
+  defaultSelection: ['home', 'reports'], // default feature set
+  selectionSeed: { cliKeys: ['features'], envKeys: ['APP_FEATURES'] },
+  // Read a host-defined descriptor field; return undefined to keep a package
+  // graph-only. LORION descriptors carry host keys unchanged.
+  activation: ({ descriptor }) => descriptor.surfaces?.web,
+});
+```
+
+```ts
+// main.ts: consume the pre-resolved list with your own registry
+import { capabilityModules } from 'virtual:capabilities';
+import { createRegistry } from './my-plugin-system';
+
+const registry = createRegistry();
+for (const plugin of capabilityModules) registry.register(plugin);
+await registry.setup();
+```
+
+The host runtime lists no capability by hand and makes no provider decision.
+Adding or removing a package changes only the descriptor graph, not the runtime
+wiring. Route ownership, i18n merging, and lifecycle hooks stay in the host's own
+plugin system.
 
 ## Runtime Config
 
@@ -311,20 +447,39 @@ The package exposes two public entry points:
 - `@lorion-org/react` for runtime, contribution contracts, provider selection, runtime config, and React context helpers
 - `@lorion-org/react/vite` for capability discovery, runtime-config virtual modules, and TanStack-compatible route config
 
-## Playground
+## Playgrounds
 
-The package includes a React playground that mirrors the Nuxt package playground with a demo shop, checkout providers, and a tech monitor.
+Two playgrounds demonstrate the two models. Both run with Lorion's
+`lorion-source` export condition so local workspace imports resolve to `src`
+instead of stale `dist` output.
+
+Model A, `playground/`, mirrors the Nuxt package playground with a demo shop,
+checkout providers, and a tech monitor (composition runtime and file-based
+routing):
 
 ```sh
 pnpm --filter @lorion-org/react dev:playground
 ```
 
-The playground scripts run with Lorion's `lorion-source` export condition so
-local workspace package imports resolve to `src` instead of stale `dist` output.
+It runs on `http://localhost:3200` with capabilities under
+`playground/capabilities`. Select a different profile or provider with
+`--capabilities=admin`, `--capabilities=web,payment-provider-invoice`, or
+`LORION_CAPABILITIES="web payment-provider-invoice"`.
 
-The playground runs on `http://localhost:3200` and uses local demo capabilities under `playground/capabilities`.
-Select a different profile or provider with `--capabilities=admin`,
-`--capabilities=web,payment-provider-invoice`, or `LORION_CAPABILITIES="web payment-provider-invoice"`.
+Model B, `playground-runtime/`, shows the capability-loader-only path: explicit
+activation, a graph-only library, a base plus seed selection, provider selection,
+and a small hand-written registry that consumes `virtual:capabilities` with no
+LORION React runtime and no route config:
+
+```sh
+pnpm --filter @lorion-org/react dev:playground-runtime
+```
+
+It runs on `http://localhost:3201` with capabilities under
+`playground-runtime/capabilities`. The seed replaces the default selection, while
+the base and providers resolve through the graph: switch the auth provider with
+`--features=dashboard,auth-oidc`, or change the feature set with
+`LORION_FEATURES="dashboard reports"`.
 
 ## Local Commands
 
