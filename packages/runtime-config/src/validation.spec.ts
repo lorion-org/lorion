@@ -26,7 +26,7 @@ describe('runtime config validation policy', () => {
 describe('RuntimeConfigValidatorRegistry', () => {
   it('validates runtime config fragments against registered schemas', () => {
     const registry = createRuntimeConfigValidatorRegistry({
-      keycloak: {
+      oidc: {
         type: 'object',
         properties: {
           public: {
@@ -44,8 +44,8 @@ describe('RuntimeConfigValidatorRegistry', () => {
       },
     });
 
-    expect(() => registry.assert('keycloak', { public: { realm: 'sandbox' } })).not.toThrow();
-    expect(() => registry.assert('keycloak', { public: { realm: '' } })).toThrow(
+    expect(() => registry.assert('oidc', { public: { realm: 'sandbox' } })).not.toThrow();
+    expect(() => registry.assert('oidc', { public: { realm: '' } })).toThrow(
       /RuntimeConfig schema validation failed/,
     );
   });

@@ -13,7 +13,7 @@ describe('getRuntimeConfigScope', () => {
     const runtimeConfig = projectSectionedRuntimeConfig(
       new Map([
         [
-          'keycloak',
+          'oidc',
           {
             public: {
               url: 'https://auth.example.test',
@@ -24,7 +24,7 @@ describe('getRuntimeConfigScope', () => {
       ]),
     );
 
-    expect(getRuntimeConfigScope(runtimeConfig, 'keycloak')).toEqual({
+    expect(getRuntimeConfigScope(runtimeConfig, 'oidc')).toEqual({
       url: 'https://auth.example.test',
       realm: 'main',
     });
@@ -34,7 +34,7 @@ describe('getRuntimeConfigScope', () => {
     const runtimeConfig = projectSectionedRuntimeConfig(
       new Map([
         [
-          'keycloak',
+          'oidc',
           {
             private: {
               clientSecret: 'secret',
@@ -45,7 +45,7 @@ describe('getRuntimeConfigScope', () => {
     );
 
     expect(
-      getRuntimeConfigScope(runtimeConfig, 'keycloak', {
+      getRuntimeConfigScope(runtimeConfig, 'oidc', {
         visibility: 'private',
       }),
     ).toEqual({
@@ -113,14 +113,14 @@ describe('getRuntimeConfigScope', () => {
   it('can use explicit keys when adapters want a hard contract', () => {
     const runtimeConfig = {
       public: {
-        keycloakUrl: 'https://auth.example.test',
-        keycloakRealm: 'main',
-        keycloakUnused: 'ignored',
+        oidcUrl: 'https://auth.example.test',
+        oidcRealm: 'main',
+        oidcUnused: 'ignored',
       },
     };
 
     expect(
-      getPublicRuntimeConfigScope(runtimeConfig, 'keycloak', {
+      getPublicRuntimeConfigScope(runtimeConfig, 'oidc', {
         keys: ['url', 'realm', 'missing'],
       }),
     ).toEqual({
@@ -135,7 +135,7 @@ describe('getRuntimeConfigFragment', () => {
     const runtimeConfig = projectSectionedRuntimeConfig(
       new Map([
         [
-          'keycloak',
+          'oidc',
           {
             public: {
               url: 'https://auth.example.test',
@@ -148,7 +148,7 @@ describe('getRuntimeConfigFragment', () => {
       ]),
     );
 
-    expect(getRuntimeConfigFragment(runtimeConfig, 'keycloak')).toEqual({
+    expect(getRuntimeConfigFragment(runtimeConfig, 'oidc')).toEqual({
       public: {
         url: 'https://auth.example.test',
       },

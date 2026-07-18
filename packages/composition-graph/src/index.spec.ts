@@ -241,10 +241,10 @@ describe('buildDescriptorGraph', () => {
     const descriptorMap = buildDescriptorMap([
       createDescriptor('auth', {
         providerPreferences: {
-          auth: 'keycloak',
+          auth: 'auth-oidc',
         },
       }),
-      createDescriptor('keycloak'),
+      createDescriptor('auth-oidc'),
     ]);
 
     const graph = buildDescriptorGraph({
@@ -260,7 +260,7 @@ describe('buildDescriptorGraph', () => {
 
     expect(graph.edges).toContainEqual({
       from: 'auth',
-      to: 'keycloak',
+      to: 'auth-oidc',
       relation: 'providerPreferences',
       source: 'descriptor',
     });
@@ -269,7 +269,7 @@ describe('buildDescriptorGraph', () => {
   it('can build inverse relations from string fields', () => {
     const descriptorMap = buildDescriptorMap([
       createDescriptor('auth'),
-      createDescriptor('keycloak', {
+      createDescriptor('auth-oidc', {
         defaultFor: 'auth',
       }),
     ]);
@@ -287,7 +287,7 @@ describe('buildDescriptorGraph', () => {
 
     expect(graph.edges).toContainEqual({
       from: 'auth',
-      to: 'keycloak',
+      to: 'auth-oidc',
       relation: 'defaultProviders',
       source: 'descriptor',
     });
@@ -297,7 +297,7 @@ describe('buildDescriptorGraph', () => {
         start: ['auth'],
         relationIds: ['defaultProviders'],
       }),
-    ).toEqual(['auth', 'keycloak']);
+    ).toEqual(['auth', 'auth-oidc']);
   });
 });
 

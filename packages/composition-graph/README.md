@@ -246,8 +246,8 @@ const catalog = createDescriptorCatalog({
 });
 ```
 
-That turns `{ id: 'keycloak', defaultFor: 'auth' }` into a graph edge
-`auth -> keycloak`, as long as both descriptors exist.
+That turns `{ id: 'auth-oidc', defaultFor: 'auth' }` into a graph edge
+`auth -> auth-oidc`, as long as both descriptors exist.
 
 Dependency-specific projections are also intentionally outside the core. If a
 consumer needs a "what pulled this in?" view, derive that from

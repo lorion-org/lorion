@@ -62,9 +62,9 @@ importers:
       '@lorion-org/descriptor-discovery':
         specifier: workspace:^
         version: link:../descriptor-discovery
-      '@lorion-org/provider-selection':
+      '@lorion-org/descriptor-selection':
         specifier: workspace:^
-        version: link:../provider-selection
+        version: link:../descriptor-selection
 
   packages/composition-graph: {}
 
@@ -78,6 +78,15 @@ importers:
         specifier: workspace:*
         version: link:../composition-graph
 
+  packages/descriptor-selection:
+    dependencies:
+      '@lorion-org/composition-graph':
+        specifier: workspace:^
+        version: link:../composition-graph
+      '@lorion-org/provider-selection':
+        specifier: workspace:^
+        version: link:../provider-selection
+
   packages/nuxt:
     dependencies:
       '@lorion-org/composition-graph':
@@ -86,6 +95,9 @@ importers:
       '@lorion-org/descriptor-discovery':
         specifier: workspace:^
         version: link:../descriptor-discovery
+      '@lorion-org/descriptor-selection':
+        specifier: workspace:^
+        version: link:../descriptor-selection
       '@lorion-org/provider-selection':
         specifier: workspace:^
         version: link:../provider-selection
@@ -122,6 +134,9 @@ importers:
       '@lorion-org/descriptor-discovery':
         specifier: workspace:^
         version: link:../descriptor-discovery
+      '@lorion-org/descriptor-selection':
+        specifier: workspace:^
+        version: link:../descriptor-selection
       '@lorion-org/provider-selection':
         specifier: workspace:^
         version: link:../provider-selection
@@ -135,6 +150,9 @@ importers:
         specifier: ^19.0.0
         version: 19.2.5
     devDependencies:
+      '@lorion-org/capability-composition':
+        specifier: workspace:^
+        version: link:../capability-composition
       '@tanstack/react-router':
         specifier: ^1.168.25
         version: 1.168.26(react-dom@19.2.5(react@19.2.5))(react@19.2.5)

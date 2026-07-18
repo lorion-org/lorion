@@ -30,7 +30,7 @@ describe('collectProvidersByCapability', () => {
   it('collects deterministic unique providers for multiple capabilities', () => {
     const providersByCapability = collectProvidersByCapability({
       items: [
-        createCandidate('keycloak', 'auth'),
+        createCandidate('auth-oidc', 'auth'),
         createCandidate('auth-local-jwt', 'auth'),
         createCandidate('mailer-postmark', 'mailer'),
         createCandidate('auth-local-jwt', 'auth'),
@@ -43,7 +43,7 @@ describe('collectProvidersByCapability', () => {
 
     expect(providersByCapability).toEqual(
       new Map([
-        ['auth', ['auth-local-jwt', 'keycloak', 'suite-provider']],
+        ['auth', ['auth-local-jwt', 'auth-oidc', 'suite-provider']],
         ['mailer', ['mailer-postmark', 'suite-provider']],
       ]),
     );
@@ -56,7 +56,7 @@ describe('collectProviderPreferences', () => {
       items: [
         {
           providerPreferences: {
-            auth: 'keycloak',
+            auth: 'auth-oidc',
             mailer: '',
             search: 42,
           },
@@ -84,7 +84,7 @@ describe('collectProviderDefaults', () => {
     const defaults = collectProviderDefaults({
       items: [
         {
-          id: 'keycloak',
+          id: 'auth-oidc',
           defaultFor: 'auth',
         },
         {
@@ -97,7 +97,7 @@ describe('collectProviderDefaults', () => {
     });
 
     expect(defaults).toEqual({
-      auth: 'keycloak',
+      auth: 'auth-oidc',
       'payment-checkout': 'stripe',
     });
   });
@@ -107,7 +107,7 @@ describe('collectSelectedProviderPreferences', () => {
   it('collects selected provider preferences from explicitly selected provider ids', () => {
     const preferences = collectSelectedProviderPreferences({
       items: [
-        createCandidate('keycloak', 'auth'),
+        createCandidate('auth-oidc', 'auth'),
         createCandidate('auth-local-jwt', 'auth'),
         createCandidate('mailer-postmark', 'mailer'),
         createCandidate('suite-provider', ['auth', 'mailer']),
@@ -128,10 +128,10 @@ describe('resolveSelectedProviderRelationPreferences', () => {
   it('removes lower-priority provider relations when a provider is explicitly selected', () => {
     expect(
       resolveSelectedProviderRelationPreferences({
-        providerId: 'keycloak',
+        providerId: 'auth-oidc',
         defaultFor: ['auth', 'profile'],
         providerPreferences: {
-          auth: 'keycloak',
+          auth: 'auth-oidc',
           storage: 'storage-s3',
         },
         selectedProviders: {
@@ -163,13 +163,13 @@ describe('resolveProviderSelection', () => {
   it('prefers configured providers, then selected providers, then fallbacks, then first provider', () => {
     const result = resolveProviderSelection({
       providersByCapability: new Map([
-        ['auth', ['keycloak', 'auth-local-jwt']],
+        ['auth', ['auth-oidc', 'auth-local-jwt']],
         ['mailer', ['mailer-postmark', 'mailer-resend']],
         ['search', ['search-meilisearch', 'search-db']],
         ['storage', ['storage-local', 'storage-s3']],
       ]),
       configuredProviders: {
-        auth: 'keycloak',
+        auth: 'auth-oidc',
       },
       fallbackProviders: {
         mailer: 'mailer-resend',
@@ -186,8 +186,8 @@ describe('resolveProviderSelection', () => {
           'auth',
           {
             capabilityId: 'auth',
-            selectedProviderId: 'keycloak',
-            candidateProviderIds: ['auth-local-jwt', 'keycloak'],
+            selectedProviderId: 'auth-oidc',
+            candidateProviderIds: ['auth-local-jwt', 'auth-oidc'],
             mode: 'configured',
           },
         ],
@@ -231,7 +231,7 @@ describe('resolveProviderSelection', () => {
 
   it('skips capabilities with unknown configured providers', () => {
     const result = resolveProviderSelection({
-      providersByCapability: new Map([['auth', ['auth-local-jwt', 'keycloak']]]),
+      providersByCapability: new Map([['auth', ['auth-local-jwt', 'auth-oidc']]]),
       configuredProviders: {
         auth: 'missing-provider',
       },
@@ -249,12 +249,12 @@ describe('resolveProviderSelection', () => {
 
   it('does not silently fall back when a configured provider is invalid', () => {
     const result = resolveProviderSelection({
-      providersByCapability: new Map([['auth', ['auth-local-jwt', 'keycloak']]]),
+      providersByCapability: new Map([['auth', ['auth-local-jwt', 'auth-oidc']]]),
       configuredProviders: {
         auth: 'missing-provider',
       },
       fallbackProviders: {
-        auth: 'keycloak',
+        auth: 'auth-oidc',
       },
     });
 
@@ -271,7 +271,7 @@ describe('resolveProviderSelection', () => {
   it('ignores mismatches for capabilities without providers', () => {
     const result = resolveProviderSelection({
       providersByCapability: new Map([
-        ['auth', ['auth-local-jwt', 'keycloak']],
+        ['auth', ['auth-local-jwt', 'auth-oidc']],
         ['mailer', ['mailer-postmark']],
       ]),
       configuredProviders: {
@@ -300,7 +300,7 @@ describe('resolveItemProviderSelection', () => {
   it('collects and resolves provider selections in one call', () => {
     const result = resolveItemProviderSelection({
       items: [
-        createCandidate('keycloak', 'auth'),
+        createCandidate('auth-oidc', 'auth'),
         createCandidate('auth-local-jwt', 'auth'),
         createCandidate('mailer-postmark', 'mailer'),
       ],
@@ -321,7 +321,7 @@ describe('resolveItemProviderSelection', () => {
           {
             capabilityId: 'auth',
             selectedProviderId: 'auth-local-jwt',
-            candidateProviderIds: ['auth-local-jwt', 'keycloak'],
+            candidateProviderIds: ['auth-local-jwt', 'auth-oidc'],
             mode: 'configured',
           },
         ],
@@ -338,11 +338,11 @@ describe('resolveItemProviderSelection', () => {
     );
     expect(result.providersByCapability).toEqual(
       new Map([
-        ['auth', ['auth-local-jwt', 'keycloak']],
+        ['auth', ['auth-local-jwt', 'auth-oidc']],
         ['mailer', ['mailer-postmark']],
       ]),
     );
     expect(result.mismatches).toEqual([]);
-    expect(result.excludedProviderIds).toEqual(['keycloak']);
+    expect(result.excludedProviderIds).toEqual(['auth-oidc']);
   });
 });
