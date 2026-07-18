@@ -1,11 +1,5 @@
 {
   "id": "auth-oidc",
   "version": "1.0.0",
-  "providesFor": "auth",
-  "surfaces": {
-    "web": {
-      "exportSubpath": "./web",
-      "exportName": "authOidcWebPlugin"
-    }
-  }
+  "providesFor": "auth"
 }

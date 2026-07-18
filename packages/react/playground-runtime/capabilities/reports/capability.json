@@ -1,10 +1,4 @@
 {
   "id": "reports",
-  "version": "1.0.0",
-  "surfaces": {
-    "web": {
-      "exportSubpath": "./web",
-      "exportName": "reportsWebPlugin"
-    }
-  }
+  "version": "1.0.0"
 }

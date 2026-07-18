@@ -10,6 +10,7 @@
     "rootDir": "../..",
     "paths": {
       "@lorion-org/react": ["../src/index.ts"],
+      "@lorion-org/capability-composition": ["../../capability-composition/src/index.ts"],
       "@runtime-demo/plugin": ["./src/plugin.ts"],
       "@runtime-demo/*/web": ["./capabilities/*/src/web.ts"]
     }

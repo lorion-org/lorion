@@ -1,10 +1,4 @@
 {
   "id": "dashboard",
-  "version": "1.0.0",
-  "surfaces": {
-    "web": {
-      "exportSubpath": "./web",
-      "exportName": "dashboardWebPlugin"
-    }
-  }
+  "version": "1.0.0"
 }

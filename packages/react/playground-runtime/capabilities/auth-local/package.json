@@ -1,5 +1,5 @@
 {
-  "name": "@runtime-demo/auth-session",
+  "name": "@runtime-demo/auth-local",
   "version": "1.0.0",
   "private": true,
   "type": "module",

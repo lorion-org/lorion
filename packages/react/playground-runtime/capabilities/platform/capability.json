@@ -3,11 +3,5 @@
   "version": "1.0.0",
   "dependencies": {
     "tokens": "^1.0.0"
-  },
-  "surfaces": {
-    "web": {
-      "exportSubpath": "./web",
-      "exportName": "platformWebPlugin"
-    }
   }
 }

@@ -25,8 +25,10 @@ async function bootstrap(): Promise<void> {
       <main>
         <h1>Bring your own runtime</h1>
         <p>
-          Only the Vite capability loader runs at build time. This page consumes{' '}
-          <code>virtual:capabilities</code> with a small hand-written registry.
+          The <code>@lorion-org/react</code> capability loader resolves the descriptor graph at
+          build time and emits <code>virtual:capabilities</code>; surface activation uses the
+          framework-free convention from <code>@lorion-org/capability-composition</code>. This page
+          owns the runtime: a hand-written registry consumes the pre-resolved module list.
         </p>
 
         <section>
