@@ -100,6 +100,7 @@
   "dependencies": {
     "@lorion-org/composition-graph": "workspace:^",
     "@lorion-org/descriptor-discovery": "workspace:^",
+    "@lorion-org/descriptor-selection": "workspace:^",
     "@lorion-org/provider-selection": "workspace:^",
     "@lorion-org/runtime-config": "workspace:^",
     "@lorion-org/runtime-config-node": "workspace:^"

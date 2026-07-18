@@ -2,26 +2,19 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
 import { loadEnv } from 'vite';
-import {
-  createCompositionSelection,
-  createDescriptorCatalog,
-  resolveDescriptorSelectionSeed,
-  type CompositionPolicy,
-  type Descriptor,
-  type DescriptorId,
-  type DescriptorSelectionSeedInput,
-  type RelationDescriptor,
+import type {
+  CompositionPolicy,
+  Descriptor,
+  DescriptorId,
+  DescriptorSelectionSeedInput,
+  RelationDescriptor,
 } from '@lorion-org/composition-graph';
 import {
   descriptorSchema,
   discoverDescriptors,
   type DiscoveredDescriptor,
 } from '@lorion-org/descriptor-discovery';
-import {
-  collectSelectedProviderPreferences,
-  resolveSelectedProviderRelationPreferences,
-  type ProviderPreferenceMap,
-} from '@lorion-org/provider-selection';
+import { resolveDescriptorSelection, selectDescriptors } from '@lorion-org/descriptor-selection';
 import {
   createRuntimeConfigValidatorRegistry,
   projectRuntimeConfigNamespaces,
@@ -40,10 +33,6 @@ import {
   type RuntimeConfigPathPatternSource,
   type RuntimeConfigSchemaValidationErrorFormatter,
 } from '@lorion-org/runtime-config-node';
-import {
-  createCapabilityCompositionPolicy,
-  defaultCapabilityRelationDescriptors,
-} from './relations';
 
 const virtualModuleId = 'virtual:capabilities';
 const resolvedVirtualModuleId = `\0${virtualModuleId}`;
@@ -306,92 +295,20 @@ function selectCapabilities(
     | 'selectionSeed'
   > = {},
 ): DiscoveredCapability[] {
-  const enabledCapabilities = capabilities.filter((capability) => capability.disabled !== true);
-  const selected = resolveCapabilitySelectionSeed(options);
-
-  if (!selected.length && !options.baseDescriptors?.length) {
-    return [...enabledCapabilities];
-  }
-
-  const selectedProviders = collectSelectedProviderPreferences({
-    items: enabledCapabilities,
-    getCapabilityId: (capability) => capability.manifest.providesFor,
-    getProviderId: (capability) => capability.id,
-    selectedProviderIds: selected,
-  });
-  const selectionCapabilities = createProviderSelectionAwareCapabilities(
-    enabledCapabilities,
-    selectedProviders,
-  );
-  const catalog = createDescriptorCatalog({
-    descriptors: selectionCapabilities.map((capability) => capability.manifest),
-    relationDescriptors: [
-      ...defaultCapabilityRelationDescriptors,
-      ...(options.relationDescriptors ?? []),
-    ],
-  });
-  const selection = createCompositionSelection({
-    catalog,
-    selected: [...selected],
-    baseDescriptors: [...(options.baseDescriptors ?? [])],
-    policy: createCapabilityCompositionPolicy(options.policy),
-  });
-  const selectedIds = new Set(selection.getResolved());
-
-  return selectionCapabilities.filter((capability) => selectedIds.has(capability.id));
-}
-
-function createProviderSelectionAwareCapabilities(
-  capabilities: readonly DiscoveredCapability[],
-  selectedProviders: ProviderPreferenceMap,
-): DiscoveredCapability[] {
-  if (!Object.keys(selectedProviders).length) return [...capabilities];
-
-  return capabilities.map((capability) => {
-    const manifest = { ...capability.manifest };
-    const preferences = resolveSelectedProviderRelationPreferences({
-      providerId: capability.id,
-      defaultFor: manifest.defaultFor,
-      providerPreferences: manifest.providerPreferences as ProviderPreferenceMap | undefined,
-      selectedProviders,
-    });
-
-    delete manifest.defaultFor;
-    delete manifest.providerPreferences;
-
-    return {
-      ...capability,
-      manifest: {
-        ...manifest,
-        ...preferences,
-      },
-    };
+  return selectDescriptors({
+    items: capabilities,
+    getDescriptor: (capability) => capability.manifest,
+    withDescriptor: (capability, manifest) => ({ ...capability, manifest }),
+    seed: options,
+    ...(options.relationDescriptors ? { relationDescriptors: options.relationDescriptors } : {}),
+    ...(options.policy ? { policy: options.policy } : {}),
   });
 }
 
 function resolveSelectionSeed(
   options: Pick<CapabilityLoaderOptions, 'defaultSelection' | 'selected' | 'selectionSeed'>,
 ): DescriptorId[] {
-  return resolveCapabilitySelectionSeed(options);
-}
-
-function resolveCapabilitySelectionSeed(
-  options: Pick<CapabilityLoaderOptions, 'defaultSelection' | 'selected' | 'selectionSeed'>,
-): DescriptorId[] {
-  if (options.selected?.length) return [...options.selected];
-
-  if (options.selectionSeed === false) return [...(options.defaultSelection ?? [])];
-
-  const seedOptions = options.selectionSeed ?? {};
-  const selected = resolveDescriptorSelectionSeed({
-    argv: seedOptions.argv ?? process.argv,
-    env: seedOptions.env ?? process.env,
-    key: seedOptions.key ?? 'capability',
-    ...(seedOptions.cliKeys ? { cliKeys: seedOptions.cliKeys } : {}),
-    ...(seedOptions.envKeys ? { envKeys: seedOptions.envKeys } : {}),
-  });
-
-  return selected.length ? selected : [...(options.defaultSelection ?? [])];
+  return resolveDescriptorSelection(options);
 }
 
 export function renderCapabilityModule(

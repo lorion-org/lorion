@@ -343,8 +343,8 @@ describe('Nuxt extension bootstrap', () => {
   it('accepts runtime config validation policy metadata', () => {
     const root = createTempRoot();
 
-    createExtension(root, 'keycloak', {
-      id: 'keycloak',
+    createExtension(root, 'auth-oidc', {
+      id: 'auth-oidc',
       runtimeConfig: {
         validation: 'onUse',
       },
@@ -354,7 +354,7 @@ describe('Nuxt extension bootstrap', () => {
     const bootstrap = createNuxtExtensionBootstrap({
       rootDir: root,
       options: {
-        selected: 'keycloak',
+        selected: 'auth-oidc',
       },
     });
 
@@ -366,8 +366,8 @@ describe('Nuxt extension bootstrap', () => {
   it('rejects unknown runtime config validation policy metadata', () => {
     const root = createTempRoot();
 
-    createExtension(root, 'keycloak', {
-      id: 'keycloak',
+    createExtension(root, 'auth-oidc', {
+      id: 'auth-oidc',
       runtimeConfig: {
         validation: 'sometimes',
       },
@@ -471,8 +471,8 @@ describe('Nuxt extension bootstrap', () => {
       providesFor: 'auth',
       version: '1.0.0',
     });
-    createExtension(root, 'keycloak', {
-      id: 'keycloak',
+    createExtension(root, 'auth-oidc', {
+      id: 'auth-oidc',
       defaultFor: 'auth',
       providesFor: 'auth',
       version: '1.0.0',
@@ -480,22 +480,22 @@ describe('Nuxt extension bootstrap', () => {
 
     const bootstrap = createNuxtExtensionBootstrap({ rootDir: root });
 
-    expect(bootstrap.resolvedExtensionIds).toContain('keycloak');
+    expect(bootstrap.resolvedExtensionIds).toContain('auth-oidc');
     expect(createNuxtProviderSelectionRuntimeConfig(bootstrap.resolvedExtensions)).toEqual({
       public: {
         providerSelection: {
           configuredProviders: {},
           excludedProviderIds: ['auth-local-jwt'],
           fallbackProviders: {
-            auth: 'keycloak',
+            auth: 'auth-oidc',
           },
           mismatches: [],
           selections: {
             auth: {
               capabilityId: 'auth',
-              candidateProviderIds: ['auth-local-jwt', 'keycloak'],
+              candidateProviderIds: ['auth-local-jwt', 'auth-oidc'],
               mode: 'fallback',
-              selectedProviderId: 'keycloak',
+              selectedProviderId: 'auth-oidc',
             },
           },
         },
@@ -529,19 +529,19 @@ describe('Nuxt extension bootstrap', () => {
     );
     createExtension(
       root,
-      'keycloak',
+      'auth-oidc',
       {
-        id: 'keycloak',
+        id: 'auth-oidc',
         defaultFor: 'auth',
         providesFor: 'auth',
         version: '1.0.0',
       },
       ['app'],
     );
-    createExtension(root, 'feature-prefers-keycloak', {
-      id: 'feature-prefers-keycloak',
+    createExtension(root, 'feature-prefers-oidc', {
+      id: 'feature-prefers-oidc',
       providerPreferences: {
-        auth: 'keycloak',
+        auth: 'auth-oidc',
       },
       version: '1.0.0',
     });
@@ -550,13 +550,13 @@ describe('Nuxt extension bootstrap', () => {
       rootDir: root,
       options: {
         baseExtensions: 'default',
-        selected: ['auth-local-jwt', 'feature-prefers-keycloak'],
+        selected: ['auth-local-jwt', 'feature-prefers-oidc'],
       },
     });
 
     expect(bootstrap.resolvedExtensionIds).toContain('auth-local-jwt');
-    expect(bootstrap.resolvedExtensionIds).toContain('feature-prefers-keycloak');
-    expect(bootstrap.resolvedExtensionIds).not.toContain('keycloak');
+    expect(bootstrap.resolvedExtensionIds).toContain('feature-prefers-oidc');
+    expect(bootstrap.resolvedExtensionIds).not.toContain('auth-oidc');
     expect(
       createNuxtProviderSelectionRuntimeConfig(bootstrap.resolvedExtensions, {
         selectedProviders: {
@@ -604,9 +604,9 @@ describe('Nuxt extension bootstrap', () => {
     );
     createExtension(
       root,
-      'keycloak',
+      'auth-oidc',
       {
-        id: 'keycloak',
+        id: 'auth-oidc',
         defaultFor: 'auth',
         providesFor: 'auth',
         version: '1.0.0',

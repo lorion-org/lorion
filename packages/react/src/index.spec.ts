@@ -156,14 +156,14 @@ describe('createCapabilityRuntime', () => {
   it('reads scoped public runtime config without exposing private values', () => {
     const runtimeConfig = {
       public: {
-        keycloak: {
+        'auth-oidc': {
           clientId: 'web',
           realm: 'demo',
         },
       },
     };
 
-    expect(getCapabilityRuntimeConfig(runtimeConfig, 'keycloak')).toEqual({
+    expect(getCapabilityRuntimeConfig(runtimeConfig, 'auth-oidc')).toEqual({
       public: {
         clientId: 'web',
         realm: 'demo',

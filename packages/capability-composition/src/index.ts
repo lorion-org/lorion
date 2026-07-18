@@ -1,44 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import process from 'node:process';
-import {
-  createCompositionSelection,
-  createDescriptorCatalog,
-  resolveDescriptorSelectionSeed,
-  type CompositionPolicy,
-  type Descriptor,
-  type DescriptorId,
-  type RelationDescriptor,
-} from '@lorion-org/composition-graph';
+import type { CompositionPolicy, Descriptor, DescriptorId } from '@lorion-org/composition-graph';
 import { descriptorSchema, discoverDescriptors } from '@lorion-org/descriptor-discovery';
-import {
-  collectSelectedProviderPreferences,
-  resolveSelectedProviderRelationPreferences,
-  type ProviderPreferenceMap,
-} from '@lorion-org/provider-selection';
+import { selectDescriptors } from '@lorion-org/descriptor-selection';
 
-// Capability composition model: how a set of descriptor-defined capabilities is
-// selected, activated, and composed at runtime. Framework-free, so any host
-// (React/Vite build, a Bun server, another runtime) reuses one composition brain
-// and only supplies its own activation convention and registration.
-
-const RESOLUTION_RELATIONS = ['dependencies', 'defaultProviders', 'providerPreferences'] as const;
-
-const CAPABILITY_RELATION_DESCRIPTORS: RelationDescriptor[] = [
-  { direction: 'incoming', field: 'defaultFor', id: 'defaultProviders' },
-  { field: 'providerPreferences', id: 'providerPreferences', targetMode: 'values' },
-];
-
-function capabilityCompositionPolicy(
-  policy?: Partial<CompositionPolicy>,
-): Partial<CompositionPolicy> {
-  return {
-    ...policy,
-    inspectionRelationIds: policy?.inspectionRelationIds ?? [...RESOLUTION_RELATIONS],
-    provenanceRelationIds: policy?.provenanceRelationIds ?? [...RESOLUTION_RELATIONS],
-    resolutionRelationIds: policy?.resolutionRelationIds ?? [...RESOLUTION_RELATIONS],
-  };
-}
+// Capability composition: descriptor-defined capabilities that live as filesystem
+// packages, composed into a host. This package owns disk discovery, surface-
+// convention activation, and the runtime/build-time compose loop; resolving the
+// active set (seed, dependencies, one provider per capability) is delegated to
+// @lorion-org/descriptor-selection, so no selection logic is duplicated here.
 
 export interface CapabilitySelectionSeed {
   baseDescriptors?: readonly DescriptorId[];
@@ -70,22 +40,9 @@ function readPackageName(directory: string): string {
   return json.name;
 }
 
-function resolveSeed(seed: CapabilitySelectionSeed): DescriptorId[] {
-  if (seed.selected?.length) return [...seed.selected];
-  if (seed.selectionSeed === false) return [...(seed.defaultSelection ?? [])];
-  const options = seed.selectionSeed ?? {};
-  const selected = resolveDescriptorSelectionSeed({
-    argv: options.argv ?? process.argv,
-    env: options.env ?? process.env,
-    key: 'capability',
-    ...(options.cliKeys ? { cliKeys: options.cliKeys } : {}),
-    ...(options.envKeys ? { envKeys: options.envKeys } : {}),
-  });
-  return selected.length ? selected : [...(seed.defaultSelection ?? [])];
-}
-
 // Resolves the active capability set: base + seed + transitive dependencies +
-// exactly one provider per capability.
+// exactly one provider per capability, over capabilities discovered on disk.
+// The selection itself is owned by @lorion-org/descriptor-selection.
 export function resolveSelectedCapabilities(options: {
   workspaceRoot: string;
   capabilitiesDir?: string;
@@ -93,55 +50,27 @@ export function resolveSelectedCapabilities(options: {
   policy?: Partial<CompositionPolicy>;
 }): ResolvedCapability[] {
   const capabilitiesDir = options.capabilitiesDir ?? 'capabilities';
-  const items: ResolvedCapability[] = discoverDescriptors({
+  const items = discoverDescriptors({
     cwd: options.workspaceRoot,
     descriptorPaths: [`${capabilitiesDir}/*/capability.json`],
     validation: { schema: descriptorSchema },
   }).map((entry) => ({
     id: entry.descriptor.id,
     directory: entry.cwd,
-    packageName: readPackageName(entry.cwd),
     descriptor: entry.descriptor,
   }));
 
-  const selected = resolveSeed(options.seed);
-  if (!selected.length && !options.seed.baseDescriptors?.length) return items;
-
-  const selectedProviders = collectSelectedProviderPreferences({
+  const selected = selectDescriptors({
     items,
-    getCapabilityId: (item) => item.descriptor.providesFor,
-    getProviderId: (item) => item.id,
-    selectedProviderIds: selected,
+    getDescriptor: (item) => item.descriptor,
+    withDescriptor: (item, descriptor) => ({ ...item, descriptor }),
+    seed: options.seed,
+    ...(options.policy ? { policy: options.policy } : {}),
   });
 
-  const selectionItems = Object.keys(selectedProviders).length
-    ? items.map((item) => {
-        const manifest: Descriptor = { ...item.descriptor };
-        const preferences = resolveSelectedProviderRelationPreferences({
-          providerId: item.id,
-          defaultFor: manifest.defaultFor,
-          providerPreferences: manifest.providerPreferences as ProviderPreferenceMap | undefined,
-          selectedProviders,
-        });
-        delete manifest.defaultFor;
-        delete manifest.providerPreferences;
-        return { ...item, descriptor: { ...manifest, ...preferences } };
-      })
-    : items;
-
-  const catalog = createDescriptorCatalog({
-    descriptors: selectionItems.map((item) => item.descriptor),
-    relationDescriptors: CAPABILITY_RELATION_DESCRIPTORS,
-  });
-  const selection = createCompositionSelection({
-    catalog,
-    selected: [...selected],
-    baseDescriptors: [...(options.seed.baseDescriptors ?? [])],
-    policy: capabilityCompositionPolicy(options.policy),
-  });
-  const resolvedIds = new Set(selection.getResolved());
-
-  return selectionItems.filter((item) => resolvedIds.has(item.id));
+  // Read package.json only for the resolved set: an unrelated broken or nameless
+  // package.json must not abort a composition that never imports that capability.
+  return selected.map((item) => ({ ...item, packageName: readPackageName(item.directory) }));
 }
 
 export interface SurfaceActivation {
@@ -179,9 +108,39 @@ export function conventionActivation(
   };
 }
 
+export interface CapabilitySurfaceModule {
+  capability: ResolvedCapability;
+  specifier: string;
+  exportName: string;
+}
+
+// For each active capability that provides the surface, the module specifier and
+// export name to import. This is the seam shared by both host styles: the runtime
+// loop (composeCapabilities) feeds each specifier to a dynamic `load`, while a
+// build-time host code-generates static imports from the same list. One place
+// owns the specifier and activation logic.
+export function resolveSurfaceModules(
+  active: readonly ResolvedCapability[],
+  surface: string,
+  activation: ActivationResolver,
+): CapabilitySurfaceModule[] {
+  return active.flatMap((capability) => {
+    const entry = activation(surface, { directory: capability.directory, id: capability.id });
+    if (!entry) return [];
+    return [
+      {
+        capability,
+        specifier: `${capability.packageName}${entry.exportSubpath.replace(/^\./, '')}`,
+        exportName: entry.exportName,
+      },
+    ];
+  });
+}
+
 // Runtime composition: resolve the active set, and for each capability that
 // provides the requested surface, load its module and hand the exported value to
-// the host's registration. Registry- and framework-agnostic.
+// the host's registration. Registry- and framework-agnostic. A build-time host
+// uses `resolveSurfaceModules` directly to emit static imports instead.
 export async function composeCapabilities(options: {
   workspaceRoot: string;
   capabilitiesDir?: string;
@@ -198,15 +157,13 @@ export async function composeCapabilities(options: {
   });
   const activated: ResolvedCapability[] = [];
 
-  for (const capability of active) {
-    const entry = options.activation(options.surface, {
-      directory: capability.directory,
-      id: capability.id,
-    });
-    if (!entry) continue;
-    const specifier = `${capability.packageName}${entry.exportSubpath.slice(1)}`;
+  for (const { capability, specifier, exportName } of resolveSurfaceModules(
+    active,
+    options.surface,
+    options.activation,
+  )) {
     const module = await options.load(specifier);
-    const exportValue = module[entry.exportName];
+    const exportValue = module[exportName];
     if (exportValue === undefined) continue;
     await options.register(exportValue, capability);
     activated.push(capability);

@@ -15,9 +15,14 @@ import {
   collectProviderPreferences,
   collectSelectedProviderPreferences,
   resolveItemProviderSelection,
-  resolveSelectedProviderRelationPreferences,
   type ProviderPreferenceMap,
 } from '@lorion-org/provider-selection';
+import {
+  applyProviderSelection,
+  assertSingleDefaultProvider,
+  descriptorSelectionPolicy,
+  providerRelationDescriptors,
+} from '@lorion-org/descriptor-selection';
 import type { RuntimeConfigValidationPolicy } from '@lorion-org/runtime-config';
 import type {
   NuxtBaseExtensionSelectionInput,
@@ -79,23 +84,6 @@ const defaultExtensionOptions = {
   descriptorPaths: ['extensions/*/extension.json'],
 } as const;
 const defaultExtensionSelectionSeedKey = 'capability';
-const defaultExtensionResolutionRelations = [
-  'dependencies',
-  'defaultProviders',
-  'providerPreferences',
-];
-const defaultNuxtRelationDescriptors: RelationDescriptor[] = [
-  {
-    direction: 'incoming',
-    field: 'defaultFor',
-    id: 'defaultProviders',
-  },
-  {
-    id: 'providerPreferences',
-    field: 'providerPreferences',
-    targetMode: 'values',
-  },
-];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -243,7 +231,7 @@ export function createNuxtExtensionCatalog(input: {
 }): DescriptorCatalog {
   return createDescriptorCatalog({
     descriptors: input.entries.map((entry) => entry.descriptor),
-    relationDescriptors: [...defaultNuxtRelationDescriptors, ...(input.relationDescriptors ?? [])],
+    relationDescriptors: [...providerRelationDescriptors, ...(input.relationDescriptors ?? [])],
   });
 }
 
@@ -262,6 +250,9 @@ function pickEntriesById(
     .filter((entry): entry is NuxtExtensionEntry => Boolean(entry));
 }
 
+// The capability -> selected-provider map, used by the module to expose provider
+// selection through runtime config. The selection cleaning itself is delegated to
+// @lorion-org/descriptor-selection's `applyProviderSelection`.
 export function createNuxtSelectedProviderPreferences(input: {
   entries: NuxtExtensionEntry[];
   selectedExtensions: string[];
@@ -271,34 +262,6 @@ export function createNuxtSelectedProviderPreferences(input: {
     getCapabilityId: (entry) => entry.descriptor.providesFor,
     getProviderId: (entry) => entry.descriptor.id,
     selectedProviderIds: input.selectedExtensions,
-  });
-}
-
-function createProviderSelectionAwareEntries(
-  entries: NuxtExtensionEntry[],
-  selectedProviders: ProviderPreferenceMap,
-): NuxtExtensionEntry[] {
-  if (!Object.keys(selectedProviders).length) return entries;
-
-  return entries.map((entry) => {
-    const descriptor = { ...entry.descriptor };
-    const preferences = resolveSelectedProviderRelationPreferences({
-      providerId: entry.descriptor.id,
-      defaultFor: entry.descriptor.defaultFor,
-      providerPreferences: entry.descriptor.providerPreferences,
-      selectedProviders,
-    });
-
-    delete descriptor.defaultFor;
-    delete descriptor.providerPreferences;
-
-    return {
-      ...entry,
-      descriptor: {
-        ...descriptor,
-        ...preferences,
-      },
-    };
   });
 }
 
@@ -405,19 +368,18 @@ export function createNuxtExtensionBootstrap(input: {
     };
   }
 
-  const selectedProviders = createNuxtSelectedProviderPreferences({
-    entries,
-    selectedExtensions,
+  assertSingleDefaultProvider(entries.map((entry) => entry.descriptor));
+
+  const resolutionEntries = applyProviderSelection({
+    items: entries,
+    selected: selectedExtensions,
+    getDescriptor: (entry) => entry.descriptor,
+    withDescriptor: (entry, descriptor) => ({ ...entry, descriptor }),
   });
-  const resolutionEntries = createProviderSelectionAwareEntries(entries, selectedProviders);
   const catalog = createCatalog(resolutionEntries);
   const selection = catalog.resolveSelection({
     baseDescriptors: baseExtensionIds,
-    policy: {
-      inspectionRelationIds: defaultExtensionResolutionRelations,
-      provenanceRelationIds: defaultExtensionResolutionRelations,
-      resolutionRelationIds: defaultExtensionResolutionRelations,
-    },
+    policy: descriptorSelectionPolicy(),
     selected: selectedExtensions,
   });
   const resolvedExtensionIds = selection.getResolved();

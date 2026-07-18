@@ -236,7 +236,7 @@ describe('React capability Vite helpers', () => {
     const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-capability-loader-'));
 
     writeCapability(workspaceRoot, 'auth', '@react-workspace/auth');
-    writeCapability(workspaceRoot, 'keycloak', '@react-workspace/keycloak', {
+    writeCapability(workspaceRoot, 'auth-oidc', '@react-workspace/auth-oidc', {
       defaultFor: 'auth',
       providesFor: 'auth',
     });
@@ -246,7 +246,25 @@ describe('React capability Vite helpers', () => {
       selected: ['auth'],
     });
 
-    expect(capabilities.map((capability) => capability.id)).toEqual(['auth', 'keycloak']);
+    expect(capabilities.map((capability) => capability.id)).toEqual(['auth', 'auth-oidc']);
+  });
+
+  it('throws when two providers declare defaultFor the same capability', () => {
+    const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-capability-loader-'));
+
+    writeCapability(workspaceRoot, 'auth', '@react-workspace/auth');
+    writeCapability(workspaceRoot, 'auth-oidc', '@react-workspace/auth-oidc', {
+      defaultFor: 'auth',
+      providesFor: 'auth',
+    });
+    writeCapability(workspaceRoot, 'auth-local', '@react-workspace/auth-local', {
+      defaultFor: 'auth',
+      providesFor: 'auth',
+    });
+
+    expect(() => discoverSelectedCapabilities(workspaceRoot, { selected: ['auth'] })).toThrow(
+      /exactly one defaultFor provider per capability/,
+    );
   });
 
   it('uses explicitly selected provider capabilities before preferences and defaults', () => {
@@ -256,24 +274,24 @@ describe('React capability Vite helpers', () => {
     writeCapability(workspaceRoot, 'auth-local-jwt', '@react-workspace/auth-local-jwt', {
       providesFor: 'auth',
     });
-    writeCapability(workspaceRoot, 'keycloak', '@react-workspace/keycloak', {
+    writeCapability(workspaceRoot, 'auth-oidc', '@react-workspace/auth-oidc', {
       defaultFor: 'auth',
       providesFor: 'auth',
     });
-    writeCapability(workspaceRoot, 'feature-prefers-keycloak', '@react-workspace/feature', {
+    writeCapability(workspaceRoot, 'feature-prefers-oidc', '@react-workspace/feature', {
       providerPreferences: {
-        auth: 'keycloak',
+        auth: 'auth-oidc',
       },
     });
 
     const capabilities = discoverSelectedCapabilities(workspaceRoot, {
-      selected: ['auth', 'auth-local-jwt', 'feature-prefers-keycloak'],
+      selected: ['auth', 'auth-local-jwt', 'feature-prefers-oidc'],
     });
 
     expect(capabilities.map((capability) => capability.id)).toEqual([
       'auth',
       'auth-local-jwt',
-      'feature-prefers-keycloak',
+      'feature-prefers-oidc',
     ]);
   });
 
@@ -287,7 +305,7 @@ describe('React capability Vite helpers', () => {
     writeCapability(workspaceRoot, 'auth-local-jwt', '@react-workspace/auth-local-jwt', {
       providesFor: 'auth',
     });
-    writeCapability(workspaceRoot, 'keycloak', '@react-workspace/keycloak', {
+    writeCapability(workspaceRoot, 'auth-oidc', '@react-workspace/auth-oidc', {
       defaultFor: 'auth',
       providesFor: 'auth',
     });
@@ -384,15 +402,15 @@ describe('React capability Vite helpers', () => {
   it('loads runtime config for selected capabilities from files and env', () => {
     const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-runtime-config-'));
 
-    writeCapability(workspaceRoot, 'keycloak', '@react-workspace/keycloak', {
+    writeCapability(workspaceRoot, 'auth-oidc', '@react-workspace/auth-oidc', {
       runtimeConfig: { validation: 'startup' },
     });
     writeCapability(workspaceRoot, 'data', '@react-workspace/data');
-    writeRuntimeConfigSchema(workspaceRoot, 'keycloak', {
+    writeRuntimeConfigSchema(workspaceRoot, 'auth-oidc', {
       public: ['url', 'clientId'],
       private: ['clientSecret'],
     });
-    writeRuntimeConfigFile(join(workspaceRoot, '.data'), 'keycloak', {
+    writeRuntimeConfigFile(join(workspaceRoot, '.data'), 'auth-oidc', {
       public: {
         url: 'https://file.example',
       },
@@ -402,7 +420,7 @@ describe('React capability Vite helpers', () => {
     });
 
     const capabilities = discoverSelectedCapabilities(workspaceRoot, {
-      selected: ['keycloak'],
+      selected: ['auth-oidc'],
     });
     const runtimeConfig = createReactRuntimeConfig(
       capabilities,
@@ -410,8 +428,8 @@ describe('React capability Vite helpers', () => {
       {
         env: {
           env: {
-            KEYCLOAK_CLIENT_SECRET: 'env-secret',
-            VITE_KEYCLOAK_CLIENT_ID: 'web',
+            AUTH_OIDC_CLIENT_SECRET: 'env-secret',
+            VITE_AUTH_OIDC_CLIENT_ID: 'web',
           },
         },
       },
@@ -420,13 +438,13 @@ describe('React capability Vite helpers', () => {
 
     expect(runtimeConfig).toEqual({
       public: {
-        keycloak: {
+        'auth-oidc': {
           clientId: 'web',
           url: 'https://file.example',
         },
       },
       private: {
-        keycloak: {
+        'auth-oidc': {
           clientSecret: 'env-secret',
         },
       },
@@ -437,18 +455,18 @@ describe('React capability Vite helpers', () => {
     const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-runtime-config-'));
     const varDir = mkdtempSync(join(tmpdir(), 'lorion-react-var-dir-'));
 
-    writeCapability(workspaceRoot, 'keycloak', '@react-workspace/keycloak');
-    writeRuntimeConfigSchema(workspaceRoot, 'keycloak', {
+    writeCapability(workspaceRoot, 'auth-oidc', '@react-workspace/auth-oidc');
+    writeRuntimeConfigSchema(workspaceRoot, 'auth-oidc', {
       public: ['url'],
     });
-    writeRuntimeConfigFile(varDir, 'keycloak', {
+    writeRuntimeConfigFile(varDir, 'auth-oidc', {
       public: {
         url: 'https://var-dir.example',
       },
     });
 
     const capabilities = discoverSelectedCapabilities(workspaceRoot, {
-      selected: ['keycloak'],
+      selected: ['auth-oidc'],
     });
     const runtimeConfig = createReactRuntimeConfig(
       capabilities,
@@ -466,7 +484,7 @@ describe('React capability Vite helpers', () => {
       { root: workspaceRoot },
     );
 
-    expect(runtimeConfig.public.keycloak).toEqual({
+    expect(runtimeConfig.public['auth-oidc']).toEqual({
       url: 'https://var-dir.example',
     });
   });
@@ -474,12 +492,12 @@ describe('React capability Vite helpers', () => {
   it('does not expose private runtime config in the public virtual module', () => {
     const source = renderRuntimeConfigModule({
       public: {
-        keycloak: {
+        'auth-oidc': {
           url: 'https://example.test',
         },
       },
       private: {
-        keycloak: {
+        'auth-oidc': {
           clientSecret: 'secret',
         },
       },
@@ -504,15 +522,15 @@ describe('React capability Vite helpers', () => {
   it('validates startup runtime config against capability schemas', () => {
     const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-runtime-config-'));
 
-    writeCapability(workspaceRoot, 'keycloak', '@react-workspace/keycloak', {
+    writeCapability(workspaceRoot, 'auth-oidc', '@react-workspace/auth-oidc', {
       runtimeConfig: { validation: 'startup' },
     });
-    writeRuntimeConfigSchema(workspaceRoot, 'keycloak', {
+    writeRuntimeConfigSchema(workspaceRoot, 'auth-oidc', {
       public: ['url'],
     });
 
     const capabilities = discoverSelectedCapabilities(workspaceRoot, {
-      selected: ['keycloak'],
+      selected: ['auth-oidc'],
     });
 
     expect(() =>
@@ -530,16 +548,16 @@ describe('React capability Vite helpers', () => {
   it('fails fast when a runtime config schema file is malformed', () => {
     const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-runtime-config-'));
 
-    writeCapability(workspaceRoot, 'keycloak', '@react-workspace/keycloak', {
+    writeCapability(workspaceRoot, 'auth-oidc', '@react-workspace/auth-oidc', {
       runtimeConfig: { validation: 'startup' },
     });
     writeFileSync(
-      join(workspaceRoot, 'capabilities', 'keycloak', 'capability.schema.json'),
+      join(workspaceRoot, 'capabilities', 'auth-oidc', 'capability.schema.json'),
       '{ malformed json',
     );
 
     const capabilities = discoverSelectedCapabilities(workspaceRoot, {
-      selected: ['keycloak'],
+      selected: ['auth-oidc'],
     });
 
     expect(() =>
@@ -557,14 +575,14 @@ describe('React capability Vite helpers', () => {
   it('ignores runtime config for inactive capabilities', () => {
     const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-runtime-config-'));
 
-    writeCapability(workspaceRoot, 'keycloak', '@react-workspace/keycloak');
+    writeCapability(workspaceRoot, 'auth-oidc', '@react-workspace/auth-oidc');
     writeCapability(workspaceRoot, 'data', '@react-workspace/data');
     writeRuntimeConfigSchema(workspaceRoot, 'data', {
       public: ['url'],
     });
 
     const capabilities = discoverSelectedCapabilities(workspaceRoot, {
-      selected: ['keycloak'],
+      selected: ['auth-oidc'],
     });
     const runtimeConfig = createReactRuntimeConfig(
       capabilities,
