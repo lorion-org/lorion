@@ -26,7 +26,6 @@ Usually do not add a Changeset for:
 - tests only
 - documentation only
 - internal refactors with no consumer-visible behavior change
-- private FUSEN consumer wiring
 - non-publishable workspace tooling
 
 If a change is ambiguous, prefer adding a small patch Changeset and explain the
@@ -76,7 +75,6 @@ Examples:
   gets `minor`; adapter packages get a Changeset only if their public behavior
   also changes.
 - README-only correction: no Changeset.
-- FUSEN changes to consume a new Lorion API: no Lorion Changeset.
 
 ## Workflow
 

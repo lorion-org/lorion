@@ -69,7 +69,7 @@ selection, and `virtual:capabilities` build output. They differ only in how much
 of the React side the host delegates to this package. Neither is a special case;
 choose one per product.
 
-### Model A: composition runtime and capability routing
+### Model A: React capability runtime and routing
 
 `lorionReact()` wires the Vite capability loader, the React capability runtime
 (`createCapabilityRuntime`), and TanStack file-based route composition together.
@@ -96,7 +96,7 @@ and only needs LORION for selection and activation.
 | Activation    | `./capability` convention                | explicit `activation` resolver, graph-only otherwise |
 | Host consumes | provider and contribution contracts      | `capabilityModules` from `virtual:capabilities`      |
 
-## Composition Runtime (Model A)
+## React Capability Runtime (Model A)
 
 ```ts
 import { CapabilityRuntimeProvider, createCapabilityRuntime } from '@lorion-org/react';
@@ -352,10 +352,10 @@ The adapter also reads Vite env files and process env. Public keys use the
 `<CAPABILITY>_<KEY>`:
 
 ```text
-VITE_KEYCLOAK_URL=https://id.example.test
-VITE_KEYCLOAK_REALM=demo
-VITE_KEYCLOAK_CLIENT_ID=web
-KEYCLOAK_CLIENT_SECRET=server-only
+VITE_AUTH_OIDC_URL=https://id.example.test
+VITE_AUTH_OIDC_REALM=demo
+VITE_AUTH_OIDC_CLIENT_ID=web
+AUTH_OIDC_CLIENT_SECRET=server-only
 ```
 
 Env values override runtime files. Only `public` config is emitted through
@@ -380,8 +380,8 @@ Capability code reads scoped public config:
 ```ts
 import { useCapabilityRuntimeConfig } from '@lorion-org/react';
 
-const keycloak = useCapabilityRuntimeConfig('keycloak');
-console.log(keycloak.public.url);
+const authOidc = useCapabilityRuntimeConfig('auth-oidc');
+console.log(authOidc.public.url);
 ```
 
 ## Provider Selection

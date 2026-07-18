@@ -18,9 +18,10 @@ behave today and what has to be true before a stable `1.0.0`.
 
 `1.0.0` is not a date. It ships once the ecosystem is proven end to end:
 
-- [ ] Public APIs of the core packages (`composition-graph`,
-      `descriptor-discovery`, `provider-selection`, `runtime-config`) hold steady
-      across a full beta cycle with no pending breaking changes.
+- [ ] Public APIs of the core packages (`capability-composition`,
+      `composition-graph`, `descriptor-discovery`, `descriptor-selection`,
+      `provider-selection`, `runtime-config`) hold steady across a full beta cycle
+      with no pending breaking changes.
 - [ ] Both framework adapters (`react`, `nuxt`) are proven by a complete,
       working integration in a production application, not only in playgrounds.
 - [ ] Documentation covers the descriptor, selection, and provider model and both

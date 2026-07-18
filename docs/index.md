@@ -28,6 +28,7 @@ React.
 - [capability-composition](../packages/capability-composition/README.md)
 - [composition-graph](../packages/composition-graph/README.md)
 - [descriptor-discovery](../packages/descriptor-discovery/README.md)
+- [descriptor-selection](../packages/descriptor-selection/README.md)
 - [provider-selection](../packages/provider-selection/README.md)
 - [react](../packages/react/README.md)
 - [registry-hub](../packages/registry-hub/README.md)

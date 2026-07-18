@@ -2,8 +2,10 @@
   "mode": "pre",
   "tag": "beta",
   "initialVersions": {
+    "@lorion-org/capability-composition": "1.0.0-beta.2",
     "@lorion-org/composition-graph": "1.0.0-beta.1",
     "@lorion-org/descriptor-discovery": "1.0.0-beta.1",
+    "@lorion-org/descriptor-selection": "1.0.0-beta.2",
     "@lorion-org/nuxt": "1.0.0-beta.1",
     "@lorion-org/provider-selection": "1.0.0-beta.1",
     "@lorion-org/react": "1.0.0-beta.1",

@@ -28,7 +28,7 @@
     "check": "pnpm format:check && pnpm build && pnpm lint && pnpm test && pnpm typecheck && pnpm examples:check && pnpm package:check && pnpm attw",
     "examples:check": "tsc -p tsconfig.examples.json",
     "package:check": "turbo run package:check",
-    "attw": "attw --pack packages/capability-composition --profile node16 && attw --pack packages/composition-graph --profile node16 && attw --pack packages/descriptor-discovery --profile node16 && attw --pack packages/provider-selection --profile node16 && attw --pack packages/react --profile node16 && attw --pack packages/registry-hub --profile node16 && attw --pack packages/runtime-config --profile node16 && attw --pack packages/runtime-config-node --profile node16 && attw --pack packages/nuxt --profile esm-only",
+    "attw": "attw --pack packages/capability-composition --profile node16 && attw --pack packages/composition-graph --profile node16 && attw --pack packages/descriptor-discovery --profile node16 && attw --pack packages/descriptor-selection --profile node16 && attw --pack packages/provider-selection --profile node16 && attw --pack packages/react --profile node16 && attw --pack packages/registry-hub --profile node16 && attw --pack packages/runtime-config --profile node16 && attw --pack packages/runtime-config-node --profile node16 && attw --pack packages/nuxt --profile esm-only",
     "publish:check": "pnpm package:check",
     "changeset": "changeset",
     "release:status": "changeset status --verbose",

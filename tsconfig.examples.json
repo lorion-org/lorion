@@ -7,8 +7,10 @@
     "isolatedDeclarations": false,
     "noEmit": true,
     "paths": {
+      "@lorion-org/capability-composition": ["./packages/capability-composition/src/index.ts"],
       "@lorion-org/composition-graph": ["./packages/composition-graph/src/index.ts"],
       "@lorion-org/descriptor-discovery": ["./packages/descriptor-discovery/src/index.ts"],
+      "@lorion-org/descriptor-selection": ["./packages/descriptor-selection/src/index.ts"],
       "@lorion-org/provider-selection": ["./packages/provider-selection/src/index.ts"],
       "@lorion-org/registry-hub": ["./packages/registry-hub/src/index.ts"],
       "@lorion-org/runtime-config": ["./packages/runtime-config/src/index.ts"],

@@ -27,8 +27,10 @@ body:
     attributes:
       label: Package
       options:
+        - '@lorion-org/capability-composition'
         - '@lorion-org/composition-graph'
         - '@lorion-org/descriptor-discovery'
+        - '@lorion-org/descriptor-selection'
         - '@lorion-org/provider-selection'
         - '@lorion-org/registry-hub'
         - '@lorion-org/runtime-config'
