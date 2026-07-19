@@ -38,7 +38,6 @@
   },
   "files": [
     "dist",
-    "snippets",
     "LICENSE",
     "src/**/*.ts",
     "!src/**/*.spec.ts"

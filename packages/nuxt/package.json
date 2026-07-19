@@ -68,7 +68,6 @@
   },
   "files": [
     "dist",
-    "snippets",
     "LICENSE",
     "src/**/*.ts",
     "src/**/*.json",
