@@ -271,19 +271,25 @@ capabilityLoader({
   defaultSelection: ['home', 'reports'], // default feature set
   selectionSeed: { cliKeys: ['features'], envKeys: ['APP_FEATURES'] },
   // Read a host-defined descriptor field; return undefined to keep a package
-  // graph-only. LORION descriptors carry host keys unchanged.
-  activation: ({ descriptor }) => descriptor.surfaces?.web,
+  // graph-only. LORION descriptors carry host keys unchanged, so annotate the read.
+  activation: ({ descriptor }) =>
+    (descriptor as { surfaces?: { web?: { exportName?: string; exportSubpath?: string } } })
+      .surfaces?.web,
 });
 ```
 
 To reuse the framework-free surface convention from
 [`@lorion-org/surface-activation`](../surface-activation) directly — without a
-per-host adapter — pass `surface` instead of `activation`. The convention detects
-a surface by a file marker and derives its export name and import subpath (here the
-canonical `@scope/<id>/web/plugin` entry):
+per-host adapter — pass `surface` instead of `activation`. Pass exactly one of the
+two (passing both throws). The `fileSurfaceConvention` preset detects a surface by a
+file marker and derives its export name and import subpath (here the canonical
+`@scope/<id>/web/plugin` entry); the raw `SurfaceConvention` object stays available
+for cases the preset does not cover:
 
 ```ts
-import { conventionActivation } from '@lorion-org/surface-activation';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { conventionActivation, fileSurfaceConvention } from '@lorion-org/surface-activation';
 
 capabilityLoader({
   workspaceRoot,
@@ -292,16 +298,22 @@ capabilityLoader({
   defaultSelection: ['home', 'reports'],
   surface: {
     name: 'web',
-    activation: conventionActivation({
-      web: {
-        marker: (dir) => existsSync(`${dir}/src/web/plugin.ts`),
-        exportName: (id) => `${id}WebPlugin`,
+    resolver: conventionActivation({
+      web: fileSurfaceConvention({
+        files: ['src/web/plugin.ts'],
+        exportSuffix: 'WebPlugin',
         exportSubpath: './web/plugin',
-      },
+        exists: existsSync, // injected — surface-activation itself touches no filesystem
+        join,
+      }),
     }),
   },
 });
 ```
+
+Migrating from a hand-written adapter: replace
+`activation: ({ capabilityDir, descriptor }) => resolver('web', { directory: capabilityDir, id: descriptor.id })`
+with `surface: { name: 'web', resolver }`.
 
 ```ts
 // main.ts: consume the pre-resolved list with your own registry
