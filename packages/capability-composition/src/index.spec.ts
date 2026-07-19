@@ -8,7 +8,6 @@ import {
   composeCapabilities,
   conventionActivation,
   resolveSelectedCapabilities,
-  resolveSurfaceModules,
   type ResolvedCapability,
 } from './index';
 
@@ -198,70 +197,6 @@ describe('resolveSelectedCapabilities', () => {
     expect(() =>
       resolveSelectedCapabilities({ workspaceRoot, seed: { selected: ['dashboard'] } }),
     ).toThrow(/missing "name"/);
-  });
-});
-
-describe('conventionActivation', () => {
-  it('derives activation from a surface marker and export-name convention', () => {
-    const workspaceRoot = createWorkspace([{ id: 'auth-oidc', web: true }, { id: 'tokens' }]);
-    const activation = conventionActivation({
-      web: {
-        marker: (directory) => directory.endsWith('auth-oidc'),
-        exportName: (id) => `${camelCase(id)}WebPlugin`,
-        exportSubpath: './web',
-      },
-    });
-
-    expect(
-      activation('web', {
-        directory: join(workspaceRoot, 'capabilities/auth-oidc'),
-        id: 'auth-oidc',
-      }),
-    ).toEqual({
-      exportSubpath: './web',
-      exportName: 'authOidcWebPlugin',
-    });
-  });
-
-  it('returns undefined for a missing marker or an unknown surface', () => {
-    const activation = conventionActivation({
-      web: {
-        marker: () => false,
-        exportName: (id) => `${id}WebPlugin`,
-        exportSubpath: './web',
-      },
-    });
-
-    expect(activation('web', { directory: '/nope', id: 'dashboard' })).toBeUndefined();
-    expect(activation('server', { directory: '/anything', id: 'dashboard' })).toBeUndefined();
-  });
-});
-
-describe('resolveSurfaceModules', () => {
-  it('maps active surface capabilities to a static specifier and export name', () => {
-    const workspaceRoot = createWorkspace([
-      { id: 'platform', web: true },
-      { id: 'dashboard', web: true },
-      { id: 'tokens' },
-    ]);
-    const activation = conventionActivation({
-      web: {
-        marker: (directory) => existsSync(join(directory, 'src/web.ts')),
-        exportName: (id) => `${camelCase(id)}WebPlugin`,
-        exportSubpath: './web',
-      },
-    });
-
-    const active = resolveSelectedCapabilities({ workspaceRoot, seed: { selectionSeed: false } });
-    const modules = resolveSurfaceModules(active, 'web', activation);
-
-    // tokens has no web surface and is skipped.
-    expect(modules.map((entry) => entry.specifier).sort()).toEqual([
-      '@demo/dashboard/web',
-      '@demo/platform/web',
-    ]);
-    const dashboard = modules.find((entry) => entry.capability.id === 'dashboard');
-    expect(dashboard?.exportName).toBe('dashboardWebPlugin');
   });
 });
 

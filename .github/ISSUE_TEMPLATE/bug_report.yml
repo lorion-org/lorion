@@ -19,6 +19,7 @@ body:
         - '@lorion-org/registry-hub'
         - '@lorion-org/runtime-config'
         - '@lorion-org/runtime-config-node'
+        - '@lorion-org/surface-activation'
         - '@lorion-org/react'
         - '@lorion-org/nuxt'
         - Not sure / other

@@ -34,6 +34,7 @@ React.
 - [registry-hub](../packages/registry-hub/README.md)
 - [runtime-config](../packages/runtime-config/README.md)
 - [runtime-config-node](../packages/runtime-config-node/README.md)
+- [surface-activation](../packages/surface-activation/README.md)
 - [nuxt](../packages/nuxt/README.md)
 
 ## Documentation Model

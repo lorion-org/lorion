@@ -3,12 +3,31 @@ import { resolve } from 'node:path';
 import type { CompositionPolicy, Descriptor, DescriptorId } from '@lorion-org/composition-graph';
 import { descriptorSchema, discoverDescriptors } from '@lorion-org/descriptor-discovery';
 import { selectDescriptors } from '@lorion-org/descriptor-selection';
+import {
+  type ActivationResolver,
+  resolveSurfaceModules,
+  type SurfaceCapability,
+} from '@lorion-org/surface-activation';
 
 // Capability composition: descriptor-defined capabilities that live as filesystem
-// packages, composed into a host. This package owns disk discovery, surface-
-// convention activation, and the runtime/build-time compose loop; resolving the
-// active set (seed, dependencies, one provider per capability) is delegated to
-// @lorion-org/descriptor-selection, so no selection logic is duplicated here.
+// packages, composed into a host. This package owns disk discovery and the
+// runtime/build-time compose loop; resolving the active set (seed, dependencies,
+// one provider per capability) is delegated to @lorion-org/descriptor-selection and
+// the surface-addressing convention to @lorion-org/surface-activation, so no logic
+// is duplicated here.
+
+// Re-export only `conventionActivation` (and the types describing it) — the
+// companion a `composeCapabilities` caller needs to build the activation it passes
+// in. The build-time addressing tools (`resolveSurfaceModules`,
+// `capabilitySpecifier`) stay owned solely by @lorion-org/surface-activation, so a
+// build-time host depends on that light package directly instead of pulling in
+// this runtime host.
+export { conventionActivation } from '@lorion-org/surface-activation';
+export type {
+  ActivationResolver,
+  SurfaceActivation,
+  SurfaceConvention,
+} from '@lorion-org/surface-activation';
 
 export interface CapabilitySelectionSeed {
   baseDescriptors?: readonly DescriptorId[];
@@ -24,10 +43,7 @@ export interface CapabilitySelectionSeed {
       };
 }
 
-export interface ResolvedCapability {
-  id: string;
-  directory: string;
-  packageName: string;
+export interface ResolvedCapability extends SurfaceCapability {
   descriptor: Descriptor;
 }
 
@@ -71,70 +87,6 @@ export function resolveSelectedCapabilities(options: {
   // Read package.json only for the resolved set: an unrelated broken or nameless
   // package.json must not abort a composition that never imports that capability.
   return selected.map((item) => ({ ...item, packageName: readPackageName(item.directory) }));
-}
-
-export interface SurfaceActivation {
-  exportSubpath: string;
-  exportName: string;
-}
-
-export interface SurfaceConvention {
-  // True when the capability provides this surface (a file-layout marker).
-  marker: (directory: string) => boolean;
-  // Derives the exported symbol name from the capability id.
-  exportName: (id: string) => string;
-  // The package export subpath the symbol is imported from (for example `./web`).
-  exportSubpath: string;
-}
-
-export type ActivationResolver = (
-  surface: string,
-  capability: { directory: string; id: string },
-) => SurfaceActivation | undefined;
-
-// Builds an activation resolver from per-surface conventions. A host declares
-// how a surface is detected (marker) and named (exportName); the descriptor
-// carries no surface config.
-export function conventionActivation(
-  surfaces: Record<string, SurfaceConvention>,
-): ActivationResolver {
-  return (surface, capability) => {
-    const convention = surfaces[surface];
-    if (!convention || !convention.marker(capability.directory)) return undefined;
-    return {
-      exportSubpath: convention.exportSubpath,
-      exportName: convention.exportName(capability.id),
-    };
-  };
-}
-
-export interface CapabilitySurfaceModule {
-  capability: ResolvedCapability;
-  specifier: string;
-  exportName: string;
-}
-
-// For each active capability that provides the surface, the module specifier and
-// export name to import. This is the seam shared by both host styles: the runtime
-// loop (composeCapabilities) feeds each specifier to a dynamic `load`, while a
-// build-time host code-generates static imports from the same list. One place
-// owns the specifier and activation logic.
-export function resolveSurfaceModules(
-  active: readonly ResolvedCapability[],
-  surface: string,
-  activation: ActivationResolver,
-): CapabilitySurfaceModule[] {
-  return active.flatMap((capability) => {
-    const entry = activation(surface, { directory: capability.directory, id: capability.id });
-    if (!entry) return [];
-    return [
-      {
-        capability,
-        specifier: `${capability.packageName}${entry.exportSubpath.replace(/^\./, '')}`,
-        exportName: entry.exportName,
-      },
-    ];
-  });
 }
 
 // Runtime composition: resolve the active set, and for each capability that

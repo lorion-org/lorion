@@ -1,14 +1,14 @@
 {
-  "name": "@lorion-org/capability-composition",
+  "name": "@lorion-org/surface-activation",
   "version": "1.0.0-beta.2",
-  "description": "Framework-free capability composition: on-disk descriptor selection and runtime/build-time composition, built on the surface-activation convention.",
+  "description": "Framework-free surface-activation convention: which module and export provides a capability's surface, and the import specifier to reach it.",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/lorion-org/lorion.git",
-    "directory": "packages/capability-composition"
+    "directory": "packages/surface-activation"
   },
-  "homepage": "https://github.com/lorion-org/lorion/tree/main/packages/capability-composition#readme",
+  "homepage": "https://github.com/lorion-org/lorion/tree/main/packages/surface-activation#readme",
   "bugs": {
     "url": "https://github.com/lorion-org/lorion/issues"
   },
@@ -47,19 +47,14 @@
     "clean": "rimraf coverage dist tsconfig.tsbuildinfo",
     "lint": "eslint src --ext .ts",
     "prepack": "pnpm build",
-    "test": "vitest run --root ../.. --config vitest.config.mts packages/capability-composition/src/index.spec.ts",
-    "coverage": "node -e \"require('node:fs').mkdirSync('../../coverage/.tmp', { recursive: true })\" && vitest run --coverage --coverage.include=packages/capability-composition/src/**/*.ts --root ../.. --config vitest.config.mts packages/capability-composition/src/index.spec.ts",
+    "test": "vitest run --root ../.. --config vitest.config.mts packages/surface-activation/src/index.spec.ts",
+    "coverage": "node -e \"require('node:fs').mkdirSync('../../coverage/.tmp', { recursive: true })\" && vitest run --coverage --coverage.include=packages/surface-activation/src/**/*.ts --root ../.. --config vitest.config.mts packages/surface-activation/src/index.spec.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "package:check": "pnpm build && pnpm pack --dry-run && publint"
   },
-  "dependencies": {
-    "@lorion-org/composition-graph": "workspace:^",
-    "@lorion-org/descriptor-discovery": "workspace:^",
-    "@lorion-org/descriptor-selection": "workspace:^",
-    "@lorion-org/surface-activation": "workspace:^"
-  },
   "keywords": [
-    "lorion",
+    "surface",
+    "activation",
     "capability",
     "composition",
     "typescript"

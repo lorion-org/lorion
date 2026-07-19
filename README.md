@@ -133,6 +133,7 @@ const lorion = lorionReact({
 | `@lorion-org/registry-hub`           | Generic runtime registry for named entries.                                            |
 | `@lorion-org/runtime-config`         | Runtime config fragment projection, lookup, and environment helpers.                   |
 | `@lorion-org/runtime-config-node`    | File-system and loader helpers for runtime config.                                     |
+| `@lorion-org/surface-activation`     | Framework-free surface-addressing convention: which module/export provides a surface.  |
 | `@lorion-org/nuxt`                   | Main Nuxt adapter for descriptor-selected layer orchestration.                         |
 
 Package-specific usage, API notes, and examples live in each package README

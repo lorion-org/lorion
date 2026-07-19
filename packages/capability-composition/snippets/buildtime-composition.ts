@@ -2,11 +2,8 @@ import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import {
-  conventionActivation,
-  resolveSelectedCapabilities,
-  resolveSurfaceModules,
-} from '@lorion-org/capability-composition';
+import { resolveSelectedCapabilities } from '@lorion-org/capability-composition';
+import { conventionActivation, resolveSurfaceModules } from '@lorion-org/surface-activation';
 
 // Build-time composition: which capabilities are injected is decided and frozen
 // at build time. The graph is resolved once, and `resolveSurfaceModules` maps each

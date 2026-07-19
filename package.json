@@ -30,7 +30,7 @@
     "snippets:check": "tsc -p tsconfig.snippets.json",
     "examples:verify": "turbo run typecheck build --filter=./examples/*",
     "package:check": "turbo run package:check --filter=./packages/*",
-    "attw": "attw --pack packages/capability-composition --profile node16 && attw --pack packages/composition-graph --profile node16 && attw --pack packages/descriptor-discovery --profile node16 && attw --pack packages/descriptor-selection --profile node16 && attw --pack packages/provider-selection --profile node16 && attw --pack packages/react --profile node16 && attw --pack packages/registry-hub --profile node16 && attw --pack packages/runtime-config --profile node16 && attw --pack packages/runtime-config-node --profile node16 && attw --pack packages/nuxt --profile esm-only",
+    "attw": "attw --pack packages/capability-composition --profile node16 && attw --pack packages/composition-graph --profile node16 && attw --pack packages/descriptor-discovery --profile node16 && attw --pack packages/descriptor-selection --profile node16 && attw --pack packages/provider-selection --profile node16 && attw --pack packages/react --profile node16 && attw --pack packages/registry-hub --profile node16 && attw --pack packages/runtime-config --profile node16 && attw --pack packages/runtime-config-node --profile node16 && attw --pack packages/surface-activation --profile node16 && attw --pack packages/nuxt --profile esm-only",
     "publish:check": "pnpm package:check",
     "changeset": "changeset",
     "release:status": "changeset status --verbose",

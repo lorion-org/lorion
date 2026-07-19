@@ -27,8 +27,8 @@ async function bootstrap(): Promise<void> {
         <p>
           The <code>@lorion-org/react</code> capability loader resolves the descriptor graph at
           build time and emits <code>virtual:capabilities</code>; surface activation uses the
-          framework-free convention from <code>@lorion-org/capability-composition</code>. This page
-          owns the runtime: a hand-written registry consumes the pre-resolved module list.
+          framework-free convention from <code>@lorion-org/surface-activation</code>. This page owns
+          the runtime: a hand-written registry consumes the pre-resolved module list.
         </p>
 
         <section>

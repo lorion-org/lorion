@@ -75,12 +75,12 @@ importers:
 
   examples/react-loader:
     dependencies:
-      '@lorion-org/capability-composition':
-        specifier: workspace:*
-        version: link:../../packages/capability-composition
       '@lorion-org/react':
         specifier: workspace:*
         version: link:../../packages/react
+      '@lorion-org/surface-activation':
+        specifier: workspace:*
+        version: link:../../packages/surface-activation
     devDependencies:
       '@types/react':
         specifier: ^19.0.0
@@ -146,6 +146,9 @@ importers:
       '@lorion-org/descriptor-selection':
         specifier: workspace:^
         version: link:../descriptor-selection
+      '@lorion-org/surface-activation':
+        specifier: workspace:^
+        version: link:../surface-activation
 
   packages/composition-graph: {}
 
@@ -230,13 +233,13 @@ importers:
       '@lorion-org/runtime-config-node':
         specifier: workspace:^
         version: link:../runtime-config-node
+      '@lorion-org/surface-activation':
+        specifier: workspace:^
+        version: link:../surface-activation
       react:
         specifier: ^19.0.0
         version: 19.2.5
     devDependencies:
-      '@lorion-org/capability-composition':
-        specifier: workspace:^
-        version: link:../capability-composition
       '@tanstack/react-router':
         specifier: ^1.168.25
         version: 1.168.26(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -284,6 +287,8 @@ importers:
       ajv:
         specifier: ^8.17.1
         version: 8.20.0
+
+  packages/surface-activation: {}
 
 packages:
 

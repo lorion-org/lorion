@@ -15,6 +15,7 @@
       "@lorion-org/registry-hub": ["./packages/registry-hub/src/index.ts"],
       "@lorion-org/runtime-config": ["./packages/runtime-config/src/index.ts"],
       "@lorion-org/runtime-config-node": ["./packages/runtime-config-node/src/index.ts"],
+      "@lorion-org/surface-activation": ["./packages/surface-activation/src/index.ts"],
       "@lorion-org/nuxt": ["./packages/nuxt/src/index.ts"],
       "@lorion-org/nuxt/composables": ["./packages/nuxt/src/runtime-composables.ts"],
       "@lorion-org/nuxt/runtime-config": ["./packages/nuxt/src/runtime-config.ts"],

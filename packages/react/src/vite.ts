@@ -33,6 +33,7 @@ import {
   type RuntimeConfigPathPatternSource,
   type RuntimeConfigSchemaValidationErrorFormatter,
 } from '@lorion-org/runtime-config-node';
+import { capabilitySpecifier } from '@lorion-org/surface-activation';
 
 const virtualModuleId = 'virtual:capabilities';
 const resolvedVirtualModuleId = `\0${virtualModuleId}`;
@@ -802,7 +803,7 @@ function resolveActivationEntry(
     return {
       entryFile: resolve(capabilityDir, packageExports['./capability']),
       exportName: 'capability',
-      importSpecifier: `${packageName}/capability`,
+      importSpecifier: capabilitySpecifier(packageName, './capability'),
     };
   }
 
@@ -814,7 +815,7 @@ function resolveActivationEntry(
 
   const exportName = activation.exportName ?? 'capability';
   const exportSubpath = activation.exportSubpath ?? './capability';
-  return { exportName, importSpecifier: `${packageName}${exportSubpath.replace(/^\./, '')}` };
+  return { exportName, importSpecifier: capabilitySpecifier(packageName, exportSubpath) };
 }
 
 function hasRouteDirectory(

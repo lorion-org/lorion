@@ -1,7 +1,7 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { conventionActivation } from '@lorion-org/capability-composition';
+import { conventionActivation } from '@lorion-org/surface-activation';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import { capabilityLoader } from '@lorion-org/react/vite';

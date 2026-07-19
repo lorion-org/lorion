@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@lorion-org/react": "workspace:*",
-    "@lorion-org/capability-composition": "workspace:*"
+    "@lorion-org/surface-activation": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
