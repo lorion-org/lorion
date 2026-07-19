@@ -36,9 +36,8 @@ composition runs and _how_ modules are loaded:
   auditable at build time, with no runtime discovery or dynamic `import()` —
   suited to bundled or air-gapped artifacts.
 
-Both compose the identical set from one seam (`resolveSurfaceModules`). The
-`playground-server/` proves this end to end, and `examples/buildtime-composition.ts`
-shows the build-time manifest.
+Both compose the identical set from one seam (`resolveSurfaceModules`). See
+`examples/buildtime-composition.ts` for the build-time manifest.
 
 ## Local Commands
 
