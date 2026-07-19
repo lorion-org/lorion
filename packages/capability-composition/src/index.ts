@@ -1,7 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { CompositionPolicy, Descriptor, DescriptorId } from '@lorion-org/composition-graph';
-import { descriptorSchema, discoverDescriptors } from '@lorion-org/descriptor-discovery';
+import {
+  descriptorSchema,
+  discoverDescriptors,
+  requirePackageName,
+} from '@lorion-org/descriptor-discovery';
 import { selectDescriptors } from '@lorion-org/descriptor-selection';
 import {
   type ActivationResolver,
@@ -50,10 +54,7 @@ export interface ResolvedCapability extends SurfaceCapability {
 function readPackageName(directory: string): string {
   const path = resolve(directory, 'package.json');
   const json = JSON.parse(readFileSync(path, 'utf8')) as { name?: unknown };
-  if (typeof json.name !== 'string') {
-    throw new Error(`Capability package is missing "name": ${path}`);
-  }
-  return json.name;
+  return requirePackageName(json, path);
 }
 
 // Resolves the active capability set: base + seed + transitive dependencies +

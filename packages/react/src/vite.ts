@@ -12,6 +12,7 @@ import type {
 import {
   descriptorSchema,
   discoverDescriptors,
+  requirePackageName,
   type DiscoveredDescriptor,
 } from '@lorion-org/descriptor-discovery';
 import { resolveDescriptorSelection, selectDescriptors } from '@lorion-org/descriptor-selection';
@@ -423,15 +424,12 @@ function discoverCapability(
   }
 
   const packageJson = readJson(packagePath);
-  const packageName = packageJson.name;
-
-  if (typeof packageName !== 'string') {
-    throw new Error(`Capability package is missing "name": ${packagePath}`);
-  }
+  const packageName = requirePackageName(packageJson, packagePath);
 
   const activationEntry = resolveActivationEntry(
     capabilityDir,
     packageJson,
+    packageName,
     entry.descriptor,
     resolveActivation,
   );
@@ -779,17 +777,10 @@ function resolveRouteDirectory(capabilityDir: string): string | undefined {
 function resolveActivationEntry(
   capabilityDir: string,
   packageJson: Record<string, unknown>,
+  packageName: string,
   descriptor: Descriptor,
   resolveActivation?: ResolveCapabilityActivation,
 ): { entryFile?: string; exportName: string; importSpecifier: string } | null {
-  const packageName = packageJson.name;
-
-  if (typeof packageName !== 'string') {
-    throw new Error(
-      `Capability package is missing "name": ${resolve(capabilityDir, 'package.json')}`,
-    );
-  }
-
   // Without a custom activation resolver the default convention stays strict:
   // the package must declare a string "./capability" export that LORION
   // self-resolves to a local file.

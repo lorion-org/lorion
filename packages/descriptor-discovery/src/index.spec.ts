@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { discoverDescriptors, expandNestedDescriptors } from './index';
+import { discoverDescriptors, expandNestedDescriptors, requirePackageName } from './index';
 import { descriptorSchema } from './schema';
 
 const tempDirs: string[] = [];
@@ -259,5 +259,22 @@ describe('discoverDescriptors', () => {
         },
       }),
     ).toThrow('Descriptor schema validation failed.');
+  });
+});
+
+describe('requirePackageName', () => {
+  it('returns the package name when it is a string', () => {
+    expect(requirePackageName({ name: '@acme/shops' }, '/caps/shops/package.json')).toBe(
+      '@acme/shops',
+    );
+  });
+
+  it('throws with the package path when the name is missing or not a string', () => {
+    expect(() => requirePackageName({}, '/caps/shops/package.json')).toThrow(
+      /missing "name": \/caps\/shops\/package\.json/,
+    );
+    expect(() => requirePackageName({ name: 42 }, '/caps/shops/package.json')).toThrow(
+      /missing "name"/,
+    );
   });
 });

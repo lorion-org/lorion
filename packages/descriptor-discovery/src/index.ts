@@ -6,6 +6,20 @@ import type { Descriptor } from '@lorion-org/composition-graph';
 
 export { descriptorSchema, type JsonSchemaObject } from './schema';
 
+// A capability lives on disk as a package: its descriptor (capability.json) beside
+// a package.json. Validating that the package declares a `name` — with one shared
+// error message — belongs here next to descriptor discovery, so each host does not
+// reimplement it. Takes an already-parsed package.json to avoid re-reading it.
+export function requirePackageName(
+  packageJson: { name?: unknown },
+  packageJsonPath: string,
+): string {
+  if (typeof packageJson.name !== 'string') {
+    throw new Error(`Capability package is missing "name": ${packageJsonPath}`);
+  }
+  return packageJson.name;
+}
+
 export type RawDescriptor = Omit<Descriptor, 'id'> & {
   id?: string;
 };
