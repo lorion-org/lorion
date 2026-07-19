@@ -1,0 +1,9 @@
+{
+  "id": "payment-provider-stripe",
+  "version": "1.0.0",
+  "providesFor": "checkout",
+  "defaultFor": "checkout",
+  "dependencies": {
+    "payments": "^1.0.0"
+  }
+}

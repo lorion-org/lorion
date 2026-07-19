@@ -1,6 +1,0 @@
-{
-  "id": "auth-local",
-  "version": "1.0.0",
-  "providesFor": "auth",
-  "defaultFor": "auth"
-}

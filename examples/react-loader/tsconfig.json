@@ -10,10 +10,16 @@
     "rootDir": "../..",
     "paths": {
       "@lorion-org/react": ["../../packages/react/src/index.ts"],
-      "@lorion-org/capability-composition": ["../../packages/capability-composition/src/index.ts"],
+      "@lorion-org/surface-activation": ["../../packages/surface-activation/src/index.ts"],
       "@acme/plugin": ["./src/plugin.ts"],
       "@acme/*/web": ["./capabilities/*/src/web.ts"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts", "capabilities/**/*.ts"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "vite.config.ts",
+    "capabilities/**/*.ts",
+    "capabilities/**/*.tsx"
+  ]
 }

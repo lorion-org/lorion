@@ -52,14 +52,14 @@ export default defineConfig({
   },
   plugins: [
     // Model B (loader-only): @lorion-org/react resolves the descriptor graph at
-    // build time — base platform on, `dashboard` selected by default, the graph
-    // adds transitive deps and the single auth provider — and emits
-    // `virtual:capabilities`. This example owns the runtime (see
-    // src/registry.ts). Overridable via --features / LORION_FEATURES.
+    // build time — `default` pulls the `web` shop, the graph adds its transitive
+    // deps (shops, checkout, payments) and resolves the single default checkout
+    // provider (Stripe) — and emits `virtual:capabilities`. This example owns the
+    // runtime and router (see src/main.tsx). Overridable via
+    // --features / LORION_FEATURES (e.g. select `admin`, or a different provider).
     capabilityLoader({
       workspaceRoot: projectRoot,
-      baseDescriptors: ['platform', 'auth'],
-      defaultSelection: ['dashboard'],
+      defaultSelection: ['default'],
       selectionSeed: { cliKeys: ['features'], envKeys: ['LORION_FEATURES'] },
       activation: ({ capabilityDir, descriptor }) =>
         activation('web', { directory: capabilityDir, id: descriptor.id }),

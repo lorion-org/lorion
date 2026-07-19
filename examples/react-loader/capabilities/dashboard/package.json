@@ -1,9 +1,0 @@
-{
-  "name": "@acme/dashboard",
-  "version": "1.0.0",
-  "private": true,
-  "type": "module",
-  "exports": {
-    "./web": "./src/web.ts"
-  }
-}

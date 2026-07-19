@@ -1,0 +1,11 @@
+{
+  "id": "web",
+  "version": "1.0.0",
+  "dependencies": {
+    "checkout": "^1.0.0",
+    "payments": "^1.0.0",
+    "shop-coffee": "^1.0.0",
+    "shop-stationery": "^1.0.0",
+    "shops": "^1.0.0"
+  }
+}

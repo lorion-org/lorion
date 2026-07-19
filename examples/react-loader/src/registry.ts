@@ -1,21 +1,28 @@
-import type { WebPlugin } from './plugin';
+import type { HostRuntime, RouteContribution, WebPlugin } from './plugin';
 
-// A minimal host-owned registry. This stands in for whatever plugin system a
-// product already has; LORION does not prescribe it.
-export function createRegistry() {
-  const plugins: WebPlugin[] = [];
+// The host's own runtime. It composes the pre-resolved capability plugins
+// (emitted by the LORION loader as `virtual:capabilities`) into aggregated
+// extension points — routes and typed contributions — with no LORION runtime
+// involved. This stands in for whatever plugin/runtime system a real product
+// already has.
+export async function createHostRuntime(plugins: readonly WebPlugin[]): Promise<HostRuntime> {
+  const routes: RouteContribution[] = [];
+  const contributions = new Map<string, unknown[]>();
+
+  for (const plugin of plugins) {
+    await plugin.setup?.();
+    for (const route of plugin.routes ?? []) routes.push(route);
+    for (const [extensionPoint, items] of Object.entries(plugin.contributions ?? {})) {
+      const bucket = contributions.get(extensionPoint) ?? [];
+      bucket.push(...items);
+      contributions.set(extensionPoint, bucket);
+    }
+  }
 
   return {
-    register(plugin: WebPlugin): void {
-      plugins.push(plugin);
-    },
-    async setup(): Promise<void> {
-      for (const plugin of plugins) {
-        await plugin.setup?.();
-      }
-    },
-    get plugins(): readonly WebPlugin[] {
-      return plugins;
+    routes,
+    get<T>(extensionPoint: string): T[] {
+      return (contributions.get(extensionPoint) ?? []) as T[];
     },
   };
 }
