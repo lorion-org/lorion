@@ -61,8 +61,7 @@ export default defineConfig({
       workspaceRoot: projectRoot,
       defaultSelection: ['default'],
       selectionSeed: { cliKeys: ['features'], envKeys: ['LORION_FEATURES'] },
-      activation: ({ capabilityDir, descriptor }) =>
-        activation('web', { directory: capabilityDir, id: descriptor.id }),
+      surface: { name: 'web', activation },
     }),
     react(),
   ],

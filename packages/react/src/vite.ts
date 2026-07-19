@@ -34,7 +34,7 @@ import {
   type RuntimeConfigPathPatternSource,
   type RuntimeConfigSchemaValidationErrorFormatter,
 } from '@lorion-org/runtime-config-node';
-import { capabilitySpecifier } from '@lorion-org/surface-activation';
+import { capabilitySpecifier, type ActivationResolver } from '@lorion-org/surface-activation';
 
 const virtualModuleId = 'virtual:capabilities';
 const resolvedVirtualModuleId = `\0${virtualModuleId}`;
@@ -60,7 +60,15 @@ export type ResolveCapabilityActivation = (input: {
 }) => CapabilityActivationEntry | null | undefined;
 
 export type CapabilityLoaderOptions = {
+  // How an active capability's activation is resolved (which module and export to
+  // import). Either pass `surface` to reuse a lorion `conventionActivation`
+  // resolver for a named surface directly (no per-host adapter), or pass the richer
+  // `activation` resolver that also sees the descriptor and package.json. A nullish
+  // result marks the capability graph-only.
   activation?: ResolveCapabilityActivation;
+  // Reuse a `conventionActivation` resolver (from `@lorion-org/surface-activation`)
+  // for a named surface, e.g. `{ name: 'web', activation: conventionActivation({...}) }`.
+  surface?: { name: string; activation: ActivationResolver };
   capabilitiesDir?: string;
   baseDescriptors?: readonly DescriptorId[];
   defaultSelection?: readonly DescriptorId[];
@@ -263,9 +271,24 @@ export function lorionReact(options: LorionReactViteOptions): LorionReactViteSet
   };
 }
 
+// Normalizes the activation option into a ResolveCapabilityActivation. With
+// `surface`, `activation` is a lorion ActivationResolver (from conventionActivation)
+// resolved for that surface, so a host reuses the shared surface convention
+// directly with no adapter. Without `surface`, it is the richer resolver.
+function toResolveActivation(
+  options: Pick<CapabilityLoaderOptions, 'activation' | 'surface'>,
+): ResolveCapabilityActivation | undefined {
+  if (options.surface) {
+    const { name, activation } = options.surface;
+    return ({ capabilityDir, descriptor }) =>
+      activation(name, { directory: capabilityDir, id: descriptor.id });
+  }
+  return options.activation;
+}
+
 export function discoverCapabilities(
   workspaceRoot: string,
-  options: Pick<CapabilityLoaderOptions, 'activation' | 'capabilitiesDir'> = {},
+  options: Pick<CapabilityLoaderOptions, 'activation' | 'capabilitiesDir' | 'surface'> = {},
 ): DiscoveredCapability[] {
   const capabilitiesRoot = resolve(workspaceRoot, options.capabilitiesDir ?? 'capabilities');
 
@@ -273,8 +296,9 @@ export function discoverCapabilities(
     throw new Error(`Capabilities directory not found: ${capabilitiesRoot}`);
   }
 
+  const resolveActivation = toResolveActivation(options);
   return discoverCapabilityDescriptors(workspaceRoot, options)
-    .map((entry) => discoverCapability(entry, options.activation))
+    .map((entry) => discoverCapability(entry, resolveActivation))
     .sort((left, right) => left.id.localeCompare(right.id));
 }
 

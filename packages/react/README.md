@@ -276,6 +276,33 @@ capabilityLoader({
 });
 ```
 
+To reuse the framework-free surface convention from
+[`@lorion-org/surface-activation`](../surface-activation) directly — without a
+per-host adapter — pass `surface` instead of `activation`. The convention detects
+a surface by a file marker and derives its export name and import subpath (here the
+canonical `@scope/<id>/web/plugin` entry):
+
+```ts
+import { conventionActivation } from '@lorion-org/surface-activation';
+
+capabilityLoader({
+  workspaceRoot,
+  capabilitiesDir: 'packages',
+  baseDescriptors: ['shell', 'auth'],
+  defaultSelection: ['home', 'reports'],
+  surface: {
+    name: 'web',
+    activation: conventionActivation({
+      web: {
+        marker: (dir) => existsSync(`${dir}/src/web/plugin.ts`),
+        exportName: (id) => `${id}WebPlugin`,
+        exportSubpath: './web/plugin',
+      },
+    }),
+  },
+});
+```
+
 ```ts
 // main.ts: consume the pre-resolved list with your own registry
 import { capabilityModules } from 'virtual:capabilities';
