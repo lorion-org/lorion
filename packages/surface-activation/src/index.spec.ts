@@ -81,6 +81,33 @@ describe('fileSurfaceConvention', () => {
     expect(convention.marker('C:\\caps\\home')).toBe(true);
   });
 
+  it('derives valid identifier fragments from non-strict-kebab ids', () => {
+    const convention = fileSurfaceConvention({
+      files: ['x'],
+      exportSuffix: 'WebPlugin',
+      exportSubpath: './web',
+      exists: () => true,
+    });
+
+    // hyphen-run collapse, digit after hyphen, leading/trailing hyphen trim.
+    expect(convention.exportName('auth-oidc')).toBe('authOidcWebPlugin');
+    expect(convention.exportName('auth-2fa')).toBe('auth2faWebPlugin');
+    expect(convention.exportName('foo--bar')).toBe('fooBarWebPlugin');
+    expect(convention.exportName('foo-')).toBe('fooWebPlugin');
+    expect(convention.exportName('-foo')).toBe('fooWebPlugin');
+    expect(convention.exportName('a-9')).toBe('a9WebPlugin');
+  });
+
+  it('never activates when the marker file list is empty', () => {
+    const convention = fileSurfaceConvention({
+      files: [],
+      exportSubpath: './web',
+      exists: () => true,
+    });
+
+    expect(convention.marker('/anything')).toBe(false);
+  });
+
   it('composes with conventionActivation as a drop-in surface', () => {
     const activation = conventionActivation({
       web: fileSurfaceConvention({

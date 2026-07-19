@@ -42,7 +42,8 @@ export function conventionActivation(
 
 export interface FileSurfaceConventionOptions {
   // Relative marker files; the surface exists when the capability ships any of them
-  // (for example `['src/web.ts']`, or several accepted layouts).
+  // (for example `['src/web.ts']`, or several accepted layouts). An empty list means
+  // the surface never activates — pass at least one marker.
   files: readonly string[];
   // Export subpath the symbol is imported from (for example `./web`).
   exportSubpath: string;
@@ -58,10 +59,17 @@ export interface FileSurfaceConventionOptions {
   join?: (directory: string, file: string) => string;
 }
 
-// Converts a kebab-case id to camelCase (`auth-oidc` -> `authOidc`). The shared
-// naming rule so every host derives export names the same way.
+// Converts a kebab-case id to a camelCase identifier fragment (`auth-oidc` ->
+// `authOidc`). The shared naming rule so every host derives export names the same
+// way. Hyphen runs are collapsed and the following character is uppercased
+// (letters and digits alike), and leading/trailing hyphens are dropped, so
+// non-strict ids (`auth-2fa`, `foo--bar`, `foo-`) still yield a valid identifier
+// fragment. An id that starts with a digit cannot be a valid identifier on its own —
+// constrain ids at the descriptor level if that matters.
 function camelCaseId(id: string): string {
-  return id.replace(/-([a-z])/g, (_match, char: string) => char.toUpperCase());
+  return id
+    .replace(/^-+|-+$/g, '')
+    .replace(/-+([a-z0-9])/gi, (_match, char: string) => char.toUpperCase());
 }
 
 // A ready-made `SurfaceConvention` for the common file-layout case: the surface is
