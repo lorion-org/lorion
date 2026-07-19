@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node ../../tools/run-source-condition.mjs vite dev --config vite.config.ts --host 0.0.0.0 --",
     "build": "node ../../tools/run-source-condition.mjs vite build --config vite.config.ts --",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --ext .ts,.tsx"
   },
   "dependencies": {
     "@lorion-org/react": "workspace:*",

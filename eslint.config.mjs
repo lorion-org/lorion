@@ -10,7 +10,14 @@ const sourceTypeCheckedConfigs = tseslint.configs.recommendedTypeCheckedOnly.map
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**'],
+    ignores: [
+      '**/dist/**',
+      '**/coverage/**',
+      '**/node_modules/**',
+      '**/.nuxt/**',
+      '**/.output/**',
+      '**/routeTree.gen.ts',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
