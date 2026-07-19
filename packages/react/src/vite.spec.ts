@@ -80,7 +80,7 @@ describe('React capability Vite helpers', () => {
     const capabilities = discoverCapabilities(workspaceRoot, {
       surface: {
         name: 'web',
-        activation: conventionActivation({
+        resolver: conventionActivation({
           web: {
             marker: () => true,
             exportName: (id) => `${id}WebPlugin`,
@@ -94,6 +94,30 @@ describe('React capability Vite helpers', () => {
     // The conventionActivation resolver is consumed directly — no per-host adapter.
     expect(home?.importSpecifier).toBe('@react-workspace/home/web');
     expect(home?.exportName).toBe('homeWebPlugin');
+  });
+
+  it('throws when both surface and activation are passed', () => {
+    const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-capability-loader-'));
+
+    writeCapability(workspaceRoot, 'home', '@react-workspace/home', {
+      exports: { './web': './src/web/index.ts' },
+    });
+
+    expect(() =>
+      discoverCapabilities(workspaceRoot, {
+        activation: () => ({ exportName: 'homeWebPlugin', exportSubpath: './web' }),
+        surface: {
+          name: 'web',
+          resolver: conventionActivation({
+            web: {
+              marker: () => true,
+              exportName: (id) => `${id}WebPlugin`,
+              exportSubpath: './web',
+            },
+          }),
+        },
+      }),
+    ).toThrow(/either .surface. or .activation./);
   });
 
   it('does not require a "./capability" export when a custom activation is used', () => {

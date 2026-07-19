@@ -61,14 +61,14 @@ export type ResolveCapabilityActivation = (input: {
 
 export type CapabilityLoaderOptions = {
   // How an active capability's activation is resolved (which module and export to
-  // import). Either pass `surface` to reuse a lorion `conventionActivation`
-  // resolver for a named surface directly (no per-host adapter), or pass the richer
-  // `activation` resolver that also sees the descriptor and package.json. A nullish
+  // import). Pass EITHER `surface` to reuse a lorion `conventionActivation` resolver
+  // for a named surface directly (no per-host adapter), OR the richer `activation`
+  // resolver that also sees the descriptor and package.json — not both. A nullish
   // result marks the capability graph-only.
   activation?: ResolveCapabilityActivation;
   // Reuse a `conventionActivation` resolver (from `@lorion-org/surface-activation`)
-  // for a named surface, e.g. `{ name: 'web', activation: conventionActivation({...}) }`.
-  surface?: { name: string; activation: ActivationResolver };
+  // for a named surface, e.g. `{ name: 'web', resolver: conventionActivation({...}) }`.
+  surface?: { name: string; resolver: ActivationResolver };
   capabilitiesDir?: string;
   baseDescriptors?: readonly DescriptorId[];
   defaultSelection?: readonly DescriptorId[];
@@ -272,16 +272,20 @@ export function lorionReact(options: LorionReactViteOptions): LorionReactViteSet
 }
 
 // Normalizes the activation option into a ResolveCapabilityActivation. With
-// `surface`, `activation` is a lorion ActivationResolver (from conventionActivation)
+// `surface`, `resolver` is a lorion ActivationResolver (from conventionActivation)
 // resolved for that surface, so a host reuses the shared surface convention
-// directly with no adapter. Without `surface`, it is the richer resolver.
+// directly with no adapter. Without `surface`, it is the richer `activation`
+// resolver. The two are mutually exclusive.
 function toResolveActivation(
   options: Pick<CapabilityLoaderOptions, 'activation' | 'surface'>,
 ): ResolveCapabilityActivation | undefined {
   if (options.surface) {
-    const { name, activation } = options.surface;
+    if (options.activation) {
+      throw new Error('capabilityLoader: pass either `surface` or `activation`, not both.');
+    }
+    const { name, resolver } = options.surface;
     return ({ capabilityDir, descriptor }) =>
-      activation(name, { directory: capabilityDir, id: descriptor.id });
+      resolver(name, { directory: capabilityDir, id: descriptor.id });
   }
   return options.activation;
 }

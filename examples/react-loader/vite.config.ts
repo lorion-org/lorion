@@ -60,7 +60,7 @@ export default defineConfig({
       workspaceRoot: projectRoot,
       defaultSelection: ['default'],
       selectionSeed: { cliKeys: ['features'], envKeys: ['LORION_FEATURES'] },
-      surface: { name: 'web', activation },
+      surface: { name: 'web', resolver: activation },
     }),
     react(),
   ],
