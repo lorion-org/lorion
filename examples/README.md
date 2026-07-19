@@ -1,10 +1,10 @@
 # examples
 
-Runnable integration examples — a reference app on different technical
-foundations. `react-runtime` (capability runtime + file routing) and `nuxt`
-(module + layer extensions) present the same shop reference app on different
-underbau; `react-loader` demonstrates the capability-loader model on its own
-capability set.
+Runnable integration examples — the same reference app on different technical
+foundations. `react-runtime` (Model A: capability runtime + file-based routing),
+`react-loader` (Model B: capability loader + host-owned runtime), and `nuxt`
+(module + layer extensions) all present the same shop app — same pages, texts, and
+links; only the underbau differs.
 
 - `react-runtime/` — React, Model A: `lorionReact()` (capability runtime + file-based routing)
 - `react-loader/` — React, Model B: `capabilityLoader()` + a host-owned runtime
@@ -20,9 +20,10 @@ pnpm --filter @lorion-examples/nuxt dev
 
 Each example is a private workspace package that depends on the relevant adapter
 (`@lorion-org/react` / `@lorion-org/nuxt`; `react-loader` also uses
-`@lorion-org/capability-composition` directly) and reuses that adapter's
-capability format. Because the artifacts differ per framework, each example owns
-its own capability set rather than sharing one pool.
+`@lorion-org/surface-activation` directly for the surface convention) and reuses
+that adapter's capability format. Because the on-disk artifacts differ per
+framework and composition model, each example owns its own capability set rather
+than sharing one pool.
 
 ## Naming
 
