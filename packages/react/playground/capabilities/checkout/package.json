@@ -1,7 +1,0 @@
-{
-  "name": "@lorion-react-playground/checkout",
-  "type": "module",
-  "exports": {
-    "./capability": "./src/capability.ts"
-  }
-}

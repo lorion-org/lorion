@@ -1,7 +1,0 @@
-{
-  "name": "@lorion-react-playground/admin",
-  "type": "module",
-  "exports": {
-    "./capability": "./src/capability.ts"
-  }
-}

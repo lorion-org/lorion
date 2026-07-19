@@ -5,14 +5,14 @@ import {
   resolveItemProviderSelection,
 } from '@lorion-org/provider-selection';
 
-type PlaygroundDescriptor = {
+type ExampleDescriptor = {
   defaultFor?: string | string[];
   id: string;
   providerPreferences?: Record<string, string>;
   providesFor?: string | string[];
 };
 
-const descriptors: PlaygroundDescriptor[] = [
+const descriptors: ExampleDescriptor[] = [
   {
     id: 'web',
     providerPreferences: {

@@ -1,0 +1,23 @@
+{
+  "name": "@lorion-examples/react-loader",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node ../../tools/run-source-condition.mjs vite dev --config vite.config.ts --host 0.0.0.0 --",
+    "build": "node ../../tools/run-source-condition.mjs vite build --config vite.config.ts --",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@lorion-org/react": "workspace:*",
+    "@lorion-org/capability-composition": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^5.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "vite": "^7.3.2"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "name": "@acme/payment-provider-stripe",
+  "type": "module",
+  "exports": {
+    "./capability": "./src/capability.ts"
+  }
+}

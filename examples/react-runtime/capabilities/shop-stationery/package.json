@@ -1,0 +1,7 @@
+{
+  "name": "@acme/shop-stationery",
+  "type": "module",
+  "exports": {
+    "./capability": "./src/capability.ts"
+  }
+}

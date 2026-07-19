@@ -30,7 +30,8 @@ Run commands from the LORION repository root:
 - `pnpm tsc` runs TypeScript checks
 - `pnpm test` runs the test suite
 - `pnpm tests` is an alias for `pnpm test`
-- `pnpm examples:check` type-checks runnable examples
+- `pnpm snippets:check` type-checks the per-package doc snippets (`packages/*/examples/`)
+- `pnpm examples:verify` type-checks and builds the runnable example apps (`examples/`)
 - `pnpm package:check` validates package contents and publish shape
 - `pnpm attw` verifies published types resolve across module resolvers
 - `pnpm changeset` records a release note for a package change

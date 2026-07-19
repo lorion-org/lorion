@@ -435,7 +435,7 @@ preferences. `selectedProviders` can mirror the descriptor seed at runtime, and
 `fallbackProviders` are merged with descriptor defaults and only used when no
 configured or selected provider exists.
 
-The React playground uses the first variant by default: Stripe declares
+The React example uses the first variant by default: Stripe declares
 `defaultFor: "checkout"` and is selected as the fallback provider. Selecting
 `web payment-provider-invoice` through the seed switches checkout to Invoice and
 leaves Stripe out of the resolved capabilities.
@@ -447,36 +447,36 @@ The package exposes two public entry points:
 - `@lorion-org/react` for runtime, contribution contracts, provider selection, runtime config, and React context helpers
 - `@lorion-org/react/vite` for capability discovery, runtime-config virtual modules, and TanStack-compatible route config
 
-## Playgrounds
+## Example apps
 
-Two playgrounds demonstrate the two models. Both run with Lorion's
-`lorion-source` export condition so local workspace imports resolve to `src`
-instead of stale `dist` output.
+Two runnable examples (at the repo root under `examples/`) demonstrate the two
+models. Both run with Lorion's `lorion-source` export condition so local
+workspace imports resolve to `src` instead of stale `dist` output.
 
-Model A, `playground/`, mirrors the Nuxt package playground with a demo shop,
+Model A, `examples/react-runtime`, mirrors the Nuxt example with a demo shop,
 checkout providers, and a tech monitor (composition runtime and file-based
 routing):
 
 ```sh
-pnpm --filter @lorion-org/react dev:playground
+pnpm --filter @lorion-examples/react-runtime dev
 ```
 
 It runs on `http://localhost:3200` with capabilities under
-`playground/capabilities`. Select a different profile or provider with
+`examples/react-runtime/capabilities`. Select a different profile or provider with
 `--capabilities=admin`, `--capabilities=web,payment-provider-invoice`, or
 `LORION_CAPABILITIES="web payment-provider-invoice"`.
 
-Model B, `playground-runtime/`, shows the capability-loader-only path: explicit
+Model B, `examples/react-loader`, shows the capability-loader-only path: explicit
 activation, a graph-only library, a base plus seed selection, provider selection,
 and a small hand-written registry that consumes `virtual:capabilities` with no
 LORION React runtime and no route config:
 
 ```sh
-pnpm --filter @lorion-org/react dev:playground-runtime
+pnpm --filter @lorion-examples/react-loader dev
 ```
 
 It runs on `http://localhost:3201` with capabilities under
-`playground-runtime/capabilities`. The seed replaces the default selection, while
+`examples/react-loader/capabilities`. The seed replaces the default selection, while
 the base and providers resolve through the graph: switch the auth provider with
 `--features=dashboard,auth-oidc`, or change the feature set with
 `LORION_FEATURES="dashboard reports"`.

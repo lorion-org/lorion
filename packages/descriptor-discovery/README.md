@@ -44,7 +44,7 @@ layer-extensions/
 import { discoverDescriptors } from '@lorion-org/descriptor-discovery';
 
 const discovered = discoverDescriptors({
-  cwd: './playground',
+  cwd: '.',
   descriptorPaths: ['layer-extensions/*/extension.json'],
 });
 
@@ -61,7 +61,7 @@ id when the descriptor does not define one.
 import { discoverDescriptors } from '@lorion-org/descriptor-discovery';
 
 const discovered = discoverDescriptors({
-  cwd: './playground',
+  cwd: '.',
   descriptorPaths: ['layer-extensions/*/extension.json'],
   nestedField: 'bundles',
 });
@@ -79,7 +79,7 @@ import { createDescriptorCatalog } from '@lorion-org/composition-graph';
 import { discoverDescriptors } from '@lorion-org/descriptor-discovery';
 
 const discovered = discoverDescriptors({
-  cwd: './playground',
+  cwd: '.',
   descriptorPaths: ['layer-extensions/*/extension.json'],
   nestedField: 'bundles',
 });

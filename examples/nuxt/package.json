@@ -1,0 +1,18 @@
+{
+  "name": "@lorion-examples/nuxt",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node ../../tools/run-source-condition.mjs nuxi dev .",
+    "build": "node ../../tools/run-source-condition.mjs nuxi build .",
+    "typecheck": "node ../../tools/run-source-condition.mjs nuxi typecheck ."
+  },
+  "dependencies": {
+    "@lorion-org/nuxt": "workspace:*",
+    "@lorion-org/registry-hub": "workspace:*"
+  },
+  "devDependencies": {
+    "nuxt": "^4.4.2"
+  }
+}

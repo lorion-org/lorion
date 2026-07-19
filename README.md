@@ -142,6 +142,8 @@ under `packages/<name>/`.
 
 - Node.js 20.19 or newer on the Node 20 LTS line, or Node.js 22.12 or newer
 - pnpm 10
+- Bun (optional) — recommended for running the examples from source; the example
+  tooling falls back to Node's `--conditions` resolver when Bun is absent
 
 ## Development
 
@@ -162,14 +164,32 @@ Common workspace commands:
 - `pnpm tsc` runs TypeScript checks
 - `pnpm test` runs the test suite
 - `pnpm tests` is an alias for `pnpm test`
-- `pnpm examples:check`
+- `pnpm snippets:check` type-checks the per-package documentation snippets under
+  `packages/*/examples/`
+- `pnpm examples:verify` type-checks and builds the runnable example apps under
+  `examples/`
 - `pnpm package:check`
-- `pnpm check` runs the full local gate: Prettier, build, ESLint, tests,
-  TypeScript, examples, and package checks
+- `pnpm check` runs the full local gate: Prettier, package build, ESLint, tests,
+  package TypeScript, doc snippets, example apps, and package checks
+
+The `build` and `typecheck` scripts target `packages/*` only — the example apps
+are dev-only and are verified separately via `pnpm examples:verify`, so a broken
+example never breaks the package build.
 
 `pnpm package:check` runs each package's publish-facing checks. Package checks
 use standard tooling: build the package, run `pnpm pack --dry-run`, and validate
 the published package shape with `publint`.
+
+## Examples
+
+Runnable integration examples live under [`examples/`](./examples) — see
+[`examples/README.md`](./examples/README.md). Start one from the repository root:
+
+```shell
+pnpm example:react-runtime   # React, capability runtime + file-based routing
+pnpm example:react-loader    # React, capability loader + host-owned runtime
+pnpm example:nuxt            # Nuxt module + layer extensions
+```
 
 ## Documentation
 

@@ -1,0 +1,7 @@
+{
+  "name": "@acme/web",
+  "type": "module",
+  "exports": {
+    "./capability": "./src/capability.ts"
+  }
+}

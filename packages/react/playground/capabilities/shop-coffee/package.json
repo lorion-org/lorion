@@ -1,7 +1,0 @@
-{
-  "name": "@lorion-react-playground/shop-coffee",
-  "type": "module",
-  "exports": {
-    "./capability": "./src/capability.ts"
-  }
-}

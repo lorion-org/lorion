@@ -23,11 +23,11 @@ behave today and what has to be true before a stable `1.0.0`.
       `provider-selection`, `runtime-config`) hold steady across a full beta cycle
       with no pending breaking changes.
 - [ ] Both framework adapters (`react`, `nuxt`) are proven by a complete,
-      working integration in a production application, not only in playgrounds.
+      working integration in a production application, not only in examples.
 - [ ] Documentation covers the descriptor, selection, and provider model and both
       React consumption models (composition runtime and capability loader).
 - [ ] Packaging gates stay green: `publint`, types resolve across module
-      resolvers (`attw`), and the playgrounds build in CI.
+      resolvers (`attw`), and the examples build in CI.
 
 The proven production integration is the gating signal: a stable `1.0.0` follows
 a real deployment that exercises selection, provider resolution, activation, and

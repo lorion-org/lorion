@@ -115,7 +115,6 @@ examples/
   read-runtime-config.server.ts
   runtime-config-source.nuxt.config.ts
   selected-extensions.nuxt.config.ts
-playground/
 test/
   fixtures/
   unit/
@@ -127,8 +126,9 @@ test/
 - `src/runtime-config-node.ts` contains Node-only source loading helpers.
 - The published package exports the root Nuxt module, runtime-config subpaths, the descriptor schema, and runtime-safe extension helpers under `@lorion-org/nuxt/extensions`. Runtime-config composables are generated and auto-imported by the module.
 - `examples/` contains Nuxt-focused config and server-route snippets.
-- `playground/` is a runnable Nuxt app for manual module development.
+- The runnable Nuxt example app lives at `examples/nuxt` in the repo root.
 - `test/fixtures/` contains Nuxt applications used by end-to-end tests, and `test/unit/` contains package unit tests.
+- The `srvx` devDependency is load-bearing for development only: it aligns this package's dev-time `nuxt` peer context with the standalone `examples/nuxt` app (which pulls `srvx` transitively through the Nitro server). Without it, pnpm resolves `nuxt` into two peer contexts and the `nuxt/schema` module augmentation in `src/types.ts` no longer typechecks. It is not imported by any source file — do not remove it as "unused". The root `package.json` `pnpm.overrides` pins `srvx` to one version workspace-wide so this alignment cannot silently drift when Nitro bumps its own `srvx` range; bump both together if Nitro ever requires a newer `srvx`.
 
 ## Nuxt module
 
@@ -468,30 +468,30 @@ Nuxt-focused example snippets live in [`examples/`](./examples):
 - [`runtime-config-source.nuxt.config.ts`](./examples/runtime-config-source.nuxt.config.ts)
 - [`read-runtime-config.server.ts`](./examples/read-runtime-config.server.ts)
 
-## Playground
+## Example app
 
-Run the local playground from this package:
-
-```shell
-pnpm dev:playground
-```
-
-The playground scripts run with Lorion's `lorion-source` export condition so
-local workspace package imports resolve to `src` instead of stale `dist` output.
-
-Select a playground composition through the seed CLI or environment:
+The runnable Nuxt example lives at `examples/nuxt` (repo root). Run it from the
+workspace root:
 
 ```shell
-pnpm dev:playground -- --capabilities=web,payment-provider-invoice
-LORION_CAPABILITIES="web payment-provider-invoice" pnpm dev:playground
+pnpm --filter @lorion-examples/nuxt dev
 ```
 
-The playground uses the module with no manual extension list in `nuxt.config.ts`.
+It runs with Lorion's `lorion-source` export condition so workspace imports
+resolve to `src` instead of stale `dist` output. Select a composition through the
+seed CLI or environment:
+
+```shell
+pnpm --filter @lorion-examples/nuxt dev -- --capabilities=web,payment-provider-invoice
+LORION_CAPABILITIES="web payment-provider-invoice" pnpm --filter @lorion-examples/nuxt dev
+```
+
+The example app uses the module with no manual extension list in `nuxt.config.ts`.
 It configures only the presentation-specific descriptor paths, loads runtime
 config from `.runtimeconfig`, and registers the selected extension profile as
 Nuxt layers.
 
-The playground intentionally overrides the default extension root to make the
+The example app intentionally overrides the default extension root to make the
 demo concept visible:
 
 ```ts
@@ -514,10 +514,10 @@ export default defineNuxtConfig({
 });
 ```
 
-The playground shape is:
+The example app shape is:
 
 ```text
-playground/
+examples/nuxt/
   app/
   layer-extensions/
     bundles/
@@ -534,7 +534,7 @@ playground/
     runtime-config/
 ```
 
-The root app lives under `playground/app`. It owns normal Nuxt application
+The root app lives under `examples/nuxt/app`. It owns normal Nuxt application
 code. The `shops` layer extension provides the shop home route at `/`, the tiny
 Registry Hub plugin backed by `@lorion-org/registry-hub`, and the shop registry
 item type. Shop extensions depend on `shops`, register small shop entries
@@ -552,19 +552,19 @@ To run variants side by side, select the seed on the CLI and pass different
 Nuxt ports:
 
 ```shell
-pnpm dev:playground -- --port 3037
-pnpm dev:playground -- --port 3039
-pnpm dev:playground -- --capabilities=admin --port 3041
-pnpm dev:playground -- --capabilities=web,payment-provider-invoice --port 3043
+pnpm --filter @lorion-examples/nuxt dev -- --port 3037
+pnpm --filter @lorion-examples/nuxt dev -- --port 3039
+pnpm --filter @lorion-examples/nuxt dev -- --capabilities=admin --port 3041
+pnpm --filter @lorion-examples/nuxt dev -- --capabilities=web,payment-provider-invoice --port 3043
 ```
 
 Each extension contributes only the Nuxt layer content it needs. The module
-registers selected extensions as Nuxt layers; the playground does not list them
+registers selected extensions as Nuxt layers; the example app does not list them
 in `nuxt.config.ts`.
 Provider extensions contribute checkout pages, register a small checkout
 provider implementation through the payments layer interface, and expose server
 routes. They declare `providesFor: "checkout"`; Stripe additionally
-declares `defaultFor: "checkout"` so the playground demonstrates the
+declares `defaultFor: "checkout"` so the example app demonstrates the
 provider-owned default pattern. Runtime config for checkout, payments, and
 providers is loaded from
 `.runtimeconfig/runtime-config/<scope>/runtime.config.json`.
@@ -572,7 +572,7 @@ providers is loaded from
 The module also exposes a public `extensionSelection` runtime-config object with
 the selected profile, resolved descriptors, and active layer extension ids. The
 module exposes a public `providerSelection` object with the selected provider,
-candidate providers, selection mode, and excluded providers. The playground reads
+candidate providers, selection mode, and excluded providers. The example app reads
 those objects on `/tech` and its demo API returns a minimal view of them from
 `/api/demo/overview`.
 
@@ -587,7 +587,7 @@ Demo extensions:
 - `payment-provider-stripe`
 - `payment-provider-invoice`
 
-The playground also shows how the wider package set can work together:
+The example app also shows how the wider package set can work together:
 
 - `@lorion-org/descriptor-discovery` discovers `extension.json` files.
 - `@lorion-org/composition-graph` resolves selected profiles to active extensions.
@@ -621,7 +621,5 @@ pnpm test
 pnpm test:unit
 pnpm test:e2e
 pnpm typecheck
-pnpm typecheck:playground
-pnpm build:playground
 pnpm package:check
 ```

@@ -1,7 +1,0 @@
-{
-  "name": "@lorion-react-playground/payment-provider-invoice",
-  "type": "module",
-  "exports": {
-    "./capability": "./src/capability.ts"
-  }
-}

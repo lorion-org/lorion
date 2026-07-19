@@ -8,11 +8,12 @@
     "node": "^20.19.0 || >=22.12.0"
   },
   "scripts": {
-    "build": "turbo run build",
+    "build": "turbo run build --filter=./packages/*",
     "clean": "turbo run clean --force",
     "dev": "turbo run dev --parallel",
-    "playground:nuxt": "pnpm --filter @lorion-org/nuxt dev:playground",
-    "playground:react": "pnpm --filter @lorion-org/react dev:playground",
+    "example:react-runtime": "pnpm --filter @lorion-examples/react-runtime dev",
+    "example:react-loader": "pnpm --filter @lorion-examples/react-loader dev",
+    "example:nuxt": "pnpm --filter @lorion-examples/nuxt dev",
     "eslint": "pnpm run lint",
     "eslint:fix": "pnpm run lint:fix",
     "format": "prettier --write .",
@@ -24,9 +25,10 @@
     "test": "turbo run test",
     "tests": "pnpm run test",
     "tsc": "pnpm run typecheck",
-    "typecheck": "turbo run typecheck",
-    "check": "pnpm format:check && pnpm build && pnpm lint && pnpm test && pnpm typecheck && pnpm examples:check && pnpm package:check && pnpm attw",
-    "examples:check": "tsc -p tsconfig.examples.json",
+    "typecheck": "turbo run typecheck --filter=./packages/*",
+    "check": "pnpm format:check && pnpm build && pnpm lint && pnpm test && pnpm typecheck && pnpm snippets:check && pnpm examples:verify && pnpm package:check && pnpm attw",
+    "snippets:check": "tsc -p tsconfig.examples.json",
+    "examples:verify": "turbo run typecheck build --filter=./examples/*",
     "package:check": "turbo run package:check",
     "attw": "attw --pack packages/capability-composition --profile node16 && attw --pack packages/composition-graph --profile node16 && attw --pack packages/descriptor-discovery --profile node16 && attw --pack packages/descriptor-selection --profile node16 && attw --pack packages/provider-selection --profile node16 && attw --pack packages/react --profile node16 && attw --pack packages/registry-hub --profile node16 && attw --pack packages/runtime-config --profile node16 && attw --pack packages/runtime-config-node --profile node16 && attw --pack packages/nuxt --profile esm-only",
     "publish:check": "pnpm package:check",
@@ -51,7 +53,8 @@
     "turbo": "^2.5.3",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.32.0",
-    "vitest": "^3.1.3"
+    "vitest": "^3.1.3",
+    "vue-tsc": "^3.1.0"
   },
   "repository": {
     "type": "git",
@@ -60,5 +63,10 @@
   "homepage": "https://github.com/lorion-org/lorion#readme",
   "bugs": {
     "url": "https://github.com/lorion-org/lorion/issues"
+  },
+  "pnpm": {
+    "overrides": {
+      "srvx": "0.11.15"
+    }
   }
 }

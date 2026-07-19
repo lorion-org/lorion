@@ -1,0 +1,7 @@
+{
+  "name": "@acme/shop-coffee",
+  "type": "module",
+  "exports": {
+    "./capability": "./src/capability.ts"
+  }
+}

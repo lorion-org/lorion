@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "declaration": false,
+    "declarationMap": false,
+    "isolatedDeclarations": false,
+    "noEmit": true,
+    "rootDir": "../..",
+    "paths": {
+      "@lorion-org/react": ["../../packages/react/src/index.ts"],
+      "@lorion-org/capability-composition": ["../../packages/capability-composition/src/index.ts"],
+      "@acme/plugin": ["./src/plugin.ts"],
+      "@acme/*/web": ["./capabilities/*/src/web.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts", "capabilities/**/*.ts"]
+}

@@ -25,12 +25,12 @@ If a configured provider is set but not present among the candidates, the packag
 does not silently fall back. It reports a mismatch and leaves that capability
 unselected.
 
-Playground examples in this repository:
+Example descriptors in this repository:
 
-- `packages/nuxt/playground/layer-extensions/payment-provider-stripe/extension.json`
-- `packages/nuxt/playground/layer-extensions/payment-provider-invoice/extension.json`
-- `packages/react/playground/capabilities/payment-provider-stripe/capability.json`
-- `packages/react/playground/capabilities/payment-provider-invoice/capability.json`
+- `examples/nuxt/layer-extensions/payment-provider-stripe/extension.json`
+- `examples/nuxt/layer-extensions/payment-provider-invoice/extension.json`
+- `examples/react-runtime/capabilities/payment-provider-stripe/capability.json`
+- `examples/react-runtime/capabilities/payment-provider-invoice/capability.json`
 
 It does not know anything about:
 

@@ -36,6 +36,7 @@ jobs:
             package.json
             pnpm-workspace.yaml
             packages/*/package.json
+            examples/*/package.json
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -55,8 +56,8 @@ jobs:
       - name: Run tests
         run: pnpm run test
 
-      - name: Check examples
-        run: pnpm run examples:check
+      - name: Check example snippets
+        run: pnpm run snippets:check
 
       - name: Check package output
         run: pnpm run package:check
@@ -67,9 +68,5 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
-      - name: Verify playgrounds
-        run: |
-          pnpm --filter @lorion-org/react typecheck:playground
-          pnpm --filter @lorion-org/react typecheck:playground-runtime
-          pnpm --filter @lorion-org/react build:playground
-          pnpm --filter @lorion-org/react build:playground-runtime
+      - name: Verify examples (dev-only; not part of the package build/typecheck gates)
+        run: pnpm run examples:verify

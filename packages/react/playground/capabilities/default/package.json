@@ -1,7 +1,0 @@
-{
-  "name": "@lorion-react-playground/default",
-  "type": "module",
-  "exports": {
-    "./capability": "./src/capability.ts"
-  }
-}
