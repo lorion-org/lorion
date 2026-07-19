@@ -147,7 +147,7 @@ export function useShops(): Shop[] {
 }
 ```
 
-Runnable example files live in [`examples/`](./examples).
+Runnable example files live in [`snippets/`](./snippets).
 The Node example imports the published package name instead of local source files so it mirrors real consumer usage.
 The examples use the same shop and checkout-provider domain as the LORION example apps.
 

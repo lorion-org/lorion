@@ -38,7 +38,7 @@
   },
   "files": [
     "dist",
-    "examples",
+    "snippets",
     "LICENSE",
     "src/**/*.ts",
     "!src/**/*.spec.ts"
@@ -46,8 +46,8 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm,cjs --dts",
     "clean": "rimraf coverage dist tsconfig.tsbuildinfo",
-    "example:node": "node ./examples/node-basic.js",
-    "example:renderer": "node ./examples/renderer-registry.js",
+    "example:node": "node ./snippets/node-basic.js",
+    "example:renderer": "node ./snippets/renderer-registry.js",
     "lint": "eslint src --ext .ts",
     "prepack": "pnpm build",
     "test": "vitest run --root ../.. --config vitest.config.mts packages/registry-hub/src/index.spec.ts",

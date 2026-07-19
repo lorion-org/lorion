@@ -165,7 +165,7 @@ Common workspace commands:
 - `pnpm test` runs the test suite
 - `pnpm tests` is an alias for `pnpm test`
 - `pnpm snippets:check` type-checks the per-package documentation snippets under
-  `packages/*/examples/`
+  `packages/*/snippets/`
 - `pnpm examples:verify` type-checks and builds the runnable example apps under
   `examples/`
 - `pnpm package:check`

@@ -37,7 +37,7 @@ composition runs and _how_ modules are loaded:
   suited to bundled or air-gapped artifacts.
 
 Both compose the identical set from one seam (`resolveSurfaceModules`). See
-`examples/buildtime-composition.ts` for the build-time manifest.
+`snippets/buildtime-composition.ts` for the build-time manifest.
 
 ## Local Commands
 

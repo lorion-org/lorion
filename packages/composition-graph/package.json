@@ -38,7 +38,7 @@
   },
   "files": [
     "dist",
-    "examples",
+    "snippets",
     "LICENSE",
     "src/**/*.ts",
     "!src/**/*.spec.ts"
@@ -46,7 +46,7 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm,cjs --dts",
     "clean": "rimraf coverage dist tsconfig.tsbuildinfo",
-    "example:composition": "node ./examples/deployment-composition.js",
+    "example:composition": "node ./snippets/deployment-composition.js",
     "lint": "eslint src --ext .ts",
     "prepack": "pnpm build",
     "test": "vitest run --root ../.. --config vitest.config.mts packages/composition-graph/src/index.spec.ts",

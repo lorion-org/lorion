@@ -21,5 +21,5 @@
       "@lorion-org/nuxt/runtime-config-node": ["./packages/nuxt/src/runtime-config-node.ts"]
     }
   },
-  "include": ["examples-globals.d.ts", "packages/*/examples/**/*.ts"]
+  "include": ["snippets-globals.d.ts", "packages/*/snippets/**/*.ts"]
 }

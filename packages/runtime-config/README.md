@@ -290,7 +290,7 @@ projectRuntimeConfigEnvVars(
 // }
 ```
 
-Runnable example files live in [`examples/`](./examples).
+Runnable example files live in [`snippets/`](./snippets).
 
 ## Local commands
 

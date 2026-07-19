@@ -111,7 +111,7 @@ src/
   runtime-config.ts
   runtime-config-node.ts
   types.ts
-examples/
+snippets/
   read-runtime-config.server.ts
   runtime-config-source.nuxt.config.ts
   selected-extensions.nuxt.config.ts
@@ -125,7 +125,7 @@ test/
 - `src/runtime-config.ts` contains universal runtime-config adapter helpers.
 - `src/runtime-config-node.ts` contains Node-only source loading helpers.
 - The published package exports the root Nuxt module, runtime-config subpaths, the descriptor schema, and runtime-safe extension helpers under `@lorion-org/nuxt/extensions`. Runtime-config composables are generated and auto-imported by the module.
-- `examples/` contains Nuxt-focused config and server-route snippets.
+- `snippets/` contains Nuxt-focused config and server-route snippets.
 - The runnable Nuxt example app lives at `examples/nuxt` in the repo root.
 - `test/fixtures/` contains Nuxt applications used by end-to-end tests, and `test/unit/` contains package unit tests.
 - The `srvx` devDependency is load-bearing for development only: it aligns this package's dev-time `nuxt` peer context with the standalone `examples/nuxt` app (which pulls `srvx` transitively through the Nitro server). Without it, pnpm resolves `nuxt` into two peer contexts and the `nuxt/schema` module augmentation in `src/types.ts` no longer typechecks. It is not imported by any source file — do not remove it as "unused". The root `package.json` `pnpm.overrides` pins `srvx` to one version workspace-wide so this alignment cannot silently drift when Nitro bumps its own `srvx` range; bump both together if Nitro ever requires a newer `srvx`.
@@ -462,11 +462,11 @@ export default defineNuxtConfig({
 });
 ```
 
-Nuxt-focused example snippets live in [`examples/`](./examples):
+Nuxt-focused snippets live in [`snippets/`](./snippets):
 
-- [`selected-extensions.nuxt.config.ts`](./examples/selected-extensions.nuxt.config.ts)
-- [`runtime-config-source.nuxt.config.ts`](./examples/runtime-config-source.nuxt.config.ts)
-- [`read-runtime-config.server.ts`](./examples/read-runtime-config.server.ts)
+- [`selected-extensions.nuxt.config.ts`](./snippets/selected-extensions.nuxt.config.ts)
+- [`runtime-config-source.nuxt.config.ts`](./snippets/runtime-config-source.nuxt.config.ts)
+- [`read-runtime-config.server.ts`](./snippets/read-runtime-config.server.ts)
 
 ## Example app
 
@@ -605,7 +605,7 @@ The package has three test groups:
 
 - unit tests for the adapter helpers and explicit extension activation
 - an end-to-end Nuxt fixture that starts a real Nuxt app with the module
-- typechecked TypeScript examples through the workspace examples check
+- typechecked TypeScript snippets through the workspace snippets check
 
 The e2e fixture verifies that `lorion.runtimeConfig` writes values into Nuxt
 runtime config, that a server route can read them back through

@@ -187,7 +187,7 @@ For adapters that resolve schema locations from scope directories, use
 `validateRuntimeConfigScopes(...)` to collect `validated` and `skipped`
 targets before the AJV validation runs.
 
-Runnable example files live in [`examples/`](./examples).
+Runnable example files live in [`snippets/`](./snippets).
 
 ## Local commands
 

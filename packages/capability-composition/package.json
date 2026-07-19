@@ -38,7 +38,7 @@
   },
   "files": [
     "dist",
-    "examples",
+    "snippets",
     "LICENSE",
     "src/**/*.ts",
     "!src/**/*.spec.ts"
