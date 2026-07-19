@@ -20,15 +20,16 @@ import {
 // the surface-addressing convention to @lorion-org/surface-activation, so no logic
 // is duplicated here.
 
-// Re-export only `conventionActivation` (and the types describing it) — the
-// companion a `composeCapabilities` caller needs to build the activation it passes
-// in. The build-time addressing tools (`resolveSurfaceModules`,
-// `capabilitySpecifier`) stay owned solely by @lorion-org/surface-activation, so a
-// build-time host depends on that light package directly instead of pulling in
-// this runtime host.
-export { conventionActivation } from '@lorion-org/surface-activation';
+// Re-export the convention-building companions a `composeCapabilities` caller needs
+// to build the activation it passes in: `conventionActivation`, the
+// `fileSurfaceConvention` preset, and the describing types. The build-time
+// addressing tools (`resolveSurfaceModules`, `capabilitySpecifier`) stay owned
+// solely by @lorion-org/surface-activation, so a build-time host depends on that
+// light package directly instead of pulling in this runtime host.
+export { conventionActivation, fileSurfaceConvention } from '@lorion-org/surface-activation';
 export type {
   ActivationResolver,
+  FileSurfaceConventionOptions,
   SurfaceActivation,
   SurfaceConvention,
 } from '@lorion-org/surface-activation';

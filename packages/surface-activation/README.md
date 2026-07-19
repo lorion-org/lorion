@@ -62,6 +62,9 @@ A build-time host emits a static `import` per entry; a runtime host feeds each
 ## Consumers in this repo
 
 - `@lorion-org/capability-composition` — feeds the specifiers to its runtime
-  `composeCapabilities` loop (and re-exports these symbols).
+  `composeCapabilities` loop, and re-exports the convention builders
+  (`conventionActivation`, `fileSurfaceConvention`) and their types for callers of
+  that loop. The build-time addressing tools (`resolveSurfaceModules`,
+  `capabilitySpecifier`) are imported from this package directly.
 - `@lorion-org/react` — uses `capabilitySpecifier` when code-generating static
   capability imports at build time.
