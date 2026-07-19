@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   capabilitySpecifier,
   conventionActivation,
+  fileSurfaceConvention,
   resolveSurfaceModules,
   type SurfaceCapability,
 } from './index';
@@ -34,6 +35,67 @@ describe('conventionActivation', () => {
 
     expect(activation('web', { directory: '/nope', id: 'dashboard' })).toBeUndefined();
     expect(activation('server', { directory: '/anything', id: 'dashboard' })).toBeUndefined();
+  });
+});
+
+describe('fileSurfaceConvention', () => {
+  it('builds a convention: any marker file present, camelCase(id)+suffix export name', () => {
+    const present = new Set(['/caps/auth-oidc/src/web.tsx']);
+    const convention = fileSurfaceConvention({
+      files: ['src/web.ts', 'src/web.tsx'],
+      exportSuffix: 'WebPlugin',
+      exportSubpath: './web',
+      exists: (path) => present.has(path),
+    });
+
+    expect(convention.marker('/caps/auth-oidc')).toBe(true);
+    expect(convention.marker('/caps/none')).toBe(false);
+    expect(convention.exportName('auth-oidc')).toBe('authOidcWebPlugin');
+    expect(convention.exportSubpath).toBe('./web');
+  });
+
+  it('defaults the suffix to empty and joins with a POSIX separator', () => {
+    const seen: string[] = [];
+    const convention = fileSurfaceConvention({
+      files: ['server.mjs'],
+      exportSubpath: './server',
+      exists: (path) => {
+        seen.push(path);
+        return false;
+      },
+    });
+
+    convention.marker('/caps/dashboard');
+    expect(seen).toEqual(['/caps/dashboard/server.mjs']);
+    expect(convention.exportName('dashboard')).toBe('dashboard');
+  });
+
+  it('honours a custom join', () => {
+    const convention = fileSurfaceConvention({
+      files: ['src\\web.ts'],
+      exportSubpath: './web',
+      exists: (path) => path === 'C:\\caps\\home\\src\\web.ts',
+      join: (directory, file) => `${directory}\\${file}`,
+    });
+
+    expect(convention.marker('C:\\caps\\home')).toBe(true);
+  });
+
+  it('composes with conventionActivation as a drop-in surface', () => {
+    const activation = conventionActivation({
+      web: fileSurfaceConvention({
+        files: ['src/web.ts'],
+        exportSuffix: 'WebPlugin',
+        exportSubpath: './web',
+        exists: (path) => path === '/caps/dashboard/src/web.ts',
+      }),
+    });
+
+    expect(activation('web', { directory: '/caps/dashboard', id: 'dashboard' })).toEqual({
+      exportSubpath: './web',
+      exportName: 'dashboardWebPlugin',
+    });
+    expect(activation('web', { directory: '/caps/tokens', id: 'tokens' })).toBeUndefined();
   });
 });
 

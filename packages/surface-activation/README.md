@@ -16,6 +16,11 @@ of being reinvented per host.
   export (`exportName(id)`), and where it is exported from (`exportSubpath`).
 - **`conventionActivation(surfaces)`** — builds an `ActivationResolver` from
   per-surface conventions.
+- **`fileSurfaceConvention(options)`** — a ready-made `SurfaceConvention` for the
+  common file-layout case: the surface exists when one of `files` is present, and its
+  export is `camelCase(id) + exportSuffix`. It bakes the marker and naming so a host
+  stops repeating them per surface; existence is injected (`exists`) so this package
+  stays I/O-free.
 - **`capabilitySpecifier(packageName, exportSubpath)`** — the one rule for a
   capability's import specifier (`@acme/shops` + `./web` → `@acme/shops/web`).
 - **`resolveSurfaceModules(active, surface, activation)`** — for each active
@@ -24,20 +29,32 @@ of being reinvented per host.
 ## Usage
 
 ```ts
-import { conventionActivation, resolveSurfaceModules } from '@lorion-org/surface-activation';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import {
+  conventionActivation,
+  fileSurfaceConvention,
+  resolveSurfaceModules,
+} from '@lorion-org/surface-activation';
 
 const activation = conventionActivation({
-  web: {
-    marker: (dir) => existsSync(`${dir}/src/web.ts`),
-    exportName: (id) => `${id}WebPlugin`,
+  web: fileSurfaceConvention({
+    files: ['src/web.ts'], // surface present when any listed file exists
+    exportSuffix: 'WebPlugin', // exportName = camelCase(id) + suffix
     exportSubpath: './web',
-  },
+    exists: existsSync, // injected — the package itself touches no filesystem
+    join, // optional; defaults to a POSIX join
+  }),
 });
 
 // `active` is any list of { id, directory, packageName } items.
 const modules = resolveSurfaceModules(active, 'web', activation);
 // -> [{ capability, specifier: '@acme/shops/web', exportName: 'shopsWebPlugin' }, ...]
 ```
+
+The convention is the only surface-specific part: swap `exportSuffix`/`exportSubpath`
+(and `files`) for a `server` surface, an `api` surface, or any other. The raw
+`SurfaceConvention` object stays available for cases the preset does not cover.
 
 A build-time host emits a static `import` per entry; a runtime host feeds each
 `specifier` to a dynamic `import()`. Both use the identical list.

@@ -3,7 +3,11 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { resolveSelectedCapabilities } from '@lorion-org/capability-composition';
-import { conventionActivation, resolveSurfaceModules } from '@lorion-org/surface-activation';
+import {
+  conventionActivation,
+  fileSurfaceConvention,
+  resolveSurfaceModules,
+} from '@lorion-org/surface-activation';
 
 // Build-time composition: which capabilities are injected is decided and frozen
 // at build time. The graph is resolved once, and `resolveSurfaceModules` maps each
@@ -14,19 +18,19 @@ import { conventionActivation, resolveSurfaceModules } from '@lorion-org/surface
 
 const workspaceRoot = dirname(fileURLToPath(import.meta.url));
 
-function toCamelCase(id: string): string {
-  return id.replace(/-([a-z])/g, (_match, char: string) => char.toUpperCase());
-}
-
 // The host owns the surface convention: a capability provides the `server`
 // surface when it ships `src/server.mjs`; its export is
-// `<camelCaseId>ServerCapability` from the `./server` subpath.
+// `<camelCaseId>ServerCapability` from the `./server` subpath. `fileSurfaceConvention`
+// builds the marker/naming for this common file-layout case — the host injects only
+// `exists` (and `join`), keeping the convention package I/O-free.
 const activation = conventionActivation({
-  server: {
-    marker: (directory) => existsSync(join(directory, 'src/server.mjs')),
-    exportName: (id) => `${toCamelCase(id)}ServerCapability`,
+  server: fileSurfaceConvention({
+    files: ['src/server.mjs'],
+    exportSuffix: 'ServerCapability',
     exportSubpath: './server',
-  },
+    exists: existsSync,
+    join,
+  }),
 });
 
 // Resolve the graph at build time: platform base on (pulls the graph-only

@@ -40,6 +40,45 @@ export function conventionActivation(
   };
 }
 
+export interface FileSurfaceConventionOptions {
+  // Relative marker files; the surface exists when the capability ships any of them
+  // (for example `['src/web.ts']`, or several accepted layouts).
+  files: readonly string[];
+  // Export subpath the symbol is imported from (for example `./web`).
+  exportSubpath: string;
+  // Suffix appended to the camelCased id to form the export name
+  // (`'WebPlugin'` turns `auth-oidc` into `authOidcWebPlugin`). Defaults to `''`.
+  exportSuffix?: string;
+  // Existence check for a marker path, injected by the host. Kept out of this module
+  // so the package stays I/O-free — a Node host passes `existsSync`.
+  exists: (path: string) => boolean;
+  // Joins a capability directory with a relative marker file. Defaults to a POSIX
+  // join (`${directory}/${file}`), which Node's fs accepts on every platform; pass
+  // `node:path`'s `join` for native separators.
+  join?: (directory: string, file: string) => string;
+}
+
+// Converts a kebab-case id to camelCase (`auth-oidc` -> `authOidc`). The shared
+// naming rule so every host derives export names the same way.
+function camelCaseId(id: string): string {
+  return id.replace(/-([a-z])/g, (_match, char: string) => char.toUpperCase());
+}
+
+// A ready-made `SurfaceConvention` for the common file-layout case: the surface is
+// present when one of `files` exists, and its export is `camelCase(id) + exportSuffix`
+// from `exportSubpath`. Hand the result to `conventionActivation`. This is the whole
+// marker/naming boilerplate a host would otherwise repeat per surface; the raw
+// `SurfaceConvention` object stays available for anything this preset does not cover.
+export function fileSurfaceConvention(options: FileSurfaceConventionOptions): SurfaceConvention {
+  const { files, exportSubpath, exportSuffix = '', exists } = options;
+  const join = options.join ?? ((directory, file) => `${directory}/${file}`);
+  return {
+    marker: (directory) => files.some((file) => exists(join(directory, file))),
+    exportName: (id) => `${camelCaseId(id)}${exportSuffix}`,
+    exportSubpath,
+  };
+}
+
 // The import specifier for a capability's surface module: the package name joined
 // with the export subpath, with a leading `.` dropped (`./web` becomes `/web`). One
 // rule, shared by every host style.

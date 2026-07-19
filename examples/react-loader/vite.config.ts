@@ -1,17 +1,13 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { conventionActivation } from '@lorion-org/surface-activation';
+import { conventionActivation, fileSurfaceConvention } from '@lorion-org/surface-activation';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import { capabilityLoader } from '@lorion-org/react/vite';
 
 const projectRoot = dirname(fileURLToPath(import.meta.url));
 const capabilitiesRoot = resolve(projectRoot, 'capabilities');
-
-function toCamelCase(id: string): string {
-  return id.replace(/-([a-z])/g, (_match, char: string) => char.toUpperCase());
-}
 
 // Model B leaves specifier resolution to the host bundler. Map each capability
 // web surface to its source, the same way a product host aliases its own
@@ -27,16 +23,19 @@ const capabilityAliases = readdirSync(capabilitiesRoot, { withFileTypes: true })
 
 // The surface convention, framework-free and shared across hosts: a web surface
 // exists when the capability ships `src/web.ts`, and its export is
-// `<camelCaseId>WebPlugin` from the `./web` subpath. The descriptor carries no
-// surface config — this is the same `conventionActivation` a runtime host (a Bun
-// server) would pass to `composeCapabilities`, here handed to the build-time
-// loader instead.
+// `<camelCaseId>WebPlugin` from the `./web` subpath. `fileSurfaceConvention` builds
+// the marker/naming; the host injects only `exists`, keeping the convention package
+// I/O-free. The descriptor carries no surface config — this is the same
+// `conventionActivation` a runtime host (a Bun server) would pass to
+// `composeCapabilities`, here handed to the build-time loader instead.
 const activation = conventionActivation({
-  web: {
-    marker: (directory) => existsSync(join(directory, 'src/web.ts')),
-    exportName: (id) => `${toCamelCase(id)}WebPlugin`,
+  web: fileSurfaceConvention({
+    files: ['src/web.ts'],
+    exportSuffix: 'WebPlugin',
     exportSubpath: './web',
-  },
+    exists: existsSync,
+    join,
+  }),
 });
 
 export default defineConfig({
