@@ -1,5 +1,11 @@
 # @lorion-org/react
 
+## 1.0.0-beta.4
+
+### Patch Changes
+
+- d9c8d90: Separate the `indexRouteFile` hint into its own paragraph in the README so it no longer renders as part of the preceding route-config paragraph.
+
 ## 1.0.0-beta.3
 
 ### Minor Changes

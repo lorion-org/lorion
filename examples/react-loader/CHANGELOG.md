@@ -1,5 +1,12 @@
 # @lorion-examples/react-loader
 
+## 0.0.1-beta.1
+
+### Patch Changes
+
+- Updated dependencies [d9c8d90]
+  - @lorion-org/react@1.0.0-beta.4
+
 ## 0.0.1-beta.0
 
 ### Patch Changes
