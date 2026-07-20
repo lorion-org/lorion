@@ -43,4 +43,5 @@ Run commands from the LORION repository root:
 - npm publishing is done from GitHub Actions
 - all publishable packages must define `exports`, `types`, and `files`
 - release-impacting package changes must include their Changeset in the same commit
+- a brand-new package needs one manual first publish (`npm publish --access public --tag beta` from its directory), then an npm Trusted Publisher (`lorion-org` / `lorion` / `release.yml`, action `npm publish`); OIDC cannot bootstrap a name that does not exist yet, so CI (which fails with `E404`) only takes over from the next release
 - see [the release workflow](./docs/release.md) for the maintainer flow
