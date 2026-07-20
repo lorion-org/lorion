@@ -1,5 +1,22 @@
 # @lorion-org/nuxt
 
+## 1.0.0-beta.3
+
+### Minor Changes
+
+- 0b36ee9: Consume `@lorion-org/descriptor-selection` for provider-aware descriptor selection instead of each package re-implementing the same discover→provider-dedup→graph pipeline. The React adapter keeps re-exporting `defaultCapabilityRelationDescriptors`, `createCapabilityCompositionPolicy`, and `defaultCapabilityResolutionRelations` unchanged.
+
+  Behavior changes:
+  - The "exactly one `defaultFor` provider per capability" guard now runs in all three adapters (React, Nuxt, and capability-composition). A descriptor set where two providers both declare `defaultFor` the same capability now throws instead of silently resolving both — previously only capability-composition enforced this.
+  - `capability-composition`'s `resolveSelectedCapabilities` now excludes descriptors marked `disabled: true`, matching the React and Nuxt adapters.
+
+### Patch Changes
+
+- Updated dependencies [54a1b8a]
+- Updated dependencies [04d2ee5]
+  - @lorion-org/descriptor-selection@1.0.0-beta.3
+  - @lorion-org/descriptor-discovery@1.0.0-beta.3
+
 ## 1.0.0-beta.2
 
 ### Minor Changes
