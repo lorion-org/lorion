@@ -29,6 +29,7 @@
     "nuxt-runtime-safe-extensions",
     "react-configurable-activation",
     "react-provider-relations",
+    "react-readme-index-route-note",
     "react-runtime-config",
     "require-package-name",
     "runtime-config-explicit-imports",
