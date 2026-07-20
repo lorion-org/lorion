@@ -12,15 +12,28 @@
     "@lorion-org/registry-hub": "1.0.0-beta.1",
     "@lorion-org/runtime-config": "1.0.0-beta.0",
     "@lorion-org/runtime-config-node": "1.0.0-beta.0",
-    "@lorion-org/surface-activation": "1.0.0-beta.2"
+    "@lorion-org/surface-activation": "1.0.0-beta.2",
+    "@lorion-examples/nuxt": "0.0.0",
+    "@lorion-examples/react-loader": "0.0.0",
+    "@lorion-examples/react-runtime": "0.0.0"
   },
   "changesets": [
+    "capability-composition-surface-modules",
+    "capability-composition",
+    "capability-loader-surface",
     "descriptor-selection-seeds",
+    "descriptor-selection",
     "explicit-provider-seeds",
+    "file-surface-convention",
     "friendly-clouds-share",
     "nuxt-runtime-safe-extensions",
+    "react-configurable-activation",
     "react-provider-relations",
+    "react-runtime-config",
+    "require-package-name",
     "runtime-config-explicit-imports",
-    "shared-capability-selection-seeds"
+    "share-descriptor-selection",
+    "shared-capability-selection-seeds",
+    "surface-activation"
   ]
 }
