@@ -1,5 +1,13 @@
 # @lorion-examples/nuxt
 
+## 0.0.1-beta.1
+
+### Patch Changes
+
+- Updated dependencies [5246ab8]
+  - @lorion-org/nuxt@1.0.0-beta.5
+  - @lorion-org/registry-hub@1.0.0-beta.5
+
 ## 0.0.1-beta.0
 
 ### Patch Changes

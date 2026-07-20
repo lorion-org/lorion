@@ -1,5 +1,11 @@
 # @lorion-org/registry-hub
 
+## 1.0.0-beta.5
+
+### Patch Changes
+
+- 5246ab8: Adopt unified versioning: all `@lorion-org/*` packages now share a single version and are released together, so a given release line is consistent across the whole surface.
+
 ## 1.0.0-beta.2
 
 ### Minor Changes

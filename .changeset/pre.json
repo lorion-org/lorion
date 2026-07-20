@@ -35,6 +35,7 @@
     "runtime-config-explicit-imports",
     "share-descriptor-selection",
     "shared-capability-selection-seeds",
-    "surface-activation"
+    "surface-activation",
+    "unified-versioning"
   ]
 }

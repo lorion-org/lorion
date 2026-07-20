@@ -1,5 +1,13 @@
 # @lorion-examples/react-loader
 
+## 0.0.1-beta.2
+
+### Patch Changes
+
+- Updated dependencies [5246ab8]
+  - @lorion-org/react@1.0.0-beta.5
+  - @lorion-org/surface-activation@1.0.0-beta.5
+
 ## 0.0.1-beta.1
 
 ### Patch Changes
