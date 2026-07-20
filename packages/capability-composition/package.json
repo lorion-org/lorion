@@ -1,6 +1,6 @@
 {
   "name": "@lorion-org/capability-composition",
-  "version": "1.0.0-beta.2",
+  "version": "1.0.0-beta.3",
   "description": "Framework-free capability composition: on-disk descriptor selection and runtime/build-time composition, built on the surface-activation convention.",
   "license": "MIT",
   "repository": {
