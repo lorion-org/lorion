@@ -216,6 +216,7 @@ Route config generation stays TanStack-focused and only includes enabled,
 selected capability route directories. If no `selected`, seed value,
 `defaultSelection`, or `baseDescriptors` are provided, every enabled local
 capability remains active.
+
 Use `indexRouteFile: false` when `/` is owned by a capability route.
 
 The virtual module exports `capabilityModules`, `selectedCapabilityIds`, and
