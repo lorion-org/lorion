@@ -1,0 +1,8 @@
+{
+  "base": "commerce",
+  "default": "storefront",
+  "bundles": [
+    { "id": "commerce", "version": "0.0.0", "dependencies": { "checkout": "^1.0.0" } },
+    { "id": "storefront", "version": "0.0.0", "dependencies": { "web": "^1.0.0" } }
+  ]
+}
