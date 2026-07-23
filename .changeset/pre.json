@@ -36,6 +36,8 @@
     "share-descriptor-selection",
     "shared-capability-selection-seeds",
     "surface-activation",
-    "unified-versioning"
+    "unified-versioning",
+    "virtual-descriptors-and-base-seed",
+    "workspace-host-loader"
   ]
 }

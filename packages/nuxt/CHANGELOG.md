@@ -1,5 +1,18 @@
 # @lorion-org/nuxt
 
+## 1.0.0-beta.6
+
+### Patch Changes
+
+- Updated dependencies [c549690]
+- Updated dependencies [7450d75]
+  - @lorion-org/descriptor-discovery@1.0.0-beta.6
+  - @lorion-org/descriptor-selection@1.0.0-beta.6
+  - @lorion-org/composition-graph@1.0.0-beta.6
+  - @lorion-org/provider-selection@1.0.0-beta.6
+  - @lorion-org/runtime-config@1.0.0-beta.6
+  - @lorion-org/runtime-config-node@1.0.0-beta.6
+
 ## 1.0.0-beta.5
 
 ### Patch Changes
