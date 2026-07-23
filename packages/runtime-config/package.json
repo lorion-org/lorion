@@ -1,6 +1,6 @@
 {
   "name": "@lorion-org/runtime-config",
-  "version": "1.0.0-beta.5",
+  "version": "1.0.0-beta.6",
   "description": "Framework-free runtime-config types and merge helpers.",
   "license": "MIT",
   "repository": {
