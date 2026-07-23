@@ -1,9 +1,11 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, readFileSync, statSync } from 'node:fs';
+import { dirname, isAbsolute, relative, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { CompositionPolicy, Descriptor, DescriptorId } from '@lorion-org/composition-graph';
 import {
   descriptorSchema,
   discoverDescriptors,
+  findUp,
   loadBundleManifest,
   requirePackageName,
   virtualDescriptorDirectory,
@@ -183,4 +185,142 @@ export async function composeCapabilities(options: {
   }
 
   return activated;
+}
+
+// --- Workspace host loader --------------------------------------------------
+//
+// Node/Bun plumbing every workspace runtime host would otherwise copy to satisfy
+// `composeCapabilities`' `load` callback. It is the runtime counterpart to the
+// build-time workspace source aliases: it loads workspace packages from their
+// declared `exports`, so a runtime host needs no per-host loading code. Pure
+// node/bun (node:fs, node:path, node:url, dynamic import), no product specifics —
+// the packages directory and the root markers are parameters. It lives here, next
+// to the `load`-consuming host and the existing node-fs binding (`readPackageName`),
+// rather than in a separate node-only package: this package is already node-bound,
+// carries no env-agnostic core to protect, and `sideEffects: false` lets a bundler
+// drop these helpers when a host supplies its own `load`.
+
+// The directory the upward walk starts from: `from` is a file URL
+// (`import.meta.url`) or a path. A file resolves to its containing directory; a
+// directory is used as-is.
+function toStartDirectory(from: string): string {
+  const path = from.startsWith('file:') ? fileURLToPath(from) : from;
+  try {
+    if (statSync(path).isDirectory()) return path;
+  } catch {
+    // Path does not exist — fall back to treating it as a file and use its parent.
+  }
+  return dirname(path);
+}
+
+// Resolves the workspace root by walking up from `from` until a directory holds ALL
+// `markers` (default `['packages']`, the pnpm packages directory). Throws a clear
+// error if no ancestor qualifies.
+export function resolveWorkspaceRoot(from: string, options: { markers?: string[] } = {}): string {
+  const markers = options.markers ?? ['packages'];
+  const root = findUp(toStartDirectory(from), (dir) =>
+    markers.every((marker) => existsSync(resolve(dir, marker))),
+  );
+  if (root === undefined) {
+    throw new Error(
+      `Workspace root not found from "${from}" upward: no ancestor directory contains ${markers
+        .map((marker) => `"${marker}"`)
+        .join(' + ')}.`,
+    );
+  }
+  return root;
+}
+
+// A specifier's workspace package folder and export subpath. A leading scope segment
+// is dropped: `@scope/name/a/b` and `name/a/b` both address the folder `name` with
+// subpath `./a/b`; a bare `name` (or `@scope/name`) addresses the `.` export.
+function parseWorkspaceSpecifier(specifier: string): { folder: string; subpath: string } {
+  const segments = specifier.split('/').filter((segment) => segment.length > 0);
+  const withoutScope = segments[0]?.startsWith('@') ? segments.slice(1) : segments;
+  const [folder, ...rest] = withoutScope;
+  if (!folder) {
+    throw new Error(`Cannot derive a workspace package folder from specifier "${specifier}".`);
+  }
+  // A `.`/`..` segment would escape the packages directory once resolved; reject it
+  // rather than resolve a path outside the workspace.
+  if (folder === '.' || folder === '..') {
+    throw new Error(`Invalid workspace package folder "${folder}" from specifier "${specifier}".`);
+  }
+  return { folder, subpath: rest.length ? `./${rest.join('/')}` : '.' };
+}
+
+// Guards that `child` stays inside `parent` after resolution, so neither a `..`
+// segment nor a malformed `exports` target can escape the packages directory.
+function assertInside(parent: string, child: string, label: string): void {
+  const rel = relative(parent, child);
+  if (rel.startsWith('..') || isAbsolute(rel)) {
+    throw new Error(`${label} "${child}" escapes the workspace directory "${parent}".`);
+  }
+}
+
+// Resolves an `exports` entry for `subpath` to a relative target file. Supports a
+// string target and a conditional object, resolved in `import` > `require` >
+// `default` order (nested condition objects are followed the same way) — the loader
+// imports the target via `import()`, which loads ESM and CJS alike, so `import` and
+// `require` are both runtime-valid; `types` is a declaration-file condition and is
+// deliberately never followed. It is a small subset of node resolution — no subpath
+// patterns (`./*`), no `node` condition — enough for workspace packages that declare
+// plain export targets, including the conditions-only `.` sugar.
+function resolveExportTarget(exports: unknown, subpath: string, packageJsonPath: string): string {
+  const resolveConditions = (entry: unknown): string | undefined => {
+    if (typeof entry === 'string') return entry;
+    if (!entry || typeof entry !== 'object') return undefined;
+    const conditions = entry as Record<string, unknown>;
+    for (const key of ['import', 'require', 'default']) {
+      if (key in conditions) {
+        const resolved = resolveConditions(conditions[key]);
+        if (resolved !== undefined) return resolved;
+      }
+    }
+    return undefined;
+  };
+
+  const missing = (): Error =>
+    new Error(`No "${subpath}" export resolves to a file in ${packageJsonPath}.`);
+
+  if (typeof exports === 'string') {
+    if (subpath === '.') return exports;
+    throw missing();
+  }
+  if (!exports || typeof exports !== 'object') {
+    throw new Error(`Package ${packageJsonPath} declares no "exports" to resolve "${subpath}".`);
+  }
+
+  // An `exports` object with no subpath keys is node's sugar for the `.` export
+  // expressed directly as conditions (e.g. `{ import, require }`).
+  const record = exports as Record<string, unknown>;
+  const isSubpathMap = Object.keys(record).some((key) => key.startsWith('.'));
+  const entry = isSubpathMap ? record[subpath] : subpath === '.' ? record : undefined;
+  if (entry === undefined) throw missing();
+
+  const target = resolveConditions(entry);
+  if (target === undefined) throw missing();
+  return target;
+}
+
+// Builds a `load` callback for `composeCapabilities` that imports workspace packages
+// from `<workspaceRoot>/<packagesDir>/<folder>` through their declared `exports`.
+// `packagesDir` defaults to `'packages'`. A specifier with no matching export throws.
+export function createWorkspaceLoad(options: {
+  workspaceRoot: string;
+  packagesDir?: string;
+}): (specifier: string) => Promise<Record<string, unknown>> {
+  const packagesDir = options.packagesDir ?? 'packages';
+  return async (specifier) => {
+    const packagesRoot = resolve(options.workspaceRoot, packagesDir);
+    const { folder, subpath } = parseWorkspaceSpecifier(specifier);
+    const packageDirectory = resolve(packagesRoot, folder);
+    assertInside(packagesRoot, packageDirectory, 'workspace package');
+    const packageJsonPath = resolve(packageDirectory, 'package.json');
+    const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as { exports?: unknown };
+    const relativeTarget = resolveExportTarget(packageJson.exports, subpath, packageJsonPath);
+    const target = resolve(packageDirectory, relativeTarget);
+    assertInside(packageDirectory, target, 'export target');
+    return (await import(pathToFileURL(target).href)) as Record<string, unknown>;
+  };
 }

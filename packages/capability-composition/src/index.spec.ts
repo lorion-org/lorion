@@ -1,13 +1,16 @@
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   composeCapabilities,
   conventionActivation,
+  createWorkspaceLoad,
   resolveSelectedCapabilities,
+  resolveWorkspaceRoot,
   type ResolvedCapability,
 } from './index';
 
@@ -379,5 +382,197 @@ describe('composeCapabilities', () => {
 
     expect(activated).toEqual([]);
     expect(registerCalls).toBe(0);
+  });
+});
+
+// A workspace whose packages live under `packages/<folder>`, each an ESM package
+// declaring `exports`. `.mjs` targets keep the dynamic import ESM regardless of the
+// package.json `type`, so the tests exercise the loader, not module-format quirks.
+function createPackageWorkspace(
+  packages: {
+    folder: string;
+    packageJson: Record<string, unknown>;
+    files: Record<string, string>;
+  }[],
+): string {
+  const workspaceRoot = mkdtempSync(join(tmpdir(), 'workspace-load-'));
+  tempDirs.push(workspaceRoot);
+  for (const pkg of packages) {
+    const directory = join(workspaceRoot, 'packages', pkg.folder);
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(join(directory, 'package.json'), JSON.stringify(pkg.packageJson, null, 2));
+    for (const [name, contents] of Object.entries(pkg.files)) {
+      writeFileSync(join(directory, name), contents);
+    }
+  }
+  return workspaceRoot;
+}
+
+describe('createWorkspaceLoad', () => {
+  it('loads a scoped specifier from its workspace package folder', async () => {
+    const workspaceRoot = createPackageWorkspace([
+      {
+        folder: 'alpha',
+        packageJson: { name: '@scope/alpha', type: 'module', exports: { '.': './index.mjs' } },
+        files: { 'index.mjs': `export const id = 'alpha';\n` },
+      },
+    ]);
+
+    const load = createWorkspaceLoad({ workspaceRoot });
+
+    // The scope is dropped: `@scope/alpha` addresses the folder `alpha`.
+    expect(await load('@scope/alpha')).toMatchObject({ id: 'alpha' });
+  });
+
+  it('loads an unscoped specifier', async () => {
+    const workspaceRoot = createPackageWorkspace([
+      {
+        folder: 'beta',
+        packageJson: { name: 'beta', type: 'module', exports: { '.': './index.mjs' } },
+        files: { 'index.mjs': `export const id = 'beta';\n` },
+      },
+    ]);
+
+    expect(await createWorkspaceLoad({ workspaceRoot })('beta')).toMatchObject({ id: 'beta' });
+  });
+
+  it('resolves a subpath through a conditional export', async () => {
+    const workspaceRoot = createPackageWorkspace([
+      {
+        folder: 'gamma',
+        packageJson: {
+          name: '@scope/gamma',
+          type: 'module',
+          exports: { './server': { types: './server.d.ts', import: './server.mjs' } },
+        },
+        files: { 'server.mjs': `export const surface = 'server';\n` },
+      },
+    ]);
+
+    // The conditional object resolves to its runtime `import` target, not `types`.
+    expect(await createWorkspaceLoad({ workspaceRoot })('@scope/gamma/server')).toMatchObject({
+      surface: 'server',
+    });
+  });
+
+  it('honours a custom packages directory', async () => {
+    const workspaceRoot = mkdtempSync(join(tmpdir(), 'workspace-load-'));
+    tempDirs.push(workspaceRoot);
+    const directory = join(workspaceRoot, 'libs', 'delta');
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(
+      join(directory, 'package.json'),
+      JSON.stringify({ name: 'delta', type: 'module', exports: { '.': './index.mjs' } }),
+    );
+    writeFileSync(join(directory, 'index.mjs'), `export const id = 'delta';\n`);
+
+    expect(
+      await createWorkspaceLoad({ workspaceRoot, packagesDir: 'libs' })('delta'),
+    ).toMatchObject({ id: 'delta' });
+  });
+
+  it('throws when the specifier has no matching export', async () => {
+    const workspaceRoot = createPackageWorkspace([
+      {
+        folder: 'gamma',
+        packageJson: {
+          name: '@scope/gamma',
+          type: 'module',
+          exports: { './server': './server.mjs' },
+        },
+        files: { 'server.mjs': `export const surface = 'server';\n` },
+      },
+    ]);
+
+    await expect(createWorkspaceLoad({ workspaceRoot })('@scope/gamma/missing')).rejects.toThrow(
+      /No "\.\/missing" export/,
+    );
+  });
+
+  it('resolves the conditions-only `.` exports sugar', async () => {
+    const workspaceRoot = createPackageWorkspace([
+      {
+        folder: 'epsilon',
+        // No subpath keys: node treats this as the `.` export expressed as conditions.
+        packageJson: {
+          name: '@scope/epsilon',
+          type: 'module',
+          exports: { types: './index.d.ts', import: './index.mjs' },
+        },
+        files: { 'index.mjs': `export const id = 'epsilon';\n` },
+      },
+    ]);
+
+    expect(await createWorkspaceLoad({ workspaceRoot })('@scope/epsilon')).toMatchObject({
+      id: 'epsilon',
+    });
+  });
+
+  it('throws a clear error when the package declares no exports', async () => {
+    const workspaceRoot = createPackageWorkspace([
+      { folder: 'zeta', packageJson: { name: 'zeta', type: 'module' }, files: {} },
+    ]);
+
+    await expect(createWorkspaceLoad({ workspaceRoot })('zeta')).rejects.toThrow(
+      /declares no "exports"/,
+    );
+  });
+
+  it('throws when the specifier cannot yield a package folder', async () => {
+    const workspaceRoot = createPackageWorkspace([]);
+
+    await expect(createWorkspaceLoad({ workspaceRoot })('@scope')).rejects.toThrow(
+      /Cannot derive a workspace package folder/,
+    );
+  });
+
+  it('refuses a specifier that would escape the packages directory', async () => {
+    const workspaceRoot = createPackageWorkspace([]);
+
+    await expect(createWorkspaceLoad({ workspaceRoot })('../secret')).rejects.toThrow(
+      /Invalid workspace package folder/,
+    );
+  });
+});
+
+describe('resolveWorkspaceRoot', () => {
+  it('walks up from a nested directory to the marker directory', () => {
+    const workspaceRoot = mkdtempSync(join(tmpdir(), 'workspace-root-'));
+    tempDirs.push(workspaceRoot);
+    mkdirSync(join(workspaceRoot, 'packages'), { recursive: true });
+    const nested = join(workspaceRoot, 'packages', 'alpha', 'src');
+    mkdirSync(nested, { recursive: true });
+
+    expect(resolveWorkspaceRoot(nested)).toBe(workspaceRoot);
+  });
+
+  it('accepts a file URL and supports custom markers', () => {
+    const workspaceRoot = mkdtempSync(join(tmpdir(), 'workspace-root-'));
+    tempDirs.push(workspaceRoot);
+    mkdirSync(join(workspaceRoot, 'apps'), { recursive: true });
+    mkdirSync(join(workspaceRoot, 'capabilities'), { recursive: true });
+    const file = pathToFileURL(join(workspaceRoot, 'apps', 'host.mjs')).href;
+
+    expect(resolveWorkspaceRoot(file, { markers: ['apps', 'capabilities'] })).toBe(workspaceRoot);
+  });
+
+  it('accepts a non-existent file path, walking up from its parent directory', () => {
+    const workspaceRoot = mkdtempSync(join(tmpdir(), 'workspace-root-'));
+    tempDirs.push(workspaceRoot);
+    mkdirSync(join(workspaceRoot, 'packages'), { recursive: true });
+    // The file does not exist yet (e.g. a not-yet-emitted entry): resolution must
+    // fall back to its containing directory rather than throw.
+    const from = join(workspaceRoot, 'packages', 'alpha', 'dist', 'main.mjs');
+
+    expect(resolveWorkspaceRoot(from)).toBe(workspaceRoot);
+  });
+
+  it('throws when no ancestor contains the markers', () => {
+    const workspaceRoot = mkdtempSync(join(tmpdir(), 'workspace-root-'));
+    tempDirs.push(workspaceRoot);
+
+    expect(() => resolveWorkspaceRoot(workspaceRoot, { markers: ['definitely-absent'] })).toThrow(
+      /Workspace root not found/,
+    );
   });
 });
