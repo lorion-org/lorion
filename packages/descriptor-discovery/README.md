@@ -93,6 +93,47 @@ catalog.resolveSelection({
 });
 ```
 
+## Example: bundle manifest
+
+```jsonc
+// bundles.json — `bundles` is a nested list of ordinary descriptors (same shape as
+// any capability's descriptor); `base`/`default` name which of them seed the graph.
+{
+  "base": "base",
+  "default": "shop",
+  "bundles": [
+    { "id": "base", "version": "0.0.0", "dependencies": { "ui": "^1.0.0", "auth": "^1.0.0" } },
+    {
+      "id": "shop",
+      "version": "0.0.0",
+      "dependencies": { "catalog": "^1.0.0", "checkout": "^1.0.0" },
+    },
+  ],
+}
+```
+
+```ts
+import { loadBundleManifest } from '@lorion-org/descriptor-discovery';
+
+const { virtualDescriptors, baseDescriptors, defaultSelection } = loadBundleManifest({
+  cwd: appDir,
+});
+```
+
+`loadBundleManifest()` walks up from `cwd` to find a `bundles.json` (override with
+`fileName`), reads its `bundles` descriptor list as `virtualDescriptors`, and takes
+`base`/`default` as the `baseDescriptors` and `defaultSelection` seed. Each bundle is
+validated against the same `descriptorSchema` a capability's descriptor is held to, so
+a malformed grouping fails fast. This is the filesystem-free way to define grouping
+bundles: a host declares them in data — no bespoke format, just descriptors — and
+feeds the result to composition, without one package per bundle.
+
+`virtualDescriptorDirectory(workspaceRoot, id)` (and the `VIRTUAL_DESCRIPTOR_DIR`
+segment it uses) is the one shared convention for where a virtual descriptor is
+addressed on disk: a synthetic path that never exists, so surface markers never
+match and no `package.json` is read. Both the runtime and build-time hosts resolve
+virtual descriptors through it instead of each hard-coding the segment.
+
 ## Local commands
 
 ```shell

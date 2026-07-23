@@ -4,6 +4,7 @@ import type { Descriptor } from '@lorion-org/composition-graph';
 
 import {
   assertSingleDefaultProvider,
+  resolveBaseSelection,
   resolveDescriptorSelection,
   selectDescriptors,
 } from './index';
@@ -75,6 +76,34 @@ describe('resolveDescriptorSelection', () => {
   });
 });
 
+describe('resolveBaseSelection', () => {
+  it('uses baseDescriptors when no baseSeed is configured', () => {
+    expect(resolveBaseSelection({ baseDescriptors: ['base'] })).toEqual(['base']);
+  });
+
+  it('uses baseDescriptors when baseSeed is disabled', () => {
+    expect(resolveBaseSelection({ baseDescriptors: ['base'], baseSeed: false })).toEqual(['base']);
+  });
+
+  it('replaces baseDescriptors when baseSeed parses a value', () => {
+    expect(
+      resolveBaseSelection({
+        baseDescriptors: ['base'],
+        baseSeed: { argv: [], env: { B: 'slim' }, envKeys: ['B'] },
+      }),
+    ).toEqual(['slim']);
+  });
+
+  it('falls back to baseDescriptors when baseSeed parses nothing', () => {
+    expect(
+      resolveBaseSelection({
+        baseDescriptors: ['base'],
+        baseSeed: { argv: [], env: {}, envKeys: ['B'] },
+      }),
+    ).toEqual(['base']);
+  });
+});
+
 describe('selectDescriptors', () => {
   it('resolves base, selection, transitive dependencies, and the default provider', () => {
     expect(
@@ -89,6 +118,17 @@ describe('selectDescriptors', () => {
     });
     expect(ids).toContain('auth-oidc');
     expect(ids).not.toContain('auth-session');
+  });
+
+  it('resolves the base from baseSeed, overriding baseDescriptors, independent of the selection', () => {
+    // baseSeed replaces the base floor; the selection (dashboard) is unaffected.
+    expect(
+      select(reference(), {
+        baseDescriptors: ['tokens'],
+        baseSeed: { argv: [], env: { B: 'reports' }, envKeys: ['B'] },
+        selected: ['dashboard'],
+      }),
+    ).toEqual(['dashboard', 'reports']);
   });
 
   it('returns every enabled item when nothing is selected or based', () => {

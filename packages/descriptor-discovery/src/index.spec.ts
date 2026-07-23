@@ -1,10 +1,16 @@
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { discoverDescriptors, expandNestedDescriptors, requirePackageName } from './index';
+import {
+  discoverDescriptors,
+  expandNestedDescriptors,
+  findUp,
+  loadBundleManifest,
+  requirePackageName,
+} from './index';
 import { descriptorSchema } from './schema';
 
 const tempDirs: string[] = [];
@@ -29,6 +35,23 @@ function createTempDir(): string {
 
   return tempDir;
 }
+
+describe('findUp', () => {
+  it('returns the first ancestor directory the predicate accepts', () => {
+    const root = createTempDir();
+    mkdirSync(join(root, 'marker'), { recursive: true });
+    const nested = join(root, 'a', 'b');
+    mkdirSync(nested, { recursive: true });
+
+    expect(findUp(nested, (dir) => existsSync(join(dir, 'marker')))).toBe(root);
+  });
+
+  it('returns undefined when no ancestor matches', () => {
+    const root = createTempDir();
+
+    expect(findUp(root, (dir) => existsSync(join(dir, 'definitely-absent')))).toBeUndefined();
+  });
+});
 
 describe('expandNestedDescriptors', () => {
   it('returns a flat descriptor list and strips the nested field', () => {
@@ -276,5 +299,94 @@ describe('requirePackageName', () => {
     expect(() => requirePackageName({ name: 42 }, '/caps/shops/package.json')).toThrow(
       /missing "name"/,
     );
+  });
+});
+
+describe('loadBundleManifest', () => {
+  it('reads the nested bundle descriptors as virtual descriptors and the base/default seeds', () => {
+    const root = createTempDir();
+    writeFileSync(
+      join(root, 'bundles.json'),
+      JSON.stringify({
+        base: 'base',
+        default: 'shop',
+        bundles: [
+          { id: 'base', version: '0.0.0', dependencies: { ui: '^1.0.0', auth: '^1.0.0' } },
+          { id: 'shop', version: '0.0.0', dependencies: { catalog: '^1.0.0', checkout: '^1.0.0' } },
+        ],
+      }),
+    );
+
+    const manifest = loadBundleManifest({ cwd: root });
+
+    expect(manifest.baseDescriptors).toEqual(['base']);
+    expect(manifest.defaultSelection).toEqual(['shop']);
+    expect(manifest.virtualDescriptors).toEqual([
+      { id: 'base', version: '0.0.0', dependencies: { ui: '^1.0.0', auth: '^1.0.0' } },
+      { id: 'shop', version: '0.0.0', dependencies: { catalog: '^1.0.0', checkout: '^1.0.0' } },
+    ]);
+  });
+
+  it('defaults a missing bundle version to 0.0.0', () => {
+    const root = createTempDir();
+    writeFileSync(
+      join(root, 'bundles.json'),
+      JSON.stringify({
+        base: 'base',
+        default: 'base',
+        bundles: [{ id: 'base', dependencies: { ui: '^1.0.0' } }],
+      }),
+    );
+
+    expect(loadBundleManifest({ cwd: root }).virtualDescriptors[0]).toEqual({
+      id: 'base',
+      version: '0.0.0',
+      dependencies: { ui: '^1.0.0' },
+    });
+  });
+
+  it('discovers the manifest by walking up from a nested start directory', () => {
+    const root = createTempDir();
+    writeFileSync(
+      join(root, 'bundles.json'),
+      JSON.stringify({
+        base: 'base',
+        default: 'base',
+        bundles: [{ id: 'base', version: '0.0.0' }],
+      }),
+    );
+    const nested = join(root, 'web', 'src');
+    mkdirSync(nested, { recursive: true });
+
+    expect(loadBundleManifest({ cwd: nested }).defaultSelection).toEqual(['base']);
+  });
+
+  it('throws when a bundle is missing an id', () => {
+    const root = createTempDir();
+    writeFileSync(
+      join(root, 'bundles.json'),
+      JSON.stringify({ base: 'base', default: 'base', bundles: [{ dependencies: {} }] }),
+    );
+
+    expect(() => loadBundleManifest({ cwd: root })).toThrow(/missing a non-empty "id"/);
+  });
+
+  it('throws when base or default names an undefined bundle', () => {
+    const root = createTempDir();
+    writeFileSync(
+      join(root, 'bundles.json'),
+      JSON.stringify({
+        base: 'ghost',
+        default: 'shop',
+        bundles: [{ id: 'shop', version: '0.0.0' }],
+      }),
+    );
+
+    expect(() => loadBundleManifest({ cwd: root })).toThrow(/base bundle "ghost"/);
+  });
+
+  it('throws when no manifest is found upward', () => {
+    const root = createTempDir();
+    expect(() => loadBundleManifest({ cwd: root })).toThrow(/not found/);
   });
 });

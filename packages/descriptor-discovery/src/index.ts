@@ -4,7 +4,24 @@ import { basename, dirname, join, resolve as resolvePath } from 'node:path';
 import Ajv, { type ErrorObject, type Options as AjvOptions } from 'ajv';
 import type { Descriptor } from '@lorion-org/composition-graph';
 
-export { descriptorSchema, type JsonSchemaObject } from './schema';
+import { descriptorSchema, type JsonSchemaObject } from './schema';
+
+export { descriptorSchema, type JsonSchemaObject };
+
+// A virtual descriptor is a grouping descriptor a host feeds to the graph without a
+// filesystem package (see `loadBundleManifest`). It is addressed at a synthetic
+// directory under this segment: the path never exists on disk, so surface markers
+// never match, no package.json is read, and it can never collide with a real
+// capability directory or the process cwd. Both the runtime and the build-time host
+// share this one convention instead of each hard-coding the segment.
+export const VIRTUAL_DESCRIPTOR_DIR = '__lorion_virtual__';
+
+// The synthetic directory a virtual descriptor is addressed at, under
+// `VIRTUAL_DESCRIPTOR_DIR` in the workspace. Kept here so every host agrees on the
+// convention from a single definition.
+export function virtualDescriptorDirectory(workspaceRoot: string, id: string): string {
+  return resolvePath(workspaceRoot, VIRTUAL_DESCRIPTOR_DIR, id);
+}
 
 // A capability lives on disk as a package: its descriptor (capability.json) beside
 // a package.json. Validating that the package declares a `name` — with one shared
@@ -347,4 +364,96 @@ export function discoverDescriptors(input: DiscoverDescriptorsInput): Discovered
       descriptor,
     }));
   });
+}
+
+// A declarative bundle manifest groups discovered capabilities into named virtual
+// descriptors without one filesystem package per group. `bundles` is a nested list
+// of ordinary descriptors (`{ id, version, dependencies }`) — the same shape as any
+// capability's descriptor, not a bespoke format — and `base`/`default` name which
+// of them is the always-on base and the default selection. This is the
+// batteries-included path so a host needs no bundling code of its own: point it at
+// a manifest and feed the result to composition.
+export type BundleManifest = {
+  virtualDescriptors: Descriptor[];
+  baseDescriptors: string[];
+  defaultSelection: string[];
+};
+
+type RawBundleManifest = {
+  base: string;
+  default: string;
+  bundles: Array<Partial<Descriptor> & { id?: unknown }>;
+};
+
+// Walk up from `fromDir` (inclusive) to the filesystem root, returning the first
+// directory `matches` accepts, or undefined when the root is reached without a hit.
+// The one shared "find upward" primitive: manifest discovery and workspace-root
+// resolution build on it instead of each re-implementing the ascent.
+export function findUp(fromDir: string, matches: (dir: string) => boolean): string | undefined {
+  let dir = resolvePath(fromDir);
+  for (;;) {
+    if (matches(dir)) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) return undefined;
+    dir = parent;
+  }
+}
+
+function findManifestUp(fromDir: string, fileName: string): string {
+  const dir = findUp(fromDir, (candidate) => existsSync(join(candidate, fileName)));
+  if (dir === undefined) {
+    throw new Error(`Bundle manifest "${fileName}" not found from "${fromDir}" upward.`);
+  }
+  return join(dir, fileName);
+}
+
+// Resolves a bundle manifest into composition inputs: the declared bundle
+// descriptors as virtual descriptors, plus the base and default-selection seeds.
+// The manifest is discovered by walking up from `cwd`, so a host passes only where
+// it starts (for example its config directory).
+export function loadBundleManifest(options: { cwd: string; fileName?: string }): BundleManifest {
+  const fileName = options.fileName ?? 'bundles.json';
+  const manifestPath = findManifestUp(options.cwd, fileName);
+  const raw = JSON.parse(readFileSync(manifestPath, 'utf8')) as RawBundleManifest;
+
+  if (
+    typeof raw?.base !== 'string' ||
+    typeof raw?.default !== 'string' ||
+    !Array.isArray(raw?.bundles)
+  ) {
+    throw new Error(
+      `Bundle manifest ${manifestPath} must declare string "base", string "default" and an array "bundles".`,
+    );
+  }
+
+  // Each bundle is an ordinary descriptor, so validate it against the very schema a
+  // capability's descriptor is held to — a malformed grouping (e.g. a non-semver
+  // dependency) fails fast here with the shared schema error, not later as a
+  // confusing graph-resolution error.
+  const validateDescriptor = createDescriptorValidator({ schema: descriptorSchema });
+  const virtualDescriptors: Descriptor[] = raw.bundles.map((bundle, index) => {
+    if (typeof bundle?.id !== 'string' || !bundle.id.trim()) {
+      throw new Error(`Bundle at index ${index} in ${manifestPath} is missing a non-empty "id".`);
+    }
+    const descriptor: Descriptor = {
+      ...bundle,
+      id: bundle.id,
+      version:
+        typeof bundle.version === 'string' && bundle.version.trim() ? bundle.version : '0.0.0',
+    };
+    validateDescriptor?.({ descriptorPath: manifestPath }, descriptor);
+    return descriptor;
+  });
+
+  const ids = new Set(virtualDescriptors.map((descriptor) => descriptor.id));
+  if (!ids.has(raw.base)) {
+    throw new Error(`Bundle manifest ${manifestPath}: base bundle "${raw.base}" is not defined.`);
+  }
+  if (!ids.has(raw.default)) {
+    throw new Error(
+      `Bundle manifest ${manifestPath}: default bundle "${raw.default}" is not defined.`,
+    );
+  }
+
+  return { virtualDescriptors, baseDescriptors: [raw.base], defaultSelection: [raw.default] };
 }

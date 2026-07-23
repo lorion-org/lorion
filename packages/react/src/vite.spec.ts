@@ -166,6 +166,94 @@ describe('React capability Vite helpers', () => {
     expect(rendered).not.toContain('@react-workspace/ui');
   });
 
+  it('resolves through host-provided virtual descriptors without a package on disk', () => {
+    const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-capability-loader-'));
+    const writeManifest = (id: string, descriptor: Record<string, unknown> = {}): void => {
+      const directory = join(workspaceRoot, 'capabilities', id);
+      mkdirSync(directory, { recursive: true });
+      writeFileSync(
+        join(directory, 'capability.json'),
+        JSON.stringify({ id, version: '1.0.0', ...descriptor }),
+      );
+      writeFileSync(
+        join(directory, 'package.json'),
+        JSON.stringify({
+          name: `@react-workspace/${id}`,
+          version: '1.0.0',
+          private: true,
+          type: 'module',
+        }),
+      );
+    };
+
+    // Only real features live on disk. The `suite` grouping is a virtual
+    // descriptor supplied by the host, resolved through its dependencies.
+    writeManifest('dashboard');
+    writeManifest('reports');
+
+    const capabilities = discoverSelectedCapabilities(workspaceRoot, {
+      virtualDescriptors: [
+        { id: 'suite', version: '1.0.0', dependencies: { dashboard: '^1.0.0', reports: '^1.0.0' } },
+      ],
+      selected: ['suite'],
+      activation: () => undefined,
+    });
+
+    expect(capabilities.map((capability) => capability.id).sort()).toEqual([
+      'dashboard',
+      'reports',
+      'suite',
+    ]);
+    // The virtual grouping resolves but carries no package name and emits no import.
+    const suite = capabilities.find((capability) => capability.id === 'suite');
+    expect(suite?.packageName).toBe('');
+    expect(suite?.importSpecifier).toBeUndefined();
+  });
+
+  it('expands a bundles manifest discovered from the workspace root', () => {
+    const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-capability-loader-'));
+    const writeManifest = (id: string): void => {
+      const directory = join(workspaceRoot, 'capabilities', id);
+      mkdirSync(directory, { recursive: true });
+      writeFileSync(join(directory, 'capability.json'), JSON.stringify({ id, version: '1.0.0' }));
+      writeFileSync(
+        join(directory, 'package.json'),
+        JSON.stringify({
+          name: `@react-workspace/${id}`,
+          version: '1.0.0',
+          private: true,
+          type: 'module',
+        }),
+      );
+    };
+    writeManifest('dashboard');
+    writeManifest('reports');
+    writeFileSync(
+      join(workspaceRoot, 'bundles.json'),
+      JSON.stringify({
+        base: 'base',
+        default: 'shop',
+        bundles: [
+          { id: 'base', version: '1.0.0', dependencies: { dashboard: '^1.0.0' } },
+          { id: 'shop', version: '1.0.0', dependencies: { reports: '^1.0.0' } },
+        ],
+      }),
+    );
+
+    const capabilities = discoverSelectedCapabilities(workspaceRoot, {
+      bundles: { cwd: workspaceRoot },
+      activation: () => undefined,
+    });
+
+    // base (always-on) + shop (default) pull dashboard + reports.
+    expect(capabilities.map((capability) => capability.id).sort()).toEqual([
+      'base',
+      'dashboard',
+      'reports',
+      'shop',
+    ]);
+  });
+
   it('builds a TanStack virtual route config from enabled capability route directories', () => {
     const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-capability-loader-'));
     const hostRoutesDirectory = join(workspaceRoot, 'hosts', 'web', 'src', 'routes');

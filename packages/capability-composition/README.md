@@ -12,9 +12,12 @@ pnpm add @lorion-org/capability-composition
 
 ## API
 
-- `resolveSelectedCapabilities({ workspaceRoot, capabilitiesDir, seed })` resolves the active capabilities: base descriptors, the selection seed, transitive dependencies, and exactly one provider per capability.
+- `resolveSelectedCapabilities({ workspaceRoot, capabilitiesDir, virtualDescriptors, seed })` resolves the active capabilities: base descriptors, the selection seed, transitive dependencies, and exactly one provider per capability.
 - `conventionActivation(surfaces)` builds an activation resolver from per-surface conventions (a file-layout marker plus an export-name derivation), so descriptors carry no surface config. Re-exported from [`@lorion-org/surface-activation`](../surface-activation), which owns the addressing convention.
-- `composeCapabilities({ workspaceRoot, capabilitiesDir, seed, surface, activation, load, register })` resolves the active set and, for each capability that provides the surface, loads its module and hands the exported value to the host's registration. Registry- and framework-agnostic.
+- `composeCapabilities({ workspaceRoot, capabilitiesDir, virtualDescriptors, seed, surface, activation, load, register })` resolves the active set and, for each capability that provides the surface, loads its module and hands the exported value to the host's registration. Registry- and framework-agnostic.
+- `virtualDescriptors` (optional) are host-provided descriptors that join the discovered set for graph resolution without living on disk as packages: grouping descriptors (bundles) whose `dependencies` point at real capabilities. They take part in selection but carry no surface, so they are never imported and need no `package.json`. This is the second, filesystem-free way to feed the composition, alongside disk discovery.
+- `bundles: { cwd, fileName? }` (optional) is the batteries-included path: it discovers a bundle manifest upward from `cwd` (via `loadBundleManifest` in [`@lorion-org/descriptor-discovery`](../descriptor-discovery)) and fills `virtualDescriptors`, `seed.baseDescriptors` and `seed.defaultSelection`. Explicit values win. A host declares bundles in data and needs no bundling code of its own.
+- `seed.baseSeed` (optional) is a CLI/env override for `seed.baseDescriptors`, symmetric to `seed.selectionSeed`: a non-empty parse replaces the base descriptors, otherwise `baseDescriptors` stands. The base floor stays always-on regardless of the selection.
 - Build-time hosts that code-generate static imports use `resolveSurfaceModules` from [`@lorion-org/surface-activation`](../surface-activation) directly — the same seam `composeCapabilities` uses internally. It is intentionally not re-exported here, so a build-time host depends only on the light addressing package, not this runtime host.
 
 ## What It Is Not

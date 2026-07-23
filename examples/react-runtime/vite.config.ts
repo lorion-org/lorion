@@ -12,7 +12,14 @@ const lorion = lorionReact({
   workspaceRoot: projectRoot,
   routesDirectory,
   indexRouteFile: false,
-  defaultSelection: ['default'],
+  // Same capability graph and the same bundles.json as the react-loader example:
+  // only the host model differs (Model A: LORION runtime + generated route config).
+  // `bundles` discovers the manifest and seeds base/default: the always-on base
+  // `commerce` is the checkout core (checkout -> payments + Stripe default), the
+  // default `storefront` is the full shop. --features / LORION_FEATURES replaces the
+  // selection (the `commerce` base stays on), --base / LORION_BASE swaps the base.
+  bundles: { cwd: projectRoot },
+  baseSeed: { cliKeys: ['base'], envKeys: ['LORION_BASE'] },
 });
 
 export default defineConfig({

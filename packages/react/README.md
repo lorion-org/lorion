@@ -219,6 +219,13 @@ capability remains active.
 
 Use `indexRouteFile: false` when `/` is owned by a capability route.
 
+Pass `bundles: { cwd }` to group capabilities from a declarative manifest without a
+package per bundle: the loader discovers a `bundles.json` upward from `cwd` — where
+`bundles` is a nested list of ordinary descriptors and `base`/`default` name which
+seed the graph — and fills `virtualDescriptors`, `baseDescriptors` and
+`defaultSelection`. Pair it with `baseSeed` to make the base bundle overridable from
+CLI/env, symmetric to `selectionSeed`. Explicit options still win.
+
 The virtual module exports `capabilityModules`, `selectedCapabilityIds`, and
 `resolvedCapabilityIds` so host code can distinguish the seed from the final
 graph resolution.

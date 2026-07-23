@@ -1,7 +1,10 @@
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { loadBundleManifest, resolveSelectedCapabilities } from '@lorion-org/capability-composition';
+import {
+  loadBundleManifest,
+  resolveSelectedCapabilities,
+} from '@lorion-org/capability-composition';
 
 const workspaceRoot = dirname(fileURLToPath(import.meta.url));
 

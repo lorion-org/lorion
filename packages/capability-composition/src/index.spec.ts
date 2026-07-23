@@ -200,6 +200,120 @@ describe('resolveSelectedCapabilities', () => {
   });
 });
 
+describe('resolveSelectedCapabilities with virtual descriptors', () => {
+  it('resolves through a host-provided grouping descriptor that has no package on disk', () => {
+    const workspaceRoot = createWorkspace([
+      { id: 'dashboard', web: true },
+      { id: 'reports', web: true },
+    ]);
+
+    const resolved = resolveSelectedCapabilities({
+      workspaceRoot,
+      virtualDescriptors: [
+        { id: 'suite', version: '0.0.0', dependencies: { dashboard: '^1.0.0', reports: '^1.0.0' } },
+      ],
+      seed: { selected: ['suite'] },
+    });
+
+    // suite (virtual) pulls its dependencies; it carries no package name itself,
+    // and the discovered features keep theirs.
+    expect(resolvedIds(resolved)).toEqual(['dashboard', 'reports', 'suite']);
+    expect(resolved.find((capability) => capability.id === 'suite')?.packageName).toBe('');
+    expect(resolved.find((capability) => capability.id === 'dashboard')?.packageName).toBe(
+      '@demo/dashboard',
+    );
+  });
+
+  it('never reads a package.json for a virtual base descriptor', () => {
+    // `base` lives only as a virtual descriptor: resolution must not try to read a
+    // package.json for it.
+    const workspaceRoot = createWorkspace([{ id: 'dashboard', web: true }]);
+
+    const resolved = resolveSelectedCapabilities({
+      workspaceRoot,
+      virtualDescriptors: [{ id: 'base', version: '0.0.0', dependencies: { dashboard: '^1.0.0' } }],
+      seed: { baseDescriptors: ['base'] },
+    });
+
+    // base (virtual, always-on) pulls its dependency.
+    expect(resolvedIds(resolved)).toEqual(['base', 'dashboard']);
+  });
+});
+
+describe('resolveSelectedCapabilities with baseSeed', () => {
+  it('replaces baseDescriptors from env when baseSeed parses a value', () => {
+    const workspaceRoot = createWorkspace([
+      { id: 'base-a', web: true },
+      { id: 'base-b', web: true },
+      { id: 'dashboard', web: true },
+    ]);
+
+    const resolved = resolveSelectedCapabilities({
+      workspaceRoot,
+      seed: {
+        baseDescriptors: ['base-a'],
+        baseSeed: { argv: [], env: { LORION_BASE: 'base-b' }, envKeys: ['LORION_BASE'] },
+        selected: ['dashboard'],
+      },
+    });
+
+    // base-b (env override) replaces base-a; dashboard from the selection.
+    expect(resolvedIds(resolved)).toEqual(['base-b', 'dashboard']);
+  });
+
+  it('falls back to baseDescriptors when baseSeed parses nothing', () => {
+    const workspaceRoot = createWorkspace([
+      { id: 'base-a', web: true },
+      { id: 'dashboard', web: true },
+    ]);
+
+    const resolved = resolveSelectedCapabilities({
+      workspaceRoot,
+      seed: {
+        baseDescriptors: ['base-a'],
+        baseSeed: { argv: [], env: {}, envKeys: ['LORION_BASE'] },
+        selected: ['dashboard'],
+      },
+    });
+
+    expect(resolvedIds(resolved)).toEqual(['base-a', 'dashboard']);
+  });
+});
+
+describe('resolveSelectedCapabilities with a bundles manifest', () => {
+  it('expands a discovered bundle manifest into base + default composition', () => {
+    const workspaceRoot = createWorkspace([
+      { id: 'ui', web: true },
+      { id: 'auth', web: true },
+      { id: 'catalog', web: true },
+      { id: 'checkout', web: true },
+    ]);
+    writeFileSync(
+      join(workspaceRoot, 'bundles.json'),
+      JSON.stringify({
+        base: 'base',
+        default: 'shop',
+        bundles: [
+          { id: 'base', version: '0.0.0', dependencies: { ui: '^1.0.0', auth: '^1.0.0' } },
+          { id: 'shop', version: '0.0.0', dependencies: { catalog: '^1.0.0', checkout: '^1.0.0' } },
+        ],
+      }),
+    );
+
+    // No explicit descriptors or seed ids: the manifest supplies the base floor
+    // and the default selection, and the graph pulls their members.
+    const resolved = resolveSelectedCapabilities({
+      workspaceRoot,
+      bundles: { cwd: workspaceRoot },
+      seed: {},
+    });
+
+    expect(resolvedIds(resolved)).toEqual(['auth', 'base', 'catalog', 'checkout', 'shop', 'ui']);
+    // The bundle groupings resolve but carry no package name.
+    expect(resolved.find((capability) => capability.id === 'base')?.packageName).toBe('');
+  });
+});
+
 describe('composeCapabilities', () => {
   const activation = conventionActivation({
     web: {

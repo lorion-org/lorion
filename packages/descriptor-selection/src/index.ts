@@ -46,6 +46,19 @@ export function descriptorSelectionPolicy(
 
 export interface DescriptorSelectionSeed {
   baseDescriptors?: readonly DescriptorId[];
+  // Optional CLI/env override for the base descriptors, symmetric to
+  // `selectionSeed`: when it parses to a non-empty list it replaces
+  // `baseDescriptors`, otherwise `baseDescriptors` stands. Lets a host expose the
+  // always-on base as an env/CLI knob without owning any parsing itself.
+  baseSeed?:
+    | false
+    | {
+        argv?: string[];
+        env?: Record<string, string | undefined>;
+        key?: string;
+        cliKeys?: string[];
+        envKeys?: string[];
+      };
   defaultSelection?: readonly DescriptorId[];
   selected?: readonly DescriptorId[];
   selectionSeed?:
@@ -76,6 +89,25 @@ export function resolveDescriptorSelection(seed: DescriptorSelectionSeed): Descr
   });
 
   return selected.length ? selected : [...(seed.defaultSelection ?? [])];
+}
+
+// The active base descriptors from a seed: the CLI/env `baseSeed` is parsed and,
+// when non-empty, replaces `baseDescriptors`; otherwise `baseDescriptors` stands.
+// Symmetric to `resolveDescriptorSelection` but for the always-on base floor the
+// graph resolves separately from the selection.
+export function resolveBaseSelection(seed: DescriptorSelectionSeed): DescriptorId[] {
+  if (!seed.baseSeed) return [...(seed.baseDescriptors ?? [])];
+
+  const options = seed.baseSeed;
+  const base = resolveDescriptorSelectionSeed({
+    argv: options.argv ?? process.argv,
+    env: options.env ?? process.env,
+    key: options.key ?? 'base',
+    ...(options.cliKeys ? { cliKeys: options.cliKeys } : {}),
+    ...(options.envKeys ? { envKeys: options.envKeys } : {}),
+  });
+
+  return base.length ? base : [...(seed.baseDescriptors ?? [])];
 }
 
 // A capability may declare exactly one default provider. Two descriptors both
@@ -166,7 +198,8 @@ export function selectDescriptors<T>(input: DescriptorSelectionInput<T>): T[] {
   assertSingleDefaultProvider(enabled.map(getDescriptor));
 
   const selected = resolveDescriptorSelection(seed);
-  if (!selected.length && !seed.baseDescriptors?.length) return [...enabled];
+  const baseDescriptors = resolveBaseSelection(seed);
+  if (!selected.length && !baseDescriptors.length) return [...enabled];
 
   const selectionItems = applyProviderSelection({
     items: enabled,
@@ -182,7 +215,7 @@ export function selectDescriptors<T>(input: DescriptorSelectionInput<T>): T[] {
   const selection = createCompositionSelection({
     catalog,
     selected: [...selected],
-    baseDescriptors: [...(seed.baseDescriptors ?? [])],
+    baseDescriptors: [...baseDescriptors],
     policy: descriptorSelectionPolicy(input.policy),
   });
   const resolvedIds = new Set(selection.getResolved());

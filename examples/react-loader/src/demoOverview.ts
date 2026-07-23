@@ -10,7 +10,6 @@ import {
 export const discoveredCapabilityIds = [
   'admin',
   'checkout',
-  'default',
   'payment-provider-invoice',
   'payment-provider-stripe',
   'payments',

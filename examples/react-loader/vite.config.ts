@@ -51,15 +51,28 @@ export default defineConfig({
   },
   plugins: [
     // Model B (loader-only): @lorion-org/react resolves the descriptor graph at
-    // build time — `default` pulls the `web` shop, the graph adds its transitive
-    // deps (shops, checkout, payments) and resolves the single default checkout
-    // provider (Stripe) — and emits `virtual:capabilities`. This example owns the
-    // runtime and router (see src/main.tsx). Overridable via
-    // --features / LORION_FEATURES (e.g. select `admin`, or a different provider).
+    // build time and emits `virtual:capabilities`. This example owns the runtime
+    // and router (see src/main.tsx).
+    //
+    // Two grouping styles compose here at once, over the shop-with-payment graph:
+    //   - `bundles: { cwd }` discovers bundles.json (walking up), expands it into
+    //     virtual descriptors and fills the base/default seed. The always-on base
+    //     `commerce` is the checkout core (checkout -> payments + the Stripe default
+    //     provider); the default selection `storefront` is the full shop.
+    //   - `storefront` depends on the `web` grouping *capability* (a package-per-
+    //     group descriptor on disk) — so the manifest-bundle model and the
+    //     package-group model resolve together. `web` adds the transitive deps
+    //     (shops, coffee, stationery, checkout, payments).
+    //
+    // Overridable without touching the config: --features / LORION_FEATURES replaces
+    // the selection (e.g. `admin`, or `payment-provider-invoice` to swap the
+    // provider) — the `commerce` base stays on regardless. --base / LORION_BASE
+    // swaps the base bundle.
     capabilityLoader({
       workspaceRoot: projectRoot,
-      defaultSelection: ['default'],
+      bundles: { cwd: projectRoot },
       selectionSeed: { cliKeys: ['features'], envKeys: ['LORION_FEATURES'] },
+      baseSeed: { cliKeys: ['base'], envKeys: ['LORION_BASE'] },
       surface: { name: 'web', resolver: activation },
     }),
     react(),

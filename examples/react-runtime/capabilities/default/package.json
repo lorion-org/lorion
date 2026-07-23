@@ -1,7 +1,0 @@
-{
-  "name": "@acme/default",
-  "type": "module",
-  "exports": {
-    "./capability": "./src/capability.ts"
-  }
-}

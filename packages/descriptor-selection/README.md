@@ -25,6 +25,7 @@ pnpm add @lorion-org/descriptor-selection
   `getDescriptor` / `withDescriptor` accessors, so a "capability", an "extension",
   or a plain descriptor record all work.
 - `resolveDescriptorSelection(seed)` resolves just the selection ids from a seed.
+- `resolveBaseSelection(seed)` resolves the always-on base descriptor ids from a seed: `seed.baseSeed` (CLI/env, symmetric to `seed.selectionSeed`) replaces `seed.baseDescriptors` when it parses a non-empty list, otherwise `baseDescriptors` stands. The base is resolved by the graph separately from the selection.
 - `applyProviderSelection({ items, selected, getDescriptor, withDescriptor })` applies one-provider-per-capability selection to a set of items (the step a host reuses when it drives its own graph resolution, e.g. the Nuxt adapter).
 - `assertSingleDefaultProvider(descriptors)` throws if two descriptors claim
   `defaultFor` the same capability.

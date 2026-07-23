@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
 import { loadEnv } from 'vite';
 import type {
@@ -12,7 +12,10 @@ import type {
 import {
   descriptorSchema,
   discoverDescriptors,
+  findUp,
+  loadBundleManifest,
   requirePackageName,
+  virtualDescriptorDirectory,
   type DiscoveredDescriptor,
 } from '@lorion-org/descriptor-discovery';
 import { resolveDescriptorSelection, selectDescriptors } from '@lorion-org/descriptor-selection';
@@ -70,7 +73,19 @@ export type CapabilityLoaderOptions = {
   // for a named surface, e.g. `{ name: 'web', resolver: conventionActivation({...}) }`.
   surface?: { name: string; resolver: ActivationResolver };
   capabilitiesDir?: string;
+  // Host-provided descriptors that join the discovered set for graph resolution
+  // without living on disk as packages: grouping descriptors (bundles) whose
+  // `dependencies` point at real capabilities. They take part in selection but
+  // carry no surface, so they emit no import and need no `package.json`.
+  virtualDescriptors?: readonly Descriptor[];
+  // Batteries-included bundles: point at a directory and lorion discovers a bundle
+  // manifest upward, expands it into virtual descriptors and fills the base/default
+  // seed. Explicit `virtualDescriptors`/`baseDescriptors`/`defaultSelection` win.
+  bundles?: { cwd: string; fileName?: string };
   baseDescriptors?: readonly DescriptorId[];
+  // CLI/env override for the base descriptors, symmetric to `selectionSeed`: a
+  // non-empty parse replaces `baseDescriptors`, otherwise `baseDescriptors` stands.
+  baseSeed?: false | CapabilitySelectionSeedOptions;
   defaultSelection?: readonly DescriptorId[];
   policy?: Partial<CompositionPolicy>;
   relationDescriptors?: readonly RelationDescriptor[];
@@ -175,7 +190,27 @@ export type VitePlugin = {
   resolveId: (id: string) => string | undefined;
 };
 
-export function capabilityLoader(options: CapabilityLoaderOptions = {}): VitePlugin {
+// Expands a `bundles` manifest into virtual descriptors and the base/default seed,
+// once, so downstream discovery/selection sees plain options. Explicit
+// `virtualDescriptors`/`baseDescriptors`/`defaultSelection` take precedence, and a
+// second call is a no-op (the `bundles` option is consumed).
+function resolveBundleOptions(options: CapabilityLoaderOptions): CapabilityLoaderOptions {
+  if (!options.bundles) return options;
+  const manifest = loadBundleManifest(options.bundles);
+  const resolved: CapabilityLoaderOptions = {
+    ...options,
+    virtualDescriptors: [...(options.virtualDescriptors ?? []), ...manifest.virtualDescriptors],
+    baseDescriptors: options.baseDescriptors ?? manifest.baseDescriptors,
+    defaultSelection: options.defaultSelection ?? manifest.defaultSelection,
+  };
+  // Consume the option so a repeat call (e.g. via discoverSelectedCapabilities)
+  // does not load and merge the manifest twice.
+  delete resolved.bundles;
+  return resolved;
+}
+
+export function capabilityLoader(rawOptions: CapabilityLoaderOptions = {}): VitePlugin {
+  const options = resolveBundleOptions(rawOptions);
   let config: ViteResolvedConfig;
   let capabilities: DiscoveredCapability[] = [];
   let runtimeConfig: ReactRuntimeConfig = { private: {}, public: {} };
@@ -308,9 +343,32 @@ export function discoverCapabilities(
 
 export function discoverSelectedCapabilities(
   workspaceRoot: string,
-  options: CapabilityLoaderOptions = {},
+  rawOptions: CapabilityLoaderOptions = {},
 ): DiscoveredCapability[] {
-  return selectCapabilities(discoverCapabilities(workspaceRoot, options), options);
+  const options = resolveBundleOptions(rawOptions);
+  const discovered = discoverCapabilities(workspaceRoot, options);
+  return selectCapabilities(
+    [...discovered, ...toVirtualCapabilities(workspaceRoot, options)],
+    options,
+  );
+}
+
+// Host-provided grouping descriptors as graph-only capabilities: no package name
+// and no activation, so they resolve in the graph but emit no import. The synthetic
+// directory never exists, so it matches no surface marker and no runtime-config
+// schema, and can never collide with the process cwd.
+function toVirtualCapabilities(
+  workspaceRoot: string,
+  options: Pick<CapabilityLoaderOptions, 'virtualDescriptors'>,
+): DiscoveredCapability[] {
+  return (options.virtualDescriptors ?? []).map((descriptor) => ({
+    capabilityDir: virtualDescriptorDirectory(workspaceRoot, descriptor.id),
+    disabled: descriptor.disabled === true,
+    id: descriptor.id,
+    manifest: descriptor,
+    packageName: '',
+    variableName: toVariableName(descriptor.id),
+  }));
 }
 
 function selectCapabilities(
@@ -318,6 +376,7 @@ function selectCapabilities(
   options: Pick<
     CapabilityLoaderOptions,
     | 'baseDescriptors'
+    | 'baseSeed'
     | 'defaultSelection'
     | 'policy'
     | 'relationDescriptors'
@@ -854,24 +913,16 @@ function resolveWorkspaceRoot(configRoot: string, options: CapabilityLoaderOptio
 }
 
 function findWorkspaceRoot(startDir: string): string {
-  let current = resolve(startDir);
+  const root = findUp(
+    startDir,
+    (dir) => existsSync(join(dir, 'pnpm-workspace.yaml')) && existsSync(join(dir, 'capabilities')),
+  );
 
-  while (true) {
-    if (
-      existsSync(join(current, 'pnpm-workspace.yaml')) &&
-      existsSync(join(current, 'capabilities'))
-    ) {
-      return current;
-    }
-
-    const parent = dirname(current);
-
-    if (parent === current) {
-      throw new Error(`Could not find React workspace root from: ${startDir}`);
-    }
-
-    current = parent;
+  if (root === undefined) {
+    throw new Error(`Could not find React workspace root from: ${startDir}`);
   }
+
+  return root;
 }
 
 function readJson(path: string): Record<string, unknown> {
