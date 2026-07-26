@@ -11,10 +11,9 @@ import {
   discoverCapabilities,
   discoverSelectedCapabilities,
   lorionReact,
-  renderCapabilityModule,
-  renderRuntimeConfigModule,
   type CapabilityLoaderOptions,
 } from './vite';
+import { renderCapabilityModule, renderRuntimeConfigModule } from './render';
 import type {
   CapabilitySelectionInput,
   CapabilitySelectionSeed,

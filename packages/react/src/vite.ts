@@ -44,6 +44,11 @@ import {
   type RuntimeConfigSchemaValidationErrorFormatter,
 } from '@lorion-org/runtime-config-node';
 import { capabilitySpecifier, type ActivationResolver } from '@lorion-org/surface-activation';
+import {
+  renderCapabilityModule,
+  renderRuntimeConfigModule,
+  renderServerRuntimeConfigModule,
+} from './render';
 
 const virtualModuleId = 'virtual:capabilities';
 const resolvedVirtualModuleId = `\0${virtualModuleId}`;
@@ -445,49 +450,6 @@ function resolveSelectionSeed(
   options: Pick<CapabilityLoaderOptions, 'defaultSelection' | 'selected' | 'selectionSeed'>,
 ): DescriptorId[] {
   return resolveDescriptorSelection(options);
-}
-
-export function renderCapabilityModule(
-  capabilities: readonly DiscoveredCapability[],
-  selected: readonly DescriptorId[] = [],
-): string {
-  // Only capabilities with a resolved activation entry are imported and
-  // registered. Graph-only capabilities take part in dependency resolution and
-  // still appear in resolvedCapabilityIds, but emit no import.
-  const activated = capabilities.filter(
-    (capability) => capability.exportName && capability.importSpecifier,
-  );
-  const imports = activated
-    .map(
-      (capability) =>
-        `import { ${capability.exportName} as ${capability.variableName} } from '${capability.importSpecifier}'`,
-    )
-    .join('\n');
-  const variables = activated.map((capability) => `  ${capability.variableName},`).join('\n');
-  const capabilityIds = capabilities.map((capability) => capability.id);
-
-  return `${imports}
-
-export const selectedCapabilityIds = ${JSON.stringify([...selected])}
-
-export const resolvedCapabilityIds = ${JSON.stringify(capabilityIds)}
-
-export const capabilityModules = [
-${variables}
-]
-`;
-}
-
-export function renderRuntimeConfigModule(runtimeConfig: ReactRuntimeConfig): string {
-  return `export const capabilityRuntimeConfig = ${JSON.stringify({ public: runtimeConfig.public })}
-
-export const publicCapabilityRuntimeConfig = capabilityRuntimeConfig.public
-`;
-}
-
-export function renderServerRuntimeConfigModule(runtimeConfig: ReactRuntimeConfig): string {
-  return `export const capabilityServerRuntimeConfig = ${JSON.stringify(runtimeConfig)}
-`;
 }
 
 export function createCapabilityRouteConfig(

@@ -37,6 +37,21 @@ Run commands from the LORION repository root:
 - `pnpm changeset` records a release note for a package change
 - `pnpm check` runs the full local gate used by CI
 
+## Public API surface
+
+A symbol reachable from an entry point in a package's `exports` map is public,
+whatever the intent behind it, and adding or removing one is a public change that
+needs a changeset.
+
+- Something that should not be part of the contract lives in a module the exports
+  map does not name, and the tests import it from there.
+- A package README states what the exported symbols are for, which invariants hold
+  and where the seams are. It does not enumerate them: the exports map and the
+  sources are the inventory, and a list kept in prose goes stale silently.
+
+Nothing verifies today that a version bump matches what actually changed. That gap
+is tracked in #9.
+
 ## Release model
 
 - package versions are managed with Changesets
