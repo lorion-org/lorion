@@ -824,3 +824,15 @@ describe('resolveSelection', () => {
     ).toThrow('Unknown base descriptors: missing');
   });
 });
+
+describe('buildDescriptorMap', () => {
+  it('rejects two descriptors sharing one id and names it', () => {
+    expect(() =>
+      buildDescriptorMap([
+        { id: 'shop', version: '1.0.0' },
+        { id: 'ui', version: '1.0.0' },
+        { id: 'shop', version: '0.0.0' },
+      ]),
+    ).toThrow(/duplicates \(shop\)/);
+  });
+});

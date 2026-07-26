@@ -9,11 +9,23 @@ export type DescriptorSelectionSeedInput = {
   key?: string;
 };
 
+// A composition addresses every descriptor by its id, so two descriptors sharing
+// one id cannot both take part: the second would replace the first and whatever the
+// first contributed would vanish without a trace. Reporting the id is the only
+// outcome that lets the host see which two declarations collided.
 export function buildDescriptorMap(descriptors: Iterable<Descriptor>): DescriptorMap {
   const descriptorMap: DescriptorMap = new Map();
+  const duplicates = new Set<DescriptorId>();
 
   for (const descriptor of descriptors) {
+    if (descriptorMap.has(descriptor.id)) duplicates.add(descriptor.id);
     descriptorMap.set(descriptor.id, descriptor);
+  }
+
+  if (duplicates.size) {
+    throw new Error(
+      `Descriptor ids must be unique within a composition, but found duplicates (${[...duplicates].sort().join(', ')}).`,
+    );
   }
 
   return descriptorMap;
@@ -87,7 +99,15 @@ function toEnvKey(value: string): string {
 }
 
 function resolveCliKeys(input: DescriptorSelectionSeedInput): string[] {
-  if (input.cliKeys) return input.cliKeys;
+  // A `key` is a logical name and gets the flag prefix. An explicit `cliKeys` entry
+  // is matched as written and, when it carries no leading dash, also in its prefixed
+  // form: `['features']` is the shape a host reaches for first, and silently
+  // matching nothing is the worse answer. The prefixed spelling is tried first, so a
+  // positional argument that happens to equal the bare key cannot outrank the flag
+  // and swallow the token after it.
+  if (input.cliKeys) {
+    return input.cliKeys.flatMap((key) => (key.startsWith('-') ? [key] : [`--${key}`, key]));
+  }
 
   const key = input.key ? normalizeSelectionKey(input.key) : '';
   return key ? [`--${key}`] : [];
