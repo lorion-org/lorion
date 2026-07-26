@@ -12,6 +12,13 @@ import {
   resolveSelectedCapabilities,
   resolveWorkspaceRoot,
   type ResolvedCapability,
+  CAPABILITY_SELECTION_OPTIONS,
+  describeComposition,
+  formatCompositionReport,
+  notResolved,
+  type CapabilitySelectionInput,
+  type CapabilitySelectionOption,
+  type CapabilitySelectionSeed,
 } from './index';
 
 const tempDirs: string[] = [];
@@ -243,48 +250,8 @@ describe('resolveSelectedCapabilities with virtual descriptors', () => {
   });
 });
 
-describe('resolveSelectedCapabilities with baseSeed', () => {
-  it('replaces baseDescriptors from env when baseSeed parses a value', () => {
-    const workspaceRoot = createWorkspace([
-      { id: 'base-a', web: true },
-      { id: 'base-b', web: true },
-      { id: 'dashboard', web: true },
-    ]);
-
-    const resolved = resolveSelectedCapabilities({
-      workspaceRoot,
-      seed: {
-        baseDescriptors: ['base-a'],
-        baseSeed: { argv: [], env: { LORION_BASE: 'base-b' }, envKeys: ['LORION_BASE'] },
-        selected: ['dashboard'],
-      },
-    });
-
-    // base-b (env override) replaces base-a; dashboard from the selection.
-    expect(resolvedIds(resolved)).toEqual(['base-b', 'dashboard']);
-  });
-
-  it('falls back to baseDescriptors when baseSeed parses nothing', () => {
-    const workspaceRoot = createWorkspace([
-      { id: 'base-a', web: true },
-      { id: 'dashboard', web: true },
-    ]);
-
-    const resolved = resolveSelectedCapabilities({
-      workspaceRoot,
-      seed: {
-        baseDescriptors: ['base-a'],
-        baseSeed: { argv: [], env: {}, envKeys: ['LORION_BASE'] },
-        selected: ['dashboard'],
-      },
-    });
-
-    expect(resolvedIds(resolved)).toEqual(['base-a', 'dashboard']);
-  });
-});
-
 describe('resolveSelectedCapabilities with a bundles manifest', () => {
-  it('expands a discovered bundle manifest into base + default composition', () => {
+  it('expands a discovered bundle manifest into virtual grouping descriptors', () => {
     const workspaceRoot = createWorkspace([
       { id: 'ui', web: true },
       { id: 'auth', web: true },
@@ -294,8 +261,6 @@ describe('resolveSelectedCapabilities with a bundles manifest', () => {
     writeFileSync(
       join(workspaceRoot, 'bundles.json'),
       JSON.stringify({
-        base: 'base',
-        default: 'shop',
         bundles: [
           { id: 'base', version: '0.0.0', dependencies: { ui: '^1.0.0', auth: '^1.0.0' } },
           { id: 'shop', version: '0.0.0', dependencies: { catalog: '^1.0.0', checkout: '^1.0.0' } },
@@ -303,12 +268,13 @@ describe('resolveSelectedCapabilities with a bundles manifest', () => {
       }),
     );
 
-    // No explicit descriptors or seed ids: the manifest supplies the base floor
-    // and the default selection, and the graph pulls their members.
+    // The manifest supplies the groupings; the host names which of them is the
+    // base floor and which is the default selection, and the graph pulls their
+    // members.
     const resolved = resolveSelectedCapabilities({
       workspaceRoot,
       bundles: { cwd: workspaceRoot },
-      seed: {},
+      seed: { baseDescriptors: ['base'], defaultSelection: ['shop'] },
     });
 
     expect(resolvedIds(resolved)).toEqual(['auth', 'base', 'catalog', 'checkout', 'shop', 'ui']);
@@ -574,5 +540,116 @@ describe('resolveWorkspaceRoot', () => {
     expect(() => resolveWorkspaceRoot(workspaceRoot, { markers: ['definitely-absent'] })).toThrow(
       /Workspace root not found/,
     );
+  });
+});
+
+// `CAPABILITY_SELECTION_OPTIONS` is the anchor every adapter conformance test
+// checks against, so it must name exactly the options this package accepts. Both
+// directions matter: a new option missing from the list would never be demanded of
+// an adapter, and a stale entry would demand something that no longer exists.
+type DeclaredOption =
+  | keyof Omit<CapabilitySelectionInput, 'workspaceRoot' | 'seed'>
+  | keyof CapabilitySelectionSeed;
+type OptionsMissingFromList = Exclude<DeclaredOption, CapabilitySelectionOption>;
+type ListedButUndeclared = Exclude<CapabilitySelectionOption, DeclaredOption>;
+
+describe('CAPABILITY_SELECTION_OPTIONS', () => {
+  it('names exactly the options the selection input declares', () => {
+    const conforms: [OptionsMissingFromList, ListedButUndeclared] extends [never, never]
+      ? true
+      : never = true;
+    expect(conforms).toBe(true);
+    expect(new Set(CAPABILITY_SELECTION_OPTIONS).size).toBe(CAPABILITY_SELECTION_OPTIONS.length);
+  });
+});
+
+describe('composition report', () => {
+  const providers = [
+    { capabilityId: 'auth', selectedProviderId: 'auth-oidc', mode: 'fallback' },
+    { capabilityId: 'pay', selectedProviderId: 'pay-stripe', mode: 'selected' },
+  ];
+
+  it('describes a resolution in descriptor terms and marks a winner that took no part', () => {
+    const report = describeComposition({
+      requested: ['shell'],
+      selected: ['shell'],
+      base: ['platform'],
+      resolved: ['shell', 'auth-oidc', 'platform'],
+      discovered: ['shell', 'auth-oidc', 'platform', 'pay-stripe', 'unused'],
+      providers,
+    });
+
+    expect(report.resolved).toEqual(['auth-oidc', 'platform', 'shell']);
+    // `pay-stripe` won a capability but is not in this composition. Reporting it as
+    // the winner without saying so would credit a provider the run never built;
+    // dropping it would hide a misconfiguration.
+    expect(report.providers).toEqual([
+      { capability: 'auth', provider: 'auth-oidc', mode: 'fallback', resolved: true },
+      { capability: 'pay', provider: 'pay-stripe', mode: 'selected', resolved: false },
+    ]);
+    expect(notResolved(report)).toEqual(['pay-stripe', 'unused']);
+  });
+
+  it('deduplicates and orders every id list, so two reports of one run compare equal', () => {
+    const report = describeComposition({
+      requested: ['shell', 'admin', 'shell'],
+      resolved: ['shell', 'shell'],
+      discovered: ['shell', 'admin', 'admin'],
+    });
+
+    expect(report.requested).toEqual(['admin', 'shell']);
+    expect(report.resolved).toEqual(['shell']);
+    expect(report.discovered).toEqual(['admin', 'shell']);
+    expect(notResolved(report)).toEqual(['admin']);
+  });
+
+  it('renders every row a host shares, marking a fallback and a winner left out', () => {
+    const report = describeComposition({
+      requested: ['shell'],
+      selected: ['shell'],
+      base: ['platform'],
+      resolved: ['shell', 'auth-oidc', 'platform'],
+      discovered: ['shell', 'auth-oidc', 'platform', 'pay-stripe', 'unused'],
+      providers,
+    });
+
+    expect(
+      formatCompositionReport(report, { leadingRows: [{ label: 'Server', value: 'http://x' }] }),
+    ).toEqual([
+      '  Server    http://x',
+      '  Requested shell',
+      '  Selected  shell',
+      '  Base      platform',
+      '  auth      auth-oidc (default)',
+      '  pay       pay-stripe (not in this composition)',
+      '',
+      '  Resolved 3/5 descriptors',
+      '    auth-oidc, platform, shell',
+      '',
+      '  Not resolved 2 descriptors',
+      '    pay-stripe, unused',
+    ]);
+  });
+
+  it('says descriptor in the singular when the workspace holds exactly one', () => {
+    const report = describeComposition({ resolved: ['shell'], discovered: ['shell'] });
+
+    expect(formatCompositionReport(report)).toEqual([
+      '  Requested (not given)',
+      '',
+      '  Resolved 1/1 descriptor',
+      '    shell',
+    ]);
+  });
+
+  it('hard-wraps the id list so a terminal never soft-wraps it', () => {
+    const ids = ['shop-stationery', 'payment-invoice', 'payment-provider-stripe'];
+    const report = describeComposition({ resolved: ids, discovered: ids });
+
+    // Width 50 leaves 46 for ids: the first two fit on one line, the third does not.
+    expect(formatCompositionReport(report, { width: 50 }).slice(-2)).toEqual([
+      '    payment-invoice, payment-provider-stripe',
+      '    shop-stationery',
+    ]);
   });
 });

@@ -8,14 +8,20 @@ import {
 
 const workspaceRoot = dirname(fileURLToPath(import.meta.url));
 
-// Batteries-included: discover a `bundles.json` upward from `cwd`, expand it into
-// virtual grouping descriptors, and fill the base/default seed. A host declares its
-// bundles in data (`{ base, default, bundles: [ { id, dependencies } ] }`) and needs
-// no bundling code of its own — explicit `virtualDescriptors`/seed values still win.
+// The manifest declares descriptors only. Which grouping is the always-on base and
+// which is the default selection belongs to this run, so this host injects it.
+const seed = {
+  baseDescriptors: ['commerce'],
+  defaultSelection: ['storefront'],
+};
+
+// Batteries-included: discover a `bundles.json` upward from `cwd` and expand it
+// into virtual grouping descriptors. A host declares its bundles in data
+// (`{ bundles: [ { id, dependencies } ] }`) and needs no bundling code of its own.
 const fromManifest = resolveSelectedCapabilities({
   workspaceRoot,
   bundles: { cwd: workspaceRoot },
-  seed: {},
+  seed,
 });
 
 console.log(fromManifest.map((capability) => capability.id));
@@ -24,18 +30,20 @@ console.log(fromManifest.map((capability) => capability.id));
 // groups real capabilities through its `dependencies` and takes part in selection,
 // but carries no surface — so it is never imported and needs no `package.json`
 // (its `packageName` resolves to '').
+const storefront = {
+  id: 'storefront',
+  version: '0.0.0',
+  dependencies: { web: '^1.0.0', checkout: '^1.0.0' },
+};
+
 const fromVirtual = resolveSelectedCapabilities({
   workspaceRoot,
-  virtualDescriptors: [
-    { id: 'storefront', version: '0.0.0', dependencies: { web: '^1.0.0', checkout: '^1.0.0' } },
-  ],
-  seed: { selected: ['storefront'] },
+  virtualDescriptors: [storefront],
+  seed: { selected: [storefront.id] },
 });
 
 console.log(fromVirtual.map((capability) => `${capability.id}:${capability.packageName}`));
 
-// The manifest can also be loaded on its own, when a host drives selection itself and
-// just wants the resolved descriptors and the base/default seed.
-const manifest = loadBundleManifest({ cwd: workspaceRoot });
-
-console.log(manifest.baseDescriptors, manifest.defaultSelection);
+// The manifest can also be loaded on its own, when a host drives selection itself
+// and just wants the declared grouping descriptors.
+console.log(loadBundleManifest({ cwd: workspaceRoot }).map((descriptor) => descriptor.id));

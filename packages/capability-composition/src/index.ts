@@ -1,16 +1,26 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import type { CompositionPolicy, Descriptor, DescriptorId } from '@lorion-org/composition-graph';
+import type {
+  CompositionPolicy,
+  Descriptor,
+  DescriptorId,
+  RelationDescriptor,
+} from '@lorion-org/composition-graph';
 import {
   descriptorSchema,
   discoverDescriptors,
+  NESTED_DESCRIPTOR_FIELD,
   findUp,
   loadBundleManifest,
   requirePackageName,
   virtualDescriptorDirectory,
 } from '@lorion-org/descriptor-discovery';
-import { selectDescriptors } from '@lorion-org/descriptor-selection';
+import {
+  type DescriptorSelectionSeed,
+  type ProviderSelectionResolution,
+  selectDescriptorsWithProviders,
+} from '@lorion-org/descriptor-selection';
 import {
   type ActivationResolver,
   resolveSurfaceModules,
@@ -31,9 +41,22 @@ import {
 // solely by @lorion-org/surface-activation, so a build-time host depends on that
 // light package directly instead of pulling in this runtime host.
 export { conventionActivation, fileSurfaceConvention } from '@lorion-org/surface-activation';
-// Re-export the bundle-manifest loader so a runtime host that needs the resolved
-// descriptors/seed directly (not just the `bundles` convenience) has one import.
-export { loadBundleManifest, type BundleManifest } from '@lorion-org/descriptor-discovery';
+// Re-export the bundle-manifest loader so a runtime host that needs the declared
+// descriptors directly (not just the `bundles` convenience) has one import.
+export type {
+  ProviderSelectionMode,
+  ProviderSelectionResolution,
+} from '@lorion-org/descriptor-selection';
+export { loadBundleManifest } from '@lorion-org/descriptor-discovery';
+export {
+  describeComposition,
+  formatCompositionReport,
+  notResolved,
+  type CompositionReport,
+  type DescribeCompositionInput,
+  type CompositionReportOptions,
+  type CompositionReportPalette,
+} from './report';
 export type {
   ActivationResolver,
   FileSurfaceConventionOptions,
@@ -41,29 +64,9 @@ export type {
   SurfaceConvention,
 } from '@lorion-org/surface-activation';
 
-export interface CapabilitySelectionSeed {
-  baseDescriptors?: readonly DescriptorId[];
-  // CLI/env override for the base descriptors, symmetric to `selectionSeed`: a
-  // non-empty parse replaces `baseDescriptors`, otherwise `baseDescriptors` stands.
-  baseSeed?:
-    | false
-    | {
-        argv?: string[];
-        cliKeys?: string[];
-        env?: Record<string, string | undefined>;
-        envKeys?: string[];
-      };
-  defaultSelection?: readonly DescriptorId[];
-  selected?: readonly DescriptorId[];
-  selectionSeed?:
-    | false
-    | {
-        argv?: string[];
-        cliKeys?: string[];
-        env?: Record<string, string | undefined>;
-        envKeys?: string[];
-      };
-}
+// The selection seed is owned by `@lorion-org/descriptor-selection`, which resolves
+// it. Restating it here is how this package's copy came to be missing `key`.
+export type CapabilitySelectionSeed = DescriptorSelectionSeed;
 
 export interface ResolvedCapability extends SurfaceCapability {
   descriptor: Descriptor;
@@ -87,38 +90,95 @@ function readPackageName(directory: string): string {
 // alongside disk discovery.
 //
 // `bundles` is the batteries-included path: point it at a directory and lorion
-// discovers a bundle manifest upward, expands it into virtual descriptors and fills
-// the base/default seed. Explicit `virtualDescriptors` and seed values still win.
-export function resolveSelectedCapabilities(options: {
+// discovers a bundle manifest upward and expands it into virtual descriptors. The
+// manifest declares descriptors only; the host names its own seed, so a grouping
+// file stays reusable across runs that seed it differently.
+export interface CapabilitySelectionInput {
   workspaceRoot: string;
+  // Where capability descriptors live. `capabilitiesDir` is the one-directory
+  // convention; `descriptorPaths` takes glob patterns and wins when both are given,
+  // so a host whose capabilities span several roots needs no discovery of its own.
   capabilitiesDir?: string;
+  descriptorPaths?: readonly string[];
+  // The schema every discovered descriptor is validated against. Defaults to the
+  // shared `descriptorSchema`; `false` disables validation, and a host that adds
+  // descriptor fields of its own passes an extended schema.
+  descriptorSchema?: false | object;
   virtualDescriptors?: readonly Descriptor[];
   bundles?: { cwd: string; fileName?: string };
+  // Field in a discovered `capability.json` holding further descriptors, expanded
+  // alongside their host. A capability that groups others declares them here
+  // instead of in a separate manifest.
+  // Defaults to `NESTED_DESCRIPTOR_FIELD`; `false` reads no nested field.
+  nestedField?: false | string;
   seed: CapabilitySelectionSeed;
+  // Extra relations resolved alongside the provider relations, for a host's own
+  // dependency or grouping edges.
+  relationDescriptors?: readonly RelationDescriptor[];
   policy?: Partial<CompositionPolicy>;
-}): ResolvedCapability[] {
+}
+
+// Every composition option a host adapter must accept and forward, enumerated. A
+// host that wraps lorion re-spells these options in its own vocabulary, and the
+// only way to know it still carries all of them is to check against a list that
+// does not update itself: this one is written by hand and held to
+// `CapabilitySelectionInput` in both directions by `index.spec.ts`.
+export const CAPABILITY_SELECTION_OPTIONS = [
+  'capabilitiesDir',
+  'descriptorPaths',
+  'descriptorSchema',
+  'virtualDescriptors',
+  'bundles',
+  'nestedField',
+  'relationDescriptors',
+  'policy',
+  'baseDescriptors',
+  'defaultSelection',
+  'selected',
+  'selectionSeed',
+] as const;
+
+export type CapabilitySelectionOption = (typeof CAPABILITY_SELECTION_OPTIONS)[number];
+
+// The resolved capabilities together with the provider outcome: which provider won
+// each contested capability, in which mode, and which ones lost, plus every
+// descriptor id the workspace holds. A host that reports on a composition, names
+// an artifact after the selected provider or checks the outcome reads it here
+// instead of re-deriving it from the resolved set.
+export function resolveCapabilitySelection(options: CapabilitySelectionInput): {
+  capabilities: ResolvedCapability[];
+  providerSelection: ProviderSelectionResolution;
+  // Everything discovery knew about, selected or not: files, nested descriptors
+  // and manifest groupings alike. Counting directories instead misses the last two.
+  discovered: DescriptorId[];
+} {
   const capabilitiesDir = options.capabilitiesDir ?? 'capabilities';
-  const manifest = options.bundles ? loadBundleManifest(options.bundles) : undefined;
+  const descriptorPaths = options.descriptorPaths ?? [`${capabilitiesDir}/*/capability.json`];
   const virtualDescriptors = [
     ...(options.virtualDescriptors ?? []),
-    ...(manifest?.virtualDescriptors ?? []),
+    ...(options.bundles ? loadBundleManifest(options.bundles) : []),
   ];
-  const seed: CapabilitySelectionSeed = manifest
-    ? {
-        ...options.seed,
-        baseDescriptors: options.seed.baseDescriptors ?? manifest.baseDescriptors,
-        defaultSelection: options.seed.defaultSelection ?? manifest.defaultSelection,
-      }
-    : options.seed;
+  const seed = options.seed;
   const discovered = discoverDescriptors({
     cwd: options.workspaceRoot,
-    descriptorPaths: [`${capabilitiesDir}/*/capability.json`],
-    validation: { schema: descriptorSchema },
+    descriptorPaths: [...descriptorPaths],
+    validation:
+      options.descriptorSchema === false
+        ? false
+        : { schema: options.descriptorSchema ?? descriptorSchema },
+    ...(options.nestedField === false
+      ? {}
+      : { nestedField: options.nestedField ?? NESTED_DESCRIPTOR_FIELD }),
   }).map((entry) => ({
     id: entry.descriptor.id,
-    directory: entry.cwd,
+    // A nested descriptor owns no package in its host's directory, so it is
+    // addressed like any other grouping: a synthetic directory, no package name
+    // and no surface.
+    directory: entry.nested
+      ? virtualDescriptorDirectory(options.workspaceRoot, entry.descriptor.id)
+      : entry.cwd,
     descriptor: entry.descriptor,
-    virtual: false,
+    virtual: entry.nested,
   }));
 
   // Virtual descriptors get a synthetic, non-existent directory so the surface
@@ -130,11 +190,12 @@ export function resolveSelectedCapabilities(options: {
     virtual: true,
   }));
 
-  const selected = selectDescriptors({
+  const { items: selected, providerSelection } = selectDescriptorsWithProviders({
     items: [...discovered, ...virtual],
     getDescriptor: (item) => item.descriptor,
     withDescriptor: (item, descriptor) => ({ ...item, descriptor }),
     seed,
+    ...(options.relationDescriptors ? { relationDescriptors: options.relationDescriptors } : {}),
     ...(options.policy ? { policy: options.policy } : {}),
   });
 
@@ -142,34 +203,44 @@ export function resolveSelectedCapabilities(options: {
   // descriptors have no package on disk and never resolve a surface. (Reading it
   // lazily here also keeps an unrelated broken package.json from aborting a
   // composition that never imports that capability.)
-  return selected.map(({ virtual: isVirtual, ...item }) => ({
+  const capabilities = selected.map(({ virtual: isVirtual, ...item }) => ({
     ...item,
     packageName: isVirtual ? '' : readPackageName(item.directory),
   }));
+
+  return {
+    capabilities,
+    providerSelection,
+    discovered: [...discovered, ...virtual].map((item) => item.id),
+  };
+}
+
+// The resolved capabilities alone, for hosts that do not report on the provider
+// outcome.
+export function resolveSelectedCapabilities(
+  options: CapabilitySelectionInput,
+): ResolvedCapability[] {
+  return resolveCapabilitySelection(options).capabilities;
 }
 
 // Runtime composition: resolve the active set, and for each capability that
 // provides the requested surface, load its module and hand the exported value to
 // the host's registration. Registry- and framework-agnostic. A build-time host
 // uses `resolveSurfaceModules` directly to emit static imports instead.
-export async function composeCapabilities(options: {
-  workspaceRoot: string;
-  capabilitiesDir?: string;
-  virtualDescriptors?: readonly Descriptor[];
-  bundles?: { cwd: string; fileName?: string };
-  seed: CapabilitySelectionSeed;
+export interface CapabilityCompositionInput extends CapabilitySelectionInput {
   surface: string;
   activation: ActivationResolver;
   load: (specifier: string) => Promise<Record<string, unknown>>;
   register: (exportValue: unknown, capability: ResolvedCapability) => void | Promise<void>;
-}): Promise<ResolvedCapability[]> {
-  const active = resolveSelectedCapabilities({
-    workspaceRoot: options.workspaceRoot,
-    capabilitiesDir: options.capabilitiesDir ?? 'capabilities',
-    ...(options.virtualDescriptors ? { virtualDescriptors: options.virtualDescriptors } : {}),
-    ...(options.bundles ? { bundles: options.bundles } : {}),
-    seed: options.seed,
-  });
+}
+
+export async function composeCapabilities(
+  options: CapabilityCompositionInput,
+): Promise<ResolvedCapability[]> {
+  // The selection input is forwarded whole. Restating its fields here would let a
+  // runtime composition silently resolve a different set than the build-time one
+  // the moment the selection contract grows.
+  const active = resolveSelectedCapabilities(options);
   const activated: ResolvedCapability[] = [];
 
   for (const { capability, specifier, exportName } of resolveSurfaceModules(
