@@ -2,7 +2,6 @@ import { createContext, createElement, useContext, type ReactElement, type React
 import {
   assertKnownDescriptorIds,
   createDescriptorCatalog,
-  type Descriptor,
   type DescriptorCatalog,
 } from '@lorion-org/composition-graph';
 import {
@@ -12,7 +11,7 @@ import {
   type ProviderPreferenceMap,
   type ProviderSelectionResolution,
 } from '@lorion-org/provider-selection';
-import type { RuntimeConfigValidationPolicy } from '@lorion-org/runtime-config';
+import type { SchemaDescriptor } from '@lorion-org/descriptor-discovery';
 import { defaultCapabilityRelationDescriptors } from './relations';
 
 export {
@@ -22,12 +21,11 @@ export {
 } from './relations';
 export * from './runtime-config';
 
-export type CapabilityManifest = Descriptor & {
-  defaultFor?: string | string[];
-  description?: string;
-  providerPreferences?: ProviderPreferenceMap;
-  runtimeConfig?: RuntimeConfigValidationPolicy;
-};
+// The runtime's descriptor is the shared one. It described the same fields a fifth
+// time, with `runtimeConfig` narrower than the code accepts and a `description`
+// field the schema does not declare; a host attaching its own data still can,
+// through the descriptor's index signature.
+export type CapabilityManifest = SchemaDescriptor;
 
 export type ExtensionPoint<T> = {
   id: string;

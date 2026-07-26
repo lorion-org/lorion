@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, sep } from 'node:path';
@@ -7,13 +7,25 @@ import {
   capabilityLoader,
   createCapabilityRouteConfig,
   createReactRuntimeConfig,
+  describeCapabilityComposition,
   discoverCapabilities,
   discoverSelectedCapabilities,
   lorionReact,
   renderCapabilityModule,
   renderRuntimeConfigModule,
+  type CapabilityLoaderOptions,
 } from './vite';
-import { conventionActivation } from '@lorion-org/surface-activation';
+import type {
+  CapabilitySelectionInput,
+  CapabilitySelectionSeed,
+} from '@lorion-org/capability-composition';
+import {
+  CAPABILITY_SELECTION_OPTIONS,
+  notResolved,
+  resolveSelectedCapabilities,
+  type CapabilitySelectionOption,
+} from '@lorion-org/capability-composition';
+import { conventionActivation, fileSurfaceConvention } from '@lorion-org/surface-activation';
 
 describe('React capability Vite helpers', () => {
   it('discovers local capabilities and renders a virtual module', () => {
@@ -231,8 +243,6 @@ describe('React capability Vite helpers', () => {
     writeFileSync(
       join(workspaceRoot, 'bundles.json'),
       JSON.stringify({
-        base: 'base',
-        default: 'shop',
         bundles: [
           { id: 'base', version: '1.0.0', dependencies: { dashboard: '^1.0.0' } },
           { id: 'shop', version: '1.0.0', dependencies: { reports: '^1.0.0' } },
@@ -240,8 +250,13 @@ describe('React capability Vite helpers', () => {
       }),
     );
 
+    const baseBundle = 'base';
+    const defaultBundle = 'shop';
+
     const capabilities = discoverSelectedCapabilities(workspaceRoot, {
       bundles: { cwd: workspaceRoot },
+      baseDescriptors: [baseBundle],
+      defaultSelection: [defaultBundle],
       activation: () => undefined,
     });
 
@@ -869,3 +884,334 @@ function writeRuntimeConfigFile(
   mkdirSync(configDir, { recursive: true });
   writeFileSync(join(configDir, 'capability.runtime.json'), JSON.stringify(config));
 }
+
+// Adapter conformance: every composition option the core declares must be an
+// option this adapter accepts. `CapabilityLoaderOptions` derives from the core
+// contract, and this states the requirement so a future hand-written option list
+// fails to compile instead of quietly dropping a feature.
+type CoreOptionKey = keyof Omit<CapabilitySelectionInput, 'seed' | 'workspaceRoot'>;
+type SeedOptionKey = keyof CapabilitySelectionSeed;
+type MissingFromLoader = Exclude<CoreOptionKey | SeedOptionKey, keyof CapabilityLoaderOptions>;
+
+describe('core option conformance', () => {
+  it('accepts every option the core composition contract declares', () => {
+    const noMissingOption: MissingFromLoader extends never ? true : false = true;
+    expect(noMissingOption).toBe(true);
+  });
+
+  it('discovers through host-named descriptor paths instead of the convention dir', () => {
+    const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-conformance-'));
+    mkdirSync(join(workspaceRoot, 'features', 'reports'), { recursive: true });
+    writeFileSync(
+      join(workspaceRoot, 'features', 'reports', 'capability.json'),
+      JSON.stringify({ id: 'reports', version: '1.0.0' }),
+    );
+    writeFileSync(
+      join(workspaceRoot, 'features', 'reports', 'package.json'),
+      JSON.stringify({ name: '@react-workspace/reports', type: 'module' }),
+    );
+
+    const capabilities = discoverSelectedCapabilities(workspaceRoot, {
+      descriptorPaths: ['features/*/capability.json'],
+      activation: () => undefined,
+    });
+
+    expect(capabilities.map((capability) => capability.id)).toEqual(['reports']);
+  });
+
+  it('validates descriptors against a host-supplied schema', () => {
+    const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-conformance-'));
+    mkdirSync(join(workspaceRoot, 'capabilities', 'reports'), { recursive: true });
+    writeFileSync(
+      join(workspaceRoot, 'capabilities', 'reports', 'capability.json'),
+      JSON.stringify({ id: 'reports', version: '1.0.0' }),
+    );
+    writeFileSync(
+      join(workspaceRoot, 'capabilities', 'reports', 'package.json'),
+      JSON.stringify({ name: '@react-workspace/reports', type: 'module' }),
+    );
+
+    expect(() =>
+      discoverSelectedCapabilities(workspaceRoot, {
+        descriptorSchema: { type: 'object', required: ['owner'] },
+        activation: () => undefined,
+      }),
+    ).toThrow(/required/);
+  });
+});
+
+// A grouping declared under `nestedField` owns no directory: it shares its host's.
+// The React loader and `capability-composition` must therefore resolve the same set
+// from the same input, or a build composes something a report never mentions.
+describe('nested grouping descriptors', () => {
+  function nestedWorkspace(): string {
+    const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-nested-'));
+    const write = (id: string, descriptor: Record<string, unknown>) => {
+      const dir = join(workspaceRoot, 'capabilities', id);
+      mkdirSync(join(dir, 'src'), { recursive: true });
+      writeFileSync(join(dir, 'capability.json'), JSON.stringify(descriptor));
+      writeFileSync(
+        join(dir, 'package.json'),
+        JSON.stringify({
+          name: `@w/${id}`,
+          type: 'module',
+          exports: { './web': './src/web.ts' },
+        }),
+      );
+      writeFileSync(join(dir, 'src', 'web.ts'), 'export const x = 1;\n');
+    };
+
+    write('shell', {
+      id: 'shell',
+      version: '1.0.0',
+      bundles: [{ id: 'storefront', version: '0.0.0', dependencies: { catalog: '^1.0.0' } }],
+    });
+    write('catalog', { id: 'catalog', version: '1.0.0' });
+    return workspaceRoot;
+  }
+
+  const activation = conventionActivation({
+    web: fileSurfaceConvention({
+      files: ['src/web.ts'],
+      exportSuffix: 'WebPlugin',
+      exportSubpath: './web',
+      exists: existsSync,
+    }),
+  });
+
+  it('gives a nested grouping no package and no activation of its host', () => {
+    const workspaceRoot = nestedWorkspace();
+
+    const capabilities = discoverCapabilities(workspaceRoot, {
+      nestedField: 'bundles',
+      surface: { name: 'web', resolver: activation },
+    });
+    const storefront = capabilities.find((capability) => capability.id === 'storefront');
+
+    expect(storefront).toBeDefined();
+    // Reading the host's package or surface here is what produced an import of a
+    // non-existent export, and a second copy of the host's route directory.
+    expect(storefront?.packageName).toBe('');
+    expect(storefront?.importSpecifier).toBeUndefined();
+    expect(storefront?.exportName).toBeUndefined();
+    expect(storefront?.routesDirectory).toBeUndefined();
+  });
+
+  it('resolves the same capability set as capability-composition', () => {
+    const workspaceRoot = nestedWorkspace();
+    const seed = { baseDescriptors: ['shell'], selected: ['storefront'] };
+
+    // Compared by id AND package name: a host that reports only package-backed
+    // capabilities counts a grouping as a package the moment it inherits one, which
+    // is how a build and a report on it came to disagree.
+    const loaderIds = discoverSelectedCapabilities(workspaceRoot, {
+      ...seed,
+      nestedField: 'bundles',
+      surface: { name: 'web', resolver: activation },
+    })
+      .map((capability) => `${capability.id}:${capability.packageName}`)
+      .sort();
+
+    const coreIds = resolveSelectedCapabilities({
+      workspaceRoot,
+      nestedField: 'bundles',
+      seed,
+    })
+      .map((capability) => `${capability.id}:${capability.packageName}`)
+      .sort();
+
+    expect(loaderIds).toEqual(coreIds);
+  });
+});
+
+// Adapter conformance, behavioural. A type-level check cannot see whether an option
+// is forwarded, only whether it is accepted, so every core option gets a case that
+// changes the resolved set and asserts the change. `CAPABILITY_SELECTION_OPTIONS` is
+// the core's own list, so an option added there without a case here fails to compile.
+describe('core option forwarding', () => {
+  function workspace(): string {
+    const root = mkdtempSync(join(tmpdir(), 'lorion-react-forward-'));
+    const write = (dir: string, id: string, descriptor: Record<string, unknown>) => {
+      const target = join(root, dir, id);
+      mkdirSync(target, { recursive: true });
+      writeFileSync(
+        join(target, 'capability.json'),
+        JSON.stringify({ version: '1.0.0', ...descriptor, id }),
+      );
+      writeFileSync(
+        join(target, 'package.json'),
+        JSON.stringify({ name: `@w/${id}`, type: 'module' }),
+      );
+    };
+    write('capabilities', 'alpha', { dependencies: { beta: '^1.0.0' } });
+    write('capabilities', 'beta', {});
+    write('capabilities', 'gamma', { linked: 'beta' });
+    write('capabilities', 'grouped', {
+      groups: [{ id: 'grouped-under-groups', version: '0.0.0', dependencies: { beta: '^1.0.0' } }],
+    });
+    write('features', 'delta', {});
+    return root;
+  }
+
+  const ids = (root: string, options: CapabilityLoaderOptions): string[] =>
+    discoverSelectedCapabilities(root, { activation: () => undefined, ...options })
+      .map((capability) => capability.id)
+      .sort();
+
+  // One case per core option. A missing key is a compile error, which is what makes
+  // this a guard rather than a list of tests someone remembered to write.
+  const cases: Record<CapabilitySelectionOption, (root: string) => void> = {
+    capabilitiesDir: (root) => {
+      expect(ids(root, { capabilitiesDir: 'features', selected: ['delta'] })).toEqual(['delta']);
+    },
+    descriptorPaths: (root) => {
+      expect(
+        ids(root, { descriptorPaths: ['features/*/capability.json'], selected: ['delta'] }),
+      ).toEqual(['delta']);
+    },
+    descriptorSchema: (root) => {
+      expect(() =>
+        ids(root, {
+          descriptorSchema: { type: 'object', required: ['owner'] },
+          selected: ['beta'],
+        }),
+      ).toThrow(/required/);
+    },
+    virtualDescriptors: (root) => {
+      expect(
+        ids(root, {
+          virtualDescriptors: [
+            { id: 'virtual-group', version: '0.0.0', dependencies: { beta: '^1.0.0' } },
+          ],
+          selected: ['virtual-group'],
+        }),
+      ).toEqual(['beta', 'virtual-group']);
+    },
+    bundles: (root) => {
+      writeFileSync(
+        join(root, 'bundles.json'),
+        JSON.stringify({
+          bundles: [{ id: 'manifest-group', version: '0.0.0', dependencies: { beta: '^1.0.0' } }],
+        }),
+      );
+      expect(ids(root, { bundles: { cwd: root }, selected: ['manifest-group'] })).toEqual([
+        'beta',
+        'manifest-group',
+      ]);
+    },
+    nestedField: (root) => {
+      // A non-default field name: `bundles` is the contract's default, so passing it
+      // would prove nothing about forwarding.
+      expect(ids(root, { nestedField: 'groups', selected: ['grouped-under-groups'] })).toEqual([
+        'beta',
+        'grouped-under-groups',
+      ]);
+      expect(() => ids(root, { selected: ['grouped-under-groups'] })).toThrow(/Unknown selected/);
+    },
+    relationDescriptors: (root) => {
+      // Walking the relation is the policy's job, so both are set; dropping only the
+      // relation descriptor must stop `gamma` from reaching `beta`.
+      const policy = { resolutionRelationIds: ['dependencies', 'linked'] };
+      expect(
+        ids(root, {
+          relationDescriptors: [{ id: 'linked', field: 'linked' }],
+          policy,
+          selected: ['gamma'],
+        }),
+      ).toEqual(['beta', 'gamma']);
+      expect(ids(root, { policy, selected: ['gamma'] })).toEqual(['gamma']);
+    },
+    policy: (root) => {
+      // Resolving no relations means a selected capability pulls nothing.
+      expect(ids(root, { policy: { resolutionRelationIds: [] }, selected: ['alpha'] })).toEqual([
+        'alpha',
+      ]);
+    },
+    baseDescriptors: (root) => {
+      expect(ids(root, { baseDescriptors: ['beta'], selected: ['gamma'] })).toEqual([
+        'beta',
+        'gamma',
+      ]);
+    },
+    defaultSelection: (root) => {
+      expect(ids(root, { defaultSelection: ['beta'], selectionSeed: false })).toEqual(['beta']);
+    },
+    selected: (root) => {
+      expect(ids(root, { selected: ['beta'] })).toEqual(['beta']);
+    },
+    selectionSeed: (root) => {
+      expect(
+        ids(root, { selectionSeed: { argv: [], env: { PICK: 'beta' }, envKeys: ['PICK'] } }),
+      ).toEqual(['beta']);
+      // The seed is one entry in the option list but several knobs; a host that
+      // forwards only part of it forwards none of it in practice.
+      expect(
+        ids(root, { selectionSeed: { argv: ['--pick=beta'], env: {}, cliKeys: ['pick'] } }),
+      ).toEqual(['beta']);
+      // A logical `key` derives its env name; only an explicit `envKeys` is literal.
+      expect(
+        ids(root, { selectionSeed: { argv: [], env: { LORION_PICKS: 'beta' }, key: 'pick' } }),
+      ).toEqual(['beta']);
+    },
+  };
+
+  it.each([...CAPABILITY_SELECTION_OPTIONS])('forwards %s', (option) => {
+    cases[option](workspace());
+  });
+});
+
+describe('describeCapabilityComposition', () => {
+  it('reports the same composition the loader builds, groupings included', () => {
+    const root = mkdtempSync(join(tmpdir(), 'lorion-react-report-'));
+    const write = (id: string, descriptor: Record<string, unknown>) => {
+      const dir = join(root, 'capabilities', id);
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        join(dir, 'capability.json'),
+        JSON.stringify({ version: '1.0.0', ...descriptor, id }),
+      );
+      writeFileSync(
+        join(dir, 'package.json'),
+        JSON.stringify({ name: `@x/${id}`, exports: { './capability': './index.js' } }),
+      );
+    };
+    write('platform', {});
+    write('shop', { dependencies: { platform: '^1.0.0' } });
+    write('admin', {});
+    write('auth-oidc', { providesFor: 'auth', defaultFor: 'auth' });
+    write('auth', {});
+    writeFileSync(
+      join(root, 'bundles.json'),
+      JSON.stringify({
+        bundles: [{ id: 'storefront', version: '1.0.0', dependencies: { shop: '^1.0.0' } }],
+      }),
+    );
+
+    const options = {
+      bundles: { cwd: root },
+      baseDescriptors: ['auth'],
+      selected: ['storefront'],
+      selectionSeed: false as const,
+    };
+    const report = describeCapabilityComposition(root, options);
+
+    // The grouping resolves and is counted, and so is the provider the graph chose
+    // without anyone naming it.
+    expect(report.requested).toEqual(['storefront']);
+    expect(report.selected).toEqual(['storefront']);
+    expect(report.base).toEqual(['auth']);
+    expect(report.resolved).toEqual(['auth', 'auth-oidc', 'platform', 'shop', 'storefront']);
+    expect(report.discovered).toContain('storefront');
+    expect(report.providers).toEqual([
+      { capability: 'auth', provider: 'auth-oidc', mode: 'fallback', resolved: true },
+    ]);
+    expect(notResolved(report)).toEqual(['admin']);
+
+    // The report describes what the loader emits: same ids, minus the groupings,
+    // which carry no module.
+    const emitted = discoverSelectedCapabilities(root, options)
+      .filter((capability) => capability.packageName !== '')
+      .map((capability) => capability.id);
+    expect(report.resolved.filter((id) => id !== 'storefront')).toEqual(emitted);
+  });
+});

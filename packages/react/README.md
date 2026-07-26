@@ -219,12 +219,20 @@ capability remains active.
 
 Use `indexRouteFile: false` when `/` is owned by a capability route.
 
+The loader accepts every option `CapabilitySelectionInput` declares, in the core's
+spelling: `capabilitiesDir`, `descriptorPaths` (glob patterns, for capabilities that
+span several roots), `descriptorSchema` (an extended schema, or `false` to skip
+validation), `virtualDescriptors`, `bundles`, `nestedField`, `relationDescriptors`,
+`policy`, and the seed fields `baseDescriptors`, `defaultSelection`, `selected` and
+`selectionSeed`. A grouping reached through `nestedField` or `virtualDescriptors`
+resolves in the graph but owns no package and emits no import.
+
 Pass `bundles: { cwd }` to group capabilities from a declarative manifest without a
 package per bundle: the loader discovers a `bundles.json` upward from `cwd` — where
-`bundles` is a nested list of ordinary descriptors and `base`/`default` name which
-seed the graph — and fills `virtualDescriptors`, `baseDescriptors` and
-`defaultSelection`. Pair it with `baseSeed` to make the base bundle overridable from
-CLI/env, symmetric to `selectionSeed`. Explicit options still win.
+`bundles` is a nested list of ordinary descriptors — and adds them to
+`virtualDescriptors`. The manifest declares descriptors only; name the always-on base
+and the default selection through `baseDescriptors` and `defaultSelection`, so one
+manifest serves runs that seed it differently.
 
 The virtual module exports `capabilityModules`, `selectedCapabilityIds`, and
 `resolvedCapabilityIds` so host code can distinguish the seed from the final
@@ -523,10 +531,33 @@ pnpm --filter @lorion-examples/react-loader dev
 ```
 
 It runs on `http://localhost:3201` with capabilities under
-`examples/react-loader/capabilities`. The seed replaces the default selection, while
-the base and providers resolve through the graph: switch the auth provider with
-`--features=dashboard,auth-oidc`, or change the feature set with
-`LORION_FEATURES="dashboard reports"`.
+`examples/react-loader/capabilities`. Its base is `commerce` and its default
+selection `storefront`. The seed replaces that default, while the base and providers
+resolve through the graph: switch the payment provider with
+`--features=storefront,payment-provider-invoice`, or change the feature set with
+`LORION_FEATURES="shop-coffee admin"`.
+
+### Reporting on a composition
+
+`describeCapabilityComposition(workspaceRoot, options)` resolves the same options the
+loader takes and returns a `CompositionReport`: what was requested, what the
+selection resolved to, the always-on base, the winner and mode of each contested
+capability, the activated set and everything discovery found, groupings included.
+`formatCompositionReport` from
+[`@lorion-org/capability-composition`](../capability-composition) renders it, and a
+host colours it through the palette.
+
+```ts
+import { describeCapabilityComposition } from '@lorion-org/react/vite';
+import { formatCompositionReport } from '@lorion-org/capability-composition';
+
+for (const line of formatCompositionReport(describeCapabilityComposition(root, options))) {
+  console.log(line);
+}
+```
+
+Because both come from the loader's own options, a report cannot describe a
+different composition than the bundle it belongs to.
 
 ## Local Commands
 

@@ -66,6 +66,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@lorion-org/capability-composition": "workspace:^",
     "@lorion-org/composition-graph": "workspace:^",
     "@lorion-org/descriptor-discovery": "workspace:^",
     "@lorion-org/descriptor-selection": "workspace:^",

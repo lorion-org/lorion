@@ -2,23 +2,29 @@ import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
 import { loadEnv } from 'vite';
-import type {
-  CompositionPolicy,
-  Descriptor,
-  DescriptorId,
-  DescriptorSelectionSeedInput,
-  RelationDescriptor,
-} from '@lorion-org/composition-graph';
+import type { Descriptor, DescriptorId, RelationDescriptor } from '@lorion-org/composition-graph';
 import {
   descriptorSchema,
   discoverDescriptors,
   findUp,
   loadBundleManifest,
+  NESTED_DESCRIPTOR_FIELD,
   requirePackageName,
+  type SchemaDescriptor,
   virtualDescriptorDirectory,
   type DiscoveredDescriptor,
 } from '@lorion-org/descriptor-discovery';
-import { resolveDescriptorSelection, selectDescriptors } from '@lorion-org/descriptor-selection';
+import type {
+  CapabilitySelectionInput,
+  CapabilitySelectionSeed,
+  CompositionReport,
+} from '@lorion-org/capability-composition';
+import { describeComposition } from '@lorion-org/capability-composition';
+import {
+  resolveDescriptorSelection,
+  selectDescriptors,
+  selectDescriptorsWithProviders,
+} from '@lorion-org/descriptor-selection';
 import {
   createRuntimeConfigValidatorRegistry,
   projectRuntimeConfigNamespaces,
@@ -62,40 +68,29 @@ export type ResolveCapabilityActivation = (input: {
   packageName: string;
 }) => CapabilityActivationEntry | null | undefined;
 
-export type CapabilityLoaderOptions = {
-  // How an active capability's activation is resolved (which module and export to
-  // import). Pass EITHER `surface` to reuse a lorion `conventionActivation` resolver
-  // for a named surface directly (no per-host adapter), OR the richer `activation`
-  // resolver that also sees the descriptor and package.json — not both. A nullish
-  // result marks the capability graph-only.
-  activation?: ResolveCapabilityActivation;
-  // Reuse a `conventionActivation` resolver (from `@lorion-org/surface-activation`)
-  // for a named surface, e.g. `{ name: 'web', resolver: conventionActivation({...}) }`.
-  surface?: { name: string; resolver: ActivationResolver };
-  capabilitiesDir?: string;
-  // Host-provided descriptors that join the discovered set for graph resolution
-  // without living on disk as packages: grouping descriptors (bundles) whose
-  // `dependencies` point at real capabilities. They take part in selection but
-  // carry no surface, so they emit no import and need no `package.json`.
-  virtualDescriptors?: readonly Descriptor[];
-  // Batteries-included bundles: point at a directory and lorion discovers a bundle
-  // manifest upward, expands it into virtual descriptors and fills the base/default
-  // seed. Explicit `virtualDescriptors`/`baseDescriptors`/`defaultSelection` win.
-  bundles?: { cwd: string; fileName?: string };
-  baseDescriptors?: readonly DescriptorId[];
-  // CLI/env override for the base descriptors, symmetric to `selectionSeed`: a
-  // non-empty parse replaces `baseDescriptors`, otherwise `baseDescriptors` stands.
-  baseSeed?: false | CapabilitySelectionSeedOptions;
-  defaultSelection?: readonly DescriptorId[];
-  policy?: Partial<CompositionPolicy>;
-  relationDescriptors?: readonly RelationDescriptor[];
-  runtimeConfig?: false | ReactRuntimeConfigOptions;
-  selected?: readonly DescriptorId[];
-  selectionSeed?: false | CapabilitySelectionSeedOptions;
-  workspaceRoot?: string;
-};
-
-export type CapabilitySelectionSeedOptions = Omit<DescriptorSelectionSeedInput, 'defaultValue'>;
+// Every composition option lorion accepts, plus the ones this adapter owns. The
+// shared half is derived from `CapabilitySelectionInput` rather than restated, so
+// an option the core gains is an option this loader accepts, and a conformance
+// test holds it to forwarding each one (see vite.spec.ts).
+//
+// The seed is flattened into the option object because a Vite config reads better
+// without a nested `seed`; the fields themselves are the core's.
+export type CapabilityLoaderOptions = Partial<
+  Omit<CapabilitySelectionInput, 'seed' | 'relationDescriptors'>
+> &
+  CapabilitySelectionSeed & {
+    // How an active capability's activation is resolved (which module and export to
+    // import). Pass EITHER `surface` to reuse a lorion `conventionActivation` resolver
+    // for a named surface directly (no per-host adapter), OR the richer `activation`
+    // resolver that also sees the descriptor and package.json — not both. A nullish
+    // result marks the capability graph-only.
+    activation?: ResolveCapabilityActivation;
+    // Reuse a `conventionActivation` resolver (from `@lorion-org/surface-activation`)
+    // for a named surface, e.g. `{ name: 'web', resolver: conventionActivation({...}) }`.
+    surface?: { name: string; resolver: ActivationResolver };
+    relationDescriptors?: readonly RelationDescriptor[];
+    runtimeConfig?: false | ReactRuntimeConfigOptions;
+  };
 
 export type ReactRuntimeConfigEnvOptions = {
   env?: Record<string, string | undefined>;
@@ -152,7 +147,7 @@ export type DiscoveredCapability = {
   exportName?: string;
   id: string;
   importSpecifier?: string;
-  manifest: Descriptor;
+  manifest: SchemaDescriptor;
   packageName: string;
   routesDirectory?: string;
   variableName: string;
@@ -190,18 +185,17 @@ export type VitePlugin = {
   resolveId: (id: string) => string | undefined;
 };
 
-// Expands a `bundles` manifest into virtual descriptors and the base/default seed,
-// once, so downstream discovery/selection sees plain options. Explicit
-// `virtualDescriptors`/`baseDescriptors`/`defaultSelection` take precedence, and a
-// second call is a no-op (the `bundles` option is consumed).
+// Expands a `bundles` manifest into virtual descriptors once, so downstream
+// discovery/selection sees plain options. A second call is a no-op (the `bundles`
+// option is consumed).
 function resolveBundleOptions(options: CapabilityLoaderOptions): CapabilityLoaderOptions {
   if (!options.bundles) return options;
-  const manifest = loadBundleManifest(options.bundles);
   const resolved: CapabilityLoaderOptions = {
     ...options,
-    virtualDescriptors: [...(options.virtualDescriptors ?? []), ...manifest.virtualDescriptors],
-    baseDescriptors: options.baseDescriptors ?? manifest.baseDescriptors,
-    defaultSelection: options.defaultSelection ?? manifest.defaultSelection,
+    virtualDescriptors: [
+      ...(options.virtualDescriptors ?? []),
+      ...loadBundleManifest(options.bundles),
+    ],
   };
   // Consume the option so a repeat call (e.g. via discoverSelectedCapabilities)
   // does not load and merge the manifest twice.
@@ -327,18 +321,69 @@ function toResolveActivation(
 
 export function discoverCapabilities(
   workspaceRoot: string,
-  options: Pick<CapabilityLoaderOptions, 'activation' | 'capabilitiesDir' | 'surface'> = {},
+  options: CapabilityLoaderOptions = {},
 ): DiscoveredCapability[] {
-  const capabilitiesRoot = resolve(workspaceRoot, options.capabilitiesDir ?? 'capabilities');
-
-  if (!existsSync(capabilitiesRoot)) {
-    throw new Error(`Capabilities directory not found: ${capabilitiesRoot}`);
+  // The convention directory must exist, because a missing one is a host mistake
+  // rather than an empty workspace. A host naming `descriptorPaths` owns where its
+  // descriptors live, so there is no single directory to check.
+  if (!options.descriptorPaths) {
+    const capabilitiesRoot = resolve(workspaceRoot, options.capabilitiesDir ?? 'capabilities');
+    if (!existsSync(capabilitiesRoot)) {
+      throw new Error(`Capabilities directory not found: ${capabilitiesRoot}`);
+    }
   }
 
   const resolveActivation = toResolveActivation(options);
   return discoverCapabilityDescriptors(workspaceRoot, options)
-    .map((entry) => discoverCapability(entry, resolveActivation))
+    .map((entry) =>
+      entry.nested
+        ? toVirtualCapability(workspaceRoot, entry.descriptor)
+        : discoverCapability(entry, resolveActivation),
+    )
     .sort((left, right) => left.id.localeCompare(right.id));
+}
+
+// One resolution described in the terms every host shares: what was asked for,
+// what won each contested capability, what this build activates and everything the
+// workspace holds. Derived from the same call the loader makes, so a report cannot
+// describe a different composition than the bundle it belongs to.
+//
+// The Nuxt adapter publishes the same information through its bootstrap; this is
+// the build-time host's equal, so neither adapter is the only one that can report.
+export function describeCapabilityComposition(
+  workspaceRoot: string,
+  rawOptions: CapabilityLoaderOptions = {},
+): CompositionReport {
+  const options = resolveBundleOptions(rawOptions);
+  // Groupings included: a count that leaves them out claims the workspace holds
+  // fewer descriptors than the selection can reach.
+  const discovered = [
+    ...discoverCapabilities(workspaceRoot, options),
+    ...toVirtualCapabilities(workspaceRoot, options),
+  ];
+  const { items, providerSelection } = selectDescriptorsWithProviders({
+    items: discovered,
+    getDescriptor: (capability) => capability.manifest,
+    withDescriptor: (capability, manifest) => ({ ...capability, manifest }),
+    seed: options,
+    ...(options.relationDescriptors ? { relationDescriptors: options.relationDescriptors } : {}),
+    ...(options.policy ? { policy: options.policy } : {}),
+  });
+  // What the run asked for, resolved without the default so the two stay apart: a
+  // report that calls the default an explicit request cannot be checked against it.
+  const requested = resolveDescriptorSelection({
+    ...(options.selected ? { selected: options.selected } : {}),
+    ...(options.selectionSeed === undefined ? {} : { selectionSeed: options.selectionSeed }),
+  });
+
+  return describeComposition({
+    requested: requested.length ? requested : null,
+    selected: resolveSelectionSeed(options),
+    ...(options.baseDescriptors ? { base: options.baseDescriptors } : {}),
+    resolved: items.map((capability) => capability.id),
+    discovered: discovered.map((capability) => capability.id),
+    providers: [...providerSelection.selections.values()],
+  });
 }
 
 export function discoverSelectedCapabilities(
@@ -353,36 +398,38 @@ export function discoverSelectedCapabilities(
   );
 }
 
-// Host-provided grouping descriptors as graph-only capabilities: no package name
-// and no activation, so they resolve in the graph but emit no import. The synthetic
+// A grouping descriptor as a graph-only capability: no package name and no
+// activation, so it resolves in the graph but emits no import. The synthetic
 // directory never exists, so it matches no surface marker and no runtime-config
 // schema, and can never collide with the process cwd.
-function toVirtualCapabilities(
-  workspaceRoot: string,
-  options: Pick<CapabilityLoaderOptions, 'virtualDescriptors'>,
-): DiscoveredCapability[] {
-  return (options.virtualDescriptors ?? []).map((descriptor) => ({
+//
+// Every grouping reaches this one function, whether the host passed it through
+// `virtualDescriptors` or a descriptor declared it under `nestedField`. A grouping
+// owns no directory in either case, so treating the two differently would let one
+// of them read a package name and a surface that belong to another capability.
+function toVirtualCapability(workspaceRoot: string, descriptor: Descriptor): DiscoveredCapability {
+  return {
     capabilityDir: virtualDescriptorDirectory(workspaceRoot, descriptor.id),
     disabled: descriptor.disabled === true,
     id: descriptor.id,
     manifest: descriptor,
     packageName: '',
     variableName: toVariableName(descriptor.id),
-  }));
+  };
+}
+
+function toVirtualCapabilities(
+  workspaceRoot: string,
+  options: Pick<CapabilityLoaderOptions, 'virtualDescriptors'>,
+): DiscoveredCapability[] {
+  return (options.virtualDescriptors ?? []).map((descriptor) =>
+    toVirtualCapability(workspaceRoot, descriptor),
+  );
 }
 
 function selectCapabilities(
   capabilities: readonly DiscoveredCapability[],
-  options: Pick<
-    CapabilityLoaderOptions,
-    | 'baseDescriptors'
-    | 'baseSeed'
-    | 'defaultSelection'
-    | 'policy'
-    | 'relationDescriptors'
-    | 'selected'
-    | 'selectionSeed'
-  > = {},
+  options: CapabilityLoaderOptions = {},
 ): DiscoveredCapability[] {
   return selectDescriptors({
     items: capabilities,
@@ -484,16 +531,20 @@ export function createCapabilityRouteConfig(
 
 function discoverCapabilityDescriptors(
   workspaceRoot: string,
-  options: Pick<CapabilityLoaderOptions, 'capabilitiesDir'>,
+  options: CapabilityLoaderOptions,
 ): DiscoveredDescriptor[] {
   const capabilitiesDir = options.capabilitiesDir ?? 'capabilities';
 
   return discoverDescriptors({
     cwd: workspaceRoot,
-    descriptorPaths: [`${capabilitiesDir}/*/capability.json`],
-    validation: {
-      schema: descriptorSchema,
-    },
+    descriptorPaths: [...(options.descriptorPaths ?? [`${capabilitiesDir}/*/capability.json`])],
+    validation:
+      options.descriptorSchema === false
+        ? false
+        : { schema: options.descriptorSchema ?? descriptorSchema },
+    ...(options.nestedField === false
+      ? {}
+      : { nestedField: options.nestedField ?? NESTED_DESCRIPTOR_FIELD }),
   });
 }
 
@@ -794,11 +845,7 @@ function getCapabilityRuntimeConfigPolicy(
   capability: DiscoveredCapability,
   validation: ReactRuntimeConfigValidationOptions,
 ): RuntimeConfigValidationPolicyInput {
-  return (
-    (capability.manifest.runtimeConfig as RuntimeConfigValidationPolicyInput | undefined) ??
-    validation.policy ??
-    'optional'
-  );
+  return capability.manifest.runtimeConfig ?? validation.policy ?? 'optional';
 }
 
 function shouldValidateRuntimeConfigFragment(input: {
