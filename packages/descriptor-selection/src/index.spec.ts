@@ -3,8 +3,9 @@ import { describe, expect, it } from 'vitest';
 import type { Descriptor } from '@lorion-org/composition-graph';
 
 import {
+  assertKnownProviderCapabilities,
   assertSingleDefaultProvider,
-  resolveBaseSelection,
+  assertSingleSelectedProvider,
   resolveDescriptorSelection,
   selectDescriptors,
 } from './index';
@@ -76,34 +77,6 @@ describe('resolveDescriptorSelection', () => {
   });
 });
 
-describe('resolveBaseSelection', () => {
-  it('uses baseDescriptors when no baseSeed is configured', () => {
-    expect(resolveBaseSelection({ baseDescriptors: ['base'] })).toEqual(['base']);
-  });
-
-  it('uses baseDescriptors when baseSeed is disabled', () => {
-    expect(resolveBaseSelection({ baseDescriptors: ['base'], baseSeed: false })).toEqual(['base']);
-  });
-
-  it('replaces baseDescriptors when baseSeed parses a value', () => {
-    expect(
-      resolveBaseSelection({
-        baseDescriptors: ['base'],
-        baseSeed: { argv: [], env: { B: 'slim' }, envKeys: ['B'] },
-      }),
-    ).toEqual(['slim']);
-  });
-
-  it('falls back to baseDescriptors when baseSeed parses nothing', () => {
-    expect(
-      resolveBaseSelection({
-        baseDescriptors: ['base'],
-        baseSeed: { argv: [], env: {}, envKeys: ['B'] },
-      }),
-    ).toEqual(['base']);
-  });
-});
-
 describe('selectDescriptors', () => {
   it('resolves base, selection, transitive dependencies, and the default provider', () => {
     expect(
@@ -120,15 +93,11 @@ describe('selectDescriptors', () => {
     expect(ids).not.toContain('auth-session');
   });
 
-  it('resolves the base from baseSeed, overriding baseDescriptors, independent of the selection', () => {
-    // baseSeed replaces the base floor; the selection (dashboard) is unaffected.
-    expect(
-      select(reference(), {
-        baseDescriptors: ['tokens'],
-        baseSeed: { argv: [], env: { B: 'reports' }, envKeys: ['B'] },
-        selected: ['dashboard'],
-      }),
-    ).toEqual(['dashboard', 'reports']);
+  it('keeps the base floor on independent of the selection', () => {
+    expect(select(reference(), { baseDescriptors: ['reports'], selected: ['dashboard'] })).toEqual([
+      'dashboard',
+      'reports',
+    ]);
   });
 
   it('returns every enabled item when nothing is selected or based', () => {
@@ -208,5 +177,73 @@ describe('selectDescriptors', () => {
 describe('assertSingleDefaultProvider', () => {
   it('passes when each capability has at most one default provider', () => {
     expect(() => assertSingleDefaultProvider(reference())).not.toThrow();
+  });
+});
+
+describe('assertSingleSelectedProvider', () => {
+  it('passes when no provider is selected', () => {
+    expect(() => assertSingleSelectedProvider(reference(), ['dashboard'])).not.toThrow();
+  });
+
+  it('passes when one provider of a capability is selected', () => {
+    expect(() => assertSingleSelectedProvider(reference(), ['auth-oidc'])).not.toThrow();
+  });
+
+  it('rejects two selected providers of one capability and names both', () => {
+    expect(() => assertSingleSelectedProvider(reference(), ['auth-oidc', 'auth-session'])).toThrow(
+      /auth: auth-oidc, auth-session/,
+    );
+  });
+
+  it('reads providesFor given as a list', () => {
+    const descriptors: Descriptor[] = [
+      { id: 'a', version: '1.0.0', providesFor: ['storage', 'auth'] },
+      { id: 'b', version: '1.0.0', providesFor: 'auth' },
+    ];
+    expect(() => assertSingleSelectedProvider(descriptors, ['a', 'b'])).toThrow(/auth: a, b/);
+  });
+});
+
+describe('selectDescriptors provider conflicts', () => {
+  it('rejects a selection naming two providers of one capability', () => {
+    expect(() => select(reference(), { selected: ['auth-oidc', 'auth-session'] })).toThrow(
+      /at most one selected provider per capability/,
+    );
+  });
+});
+
+describe('assertKnownProviderCapabilities', () => {
+  const declared: Descriptor[] = [
+    { id: 'auth', version: '1.0.0' },
+    { id: 'auth-oidc', version: '1.0.0', providesFor: 'auth' },
+  ];
+
+  it('accepts a capability some descriptor declares', () => {
+    expect(() => assertKnownProviderCapabilities({ declared, providers: declared })).not.toThrow();
+  });
+
+  it('rejects a capability no descriptor declares, naming it and the provider', () => {
+    const providers: Descriptor[] = [
+      { id: 'pay-stripe', version: '1.0.0', providesFor: 'paymnets' },
+    ];
+
+    expect(() =>
+      assertKnownProviderCapabilities({ declared: [...declared, ...providers], providers }),
+    ).toThrow(/paymnets: pay-stripe/);
+  });
+
+  it('accepts a capability that is declared but takes no part in this composition', () => {
+    // Checked against the discovered set, so a provider whose capability exists
+    // elsewhere in the workspace is not a mistake.
+    const providers: Descriptor[] = [
+      { id: 'pay-stripe', version: '1.0.0', defaultFor: 'payments' },
+    ];
+
+    expect(() =>
+      assertKnownProviderCapabilities({
+        declared: [...declared, ...providers, { id: 'payments', version: '1.0.0' }],
+        providers,
+      }),
+    ).not.toThrow();
   });
 });

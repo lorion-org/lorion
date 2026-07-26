@@ -4,13 +4,21 @@ import {
   resolveDescriptorSelectionSeed,
   type CompositionPolicy,
   type Descriptor,
+  type DescriptorCatalog,
   type DescriptorId,
   type RelationDescriptor,
 } from '@lorion-org/composition-graph';
+export type {
+  ProviderSelectionMode,
+  ProviderSelectionResolution,
+} from '@lorion-org/provider-selection';
 import {
+  collectProviderDefaults,
+  collectProviderPreferences,
   collectSelectedProviderPreferences,
+  type ProviderSelectionResolution,
+  resolveItemProviderSelection,
   resolveSelectedProviderRelationPreferences,
-  type ProviderPreferenceMap,
 } from '@lorion-org/provider-selection';
 
 // Provider-aware descriptor selection: given a set of items that each carry a
@@ -46,19 +54,6 @@ export function descriptorSelectionPolicy(
 
 export interface DescriptorSelectionSeed {
   baseDescriptors?: readonly DescriptorId[];
-  // Optional CLI/env override for the base descriptors, symmetric to
-  // `selectionSeed`: when it parses to a non-empty list it replaces
-  // `baseDescriptors`, otherwise `baseDescriptors` stands. Lets a host expose the
-  // always-on base as an env/CLI knob without owning any parsing itself.
-  baseSeed?:
-    | false
-    | {
-        argv?: string[];
-        env?: Record<string, string | undefined>;
-        key?: string;
-        cliKeys?: string[];
-        envKeys?: string[];
-      };
   defaultSelection?: readonly DescriptorId[];
   selected?: readonly DescriptorId[];
   selectionSeed?:
@@ -72,12 +67,49 @@ export interface DescriptorSelectionSeed {
       };
 }
 
+// Normalises a descriptor id list, and reports the two mistakes that otherwise pass
+// as data. A string reads as a list and is not: spreading `'shop'` yields four
+// one-character ids that name nothing, and the host would then be told those ids
+// are unknown rather than what it actually did wrong. An empty id names nothing
+// either, and dropping it silently turns `selected: ['']` — the shape an unset
+// environment variable produces — into a composition of nothing.
+//
+// Duplicates are removed and the result is sorted, so a host's own ordering never
+// leaks into the composition and every caller sees one normalisation.
+function toDescriptorIds(
+  value: readonly DescriptorId[] | undefined,
+  field: string,
+): DescriptorId[] {
+  if (value === undefined) return [];
+
+  // Widened deliberately: the declared type already excludes a string, so this
+  // guard exists for the untyped caller a published package always has.
+  const given: unknown = value;
+  if (typeof given === 'string') {
+    throw new TypeError(
+      `Descriptor selection field "${field}" takes a list of ids, but got the string "${given}". Pass ["${given}"].`,
+    );
+  }
+
+  const ids = [...value];
+  if (ids.some((id) => typeof id !== 'string' || !id.trim())) {
+    throw new TypeError(
+      `Descriptor selection field "${field}" contains an empty id: ${JSON.stringify(ids)}.`,
+    );
+  }
+
+  return [...new Set(ids)].sort();
+}
+
 // The active selection ids from a seed: explicit `selected` wins; otherwise the
 // CLI/env seed is parsed, falling back to `defaultSelection`. Base descriptors are
 // resolved separately by the graph and are not part of this list.
 export function resolveDescriptorSelection(seed: DescriptorSelectionSeed): DescriptorId[] {
-  if (seed.selected?.length) return [...seed.selected];
-  if (seed.selectionSeed === false) return [...(seed.defaultSelection ?? [])];
+  const selectedIds = toDescriptorIds(seed.selected, 'selected');
+  const defaultIds = toDescriptorIds(seed.defaultSelection, 'defaultSelection');
+
+  if (selectedIds.length) return selectedIds;
+  if (seed.selectionSeed === false) return defaultIds;
 
   const options = seed.selectionSeed ?? {};
   const selected = resolveDescriptorSelectionSeed({
@@ -88,26 +120,43 @@ export function resolveDescriptorSelection(seed: DescriptorSelectionSeed): Descr
     ...(options.envKeys ? { envKeys: options.envKeys } : {}),
   });
 
-  return selected.length ? selected : [...(seed.defaultSelection ?? [])];
+  return selected.length ? selected : defaultIds;
 }
 
-// The active base descriptors from a seed: the CLI/env `baseSeed` is parsed and,
-// when non-empty, replaces `baseDescriptors`; otherwise `baseDescriptors` stands.
-// Symmetric to `resolveDescriptorSelection` but for the always-on base floor the
-// graph resolves separately from the selection.
-export function resolveBaseSelection(seed: DescriptorSelectionSeed): DescriptorId[] {
-  if (!seed.baseSeed) return [...(seed.baseDescriptors ?? [])];
+// A capability a descriptor provides for must be declared: some descriptor in the
+// workspace carries that id. Without this a mistyped `providesFor` silently opens a
+// second capability that nothing requires, the real one falls back to its default,
+// and the composition quietly becomes a different product than the author asked for.
+//
+// Checked against every discovered descriptor, not the resolved subset, so a
+// provider whose capability exists but takes no part in this composition is fine.
+export function assertKnownProviderCapabilities(input: {
+  declared: readonly Descriptor[];
+  providers: readonly Descriptor[];
+}): void {
+  const declaredIds = new Set(input.declared.map((descriptor) => descriptor.id));
+  const unknown = new Map<string, string[]>();
 
-  const options = seed.baseSeed;
-  const base = resolveDescriptorSelectionSeed({
-    argv: options.argv ?? process.argv,
-    env: options.env ?? process.env,
-    key: options.key ?? 'base',
-    ...(options.cliKeys ? { cliKeys: options.cliKeys } : {}),
-    ...(options.envKeys ? { envKeys: options.envKeys } : {}),
-  });
+  for (const descriptor of input.providers) {
+    const capabilities = [descriptor.providesFor, descriptor.defaultFor]
+      .flatMap((value) => (Array.isArray(value) ? value : [value]))
+      .filter((value): value is DescriptorId => typeof value === 'string' && value.length > 0);
 
-  return base.length ? base : [...(seed.baseDescriptors ?? [])];
+    for (const capabilityId of new Set(capabilities)) {
+      if (declaredIds.has(capabilityId)) continue;
+      unknown.set(capabilityId, [...(unknown.get(capabilityId) ?? []), descriptor.id]);
+    }
+  }
+
+  if (!unknown.size) return;
+
+  const reported = [...unknown.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([capabilityId, providers]) => `${capabilityId}: ${[...providers].sort().join(', ')}`);
+
+  throw new Error(
+    `Descriptors provide for capabilities that no descriptor declares (${reported.join('; ')}). Declare the capability, for example as \`{ "id": "<capability>", "version": "0.0.0" }\`.`,
+  );
 }
 
 // A capability may declare exactly one default provider. Two descriptors both
@@ -133,6 +182,39 @@ export function assertSingleDefaultProvider(descriptors: readonly Descriptor[]):
   if (conflicts.length) {
     throw new Error(
       `Descriptor selection requires exactly one defaultFor provider per capability, but found multiple (${conflicts.join('; ')}).`,
+    );
+  }
+}
+
+// An explicit selection may name at most one provider per capability. Naming two
+// is a misconfiguration with no silent resolution: both are seeded, so both would
+// resolve and the capability would be served twice. Symmetric to
+// `assertSingleDefaultProvider`, which guards the same invariant for defaults.
+export function assertSingleSelectedProvider(
+  descriptors: readonly Descriptor[],
+  selected: readonly DescriptorId[],
+): void {
+  const selectedIds = new Set(selected);
+  const providersByCapability = new Map<string, string[]>();
+
+  for (const descriptor of descriptors) {
+    if (!selectedIds.has(descriptor.id)) continue;
+    const { providesFor } = descriptor;
+    if (!providesFor) continue;
+    for (const capabilityId of Array.isArray(providesFor) ? providesFor : [providesFor]) {
+      const providers = providersByCapability.get(capabilityId) ?? [];
+      providers.push(descriptor.id);
+      providersByCapability.set(capabilityId, providers);
+    }
+  }
+
+  const conflicts = [...providersByCapability.entries()]
+    .filter(([, providers]) => providers.length > 1)
+    .map(([capabilityId, providers]) => `${capabilityId}: ${[...providers].sort().join(', ')}`);
+
+  if (conflicts.length) {
+    throw new Error(
+      `Descriptor selection allows at most one selected provider per capability, but found multiple (${conflicts.join('; ')}).`,
     );
   }
 }
@@ -165,7 +247,7 @@ export function applyProviderSelection<T>(input: ProviderSelectionInput<T>): T[]
     const preferences = resolveSelectedProviderRelationPreferences({
       providerId: descriptor.id,
       defaultFor: descriptor.defaultFor,
-      providerPreferences: descriptor.providerPreferences as ProviderPreferenceMap | undefined,
+      providerPreferences: descriptor.providerPreferences,
       selectedProviders,
     });
     delete descriptor.defaultFor;
@@ -188,18 +270,66 @@ export interface DescriptorSelectionInput<T> {
   policy?: Partial<CompositionPolicy>;
 }
 
-// Resolve the active subset of items: apply provider selection, build the
-// descriptor graph, resolve the seed + base + transitive dependencies, and return
-// the items whose descriptor is in the resolved set — in their original order.
-export function selectDescriptors<T>(input: DescriptorSelectionInput<T>): T[] {
+// Which provider won each contested capability, for a set of items and the ids a
+// host selected. Reports the winner, its `mode` (configured, selected, fallback or
+// first), the candidates and the providers that lost — so a host can show or check
+// the outcome instead of re-deriving it from the resolved set.
+export function describeProviderSelection<T>(input: {
+  items: readonly T[];
+  selected: readonly DescriptorId[];
+  getDescriptor: (item: T) => Descriptor;
+}): ProviderSelectionResolution {
+  const { items, selected, getDescriptor } = input;
+  const getCapabilityId = (item: T): Descriptor['providesFor'] => getDescriptor(item).providesFor;
+  const getProviderId = (item: T): DescriptorId => getDescriptor(item).id;
+
+  return resolveItemProviderSelection({
+    items,
+    getCapabilityId,
+    getProviderId,
+    fallbackProviders: {
+      ...collectProviderDefaults({
+        items,
+        getDefaultFor: (item) => getDescriptor(item).defaultFor,
+        getProviderId,
+      }),
+      ...collectProviderPreferences({
+        items,
+        getProviderPreferences: (item) => getDescriptor(item).providerPreferences,
+      }),
+    },
+    selectedProviders: collectSelectedProviderPreferences({
+      items,
+      getCapabilityId,
+      getProviderId,
+      selectedProviderIds: selected,
+    }),
+  });
+}
+
+// Resolve the active subset of items and report which provider won each contested
+// capability: apply provider selection, build the descriptor graph, resolve the
+// seed + base + transitive dependencies, and return the items whose descriptor is
+// in the resolved set, ordered by id.
+export function selectDescriptorsWithProviders<T>(input: DescriptorSelectionInput<T>): {
+  items: T[];
+  providerSelection: ProviderSelectionResolution;
+  // The graph the selection resolved against. A host that inspects the composition
+  // reads it here instead of rebuilding a second catalog from the same descriptors.
+  catalog: DescriptorCatalog;
+} {
   const { items, getDescriptor, withDescriptor, seed } = input;
 
   const enabled = items.filter((item) => getDescriptor(item).disabled !== true);
+  assertKnownProviderCapabilities({
+    declared: items.map(getDescriptor),
+    providers: enabled.map(getDescriptor),
+  });
   assertSingleDefaultProvider(enabled.map(getDescriptor));
 
   const selected = resolveDescriptorSelection(seed);
-  const baseDescriptors = resolveBaseSelection(seed);
-  if (!selected.length && !baseDescriptors.length) return [...enabled];
+  const baseDescriptors = toDescriptorIds(seed.baseDescriptors, 'baseDescriptors');
+  assertSingleSelectedProvider(enabled.map(getDescriptor), selected);
 
   const selectionItems = applyProviderSelection({
     items: enabled,
@@ -207,18 +337,57 @@ export function selectDescriptors<T>(input: DescriptorSelectionInput<T>): T[] {
     getDescriptor,
     withDescriptor,
   });
-
   const catalog = createDescriptorCatalog({
     descriptors: selectionItems.map(getDescriptor),
     relationDescriptors: [...providerRelationDescriptors, ...(input.relationDescriptors ?? [])],
   });
+
+  // Nothing to resolve against: with neither a selection nor a base floor, every
+  // enabled item takes part. Sorted like every other path, because the id order is
+  // a contract of this function and not of the path a given input happens to take.
+  if (!selected.length && !baseDescriptors.length) {
+    const items = [...enabled].sort((left, right) =>
+      getDescriptor(left).id.localeCompare(getDescriptor(right).id),
+    );
+    return {
+      items,
+      providerSelection: describeProviderSelection({ items, selected, getDescriptor }),
+      catalog,
+    };
+  }
+
   const selection = createCompositionSelection({
     catalog,
     selected: [...selected],
     baseDescriptors: [...baseDescriptors],
     policy: descriptorSelectionPolicy(input.policy),
   });
-  const resolvedIds = new Set(selection.getResolved());
+  // Ordered by id, which is what `getResolved` returns. It is stable for a given
+  // input and independent of discovery order, so two hosts reading the same
+  // workspace agree; it is NOT dependency order, and a host that needs its
+  // dependencies mounted first sorts for that itself.
+  const resolvedOrder = selection.getResolved();
+  const resolvedIds = new Set(resolvedOrder);
+  const itemsById = new Map(selectionItems.map((item) => [getDescriptor(item).id, item]));
 
-  return selectionItems.filter((item) => resolvedIds.has(getDescriptor(item).id));
+  return {
+    items: resolvedOrder
+      .map((id) => itemsById.get(id))
+      .filter((item): item is T => item !== undefined),
+    // Described over the composed set, not the discovered one: a host that names an
+    // artifact after the winning provider must not be handed a provider that this
+    // composition never activates. The originally discovered descriptors are used
+    // because provider selection strips the `defaultFor` a report needs.
+    providerSelection: describeProviderSelection({
+      items: enabled.filter((item) => resolvedIds.has(getDescriptor(item).id)),
+      selected,
+      getDescriptor,
+    }),
+    catalog,
+  };
+}
+
+// The active subset alone, for hosts that do not report on the provider outcome.
+export function selectDescriptors<T>(input: DescriptorSelectionInput<T>): T[] {
+  return selectDescriptorsWithProviders(input).items;
 }
