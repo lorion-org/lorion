@@ -34,10 +34,17 @@ Documentation-only and tooling-only changes usually do not need a Changeset.
 6. The next Release workflow run publishes the changed public packages to npm
    with provenance.
 
-The workflow currently runs in Changesets pre mode, so `pnpm release` publishes
-the prerelease package versions using the `beta` tag from `.changeset/pre.json`.
-The workflow also sets `NPM_CONFIG_TAG=beta` so npm publishes prerelease
-versions with the `beta` dist-tag instead of `latest`.
+## Dist-Tags
+
+Changesets owns the npm dist-tag and passes it to npm explicitly, so the workflow
+sets none. While a package has no stable release yet, Changesets publishes its
+prereleases to `latest`, so a plain `npm install @lorion-org/<package>` resolves to
+the current prerelease. Once a stable version exists, prereleases move to the pre
+tag from `.changeset/pre.json` and `latest` follows the stable line.
+
+A consumer that wants a specific prerelease pins the exact version rather than a
+dist-tag, because which tag carries a prerelease depends on whether that package
+has had a stable release.
 
 Changesets pre mode is active for the `beta` tag in `.changeset/pre.json`.
 While it is active, `pnpm version-packages` creates prerelease package versions
