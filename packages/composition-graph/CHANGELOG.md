@@ -1,5 +1,17 @@
 # @lorion-org/composition-graph
 
+## 1.0.0-beta.7
+
+### Major Changes
+
+- 1c263f1: Reject two descriptors sharing one id.
+
+  A composition addresses every descriptor by its id, and `buildDescriptorMap` kept the last one it saw. The first descriptor's dependencies, provider role and surface then vanished with no error: a grouping declared in a bundle manifest under the id of a discovered capability silently replaced that capability, and in the Nuxt adapter the real extension stopped registering its layer. The duplicate ids are now reported.
+
+### Minor Changes
+
+- 1c263f1: Match an explicit `cliKeys` entry in its prefixed form as well. `cliKeys: ['features']` previously looked for a bare `features=…` argv token and therefore matched nothing, while `key: 'features'` was prefixed to `--features`. A host reaching for `cliKeys` first hit the silent form, as Lorion's own React examples did. Entries are now tried as written and, when they carry no leading dash, also as `--<entry>`, so anything that matched before keeps matching. The prefixed spelling is tried first, so a positional argument equal to the bare key cannot outrank the flag and consume the token after it.
+
 ## 1.0.0-beta.6
 
 ## 1.0.0-beta.5
