@@ -567,7 +567,7 @@ describe('composition report', () => {
   const providers = [
     { capabilityId: 'auth', selectedProviderId: 'auth-oidc', mode: 'fallback' },
     { capabilityId: 'pay', selectedProviderId: 'pay-stripe', mode: 'selected' },
-  ];
+  ] as const;
 
   it('describes a resolution in descriptor terms and marks a winner that took no part', () => {
     const report = describeComposition({
