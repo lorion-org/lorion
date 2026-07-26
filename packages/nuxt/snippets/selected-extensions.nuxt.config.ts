@@ -7,7 +7,7 @@ import LorionNuxtModule, {
 const extensionBootstrap = createNuxtExtensionBootstrap({
   rootDir: __dirname,
   options: {
-    defaultSelection: 'default',
+    defaultSelection: ['default'],
     descriptorPaths: ['extensions/*/extension.json'],
   },
 });

@@ -11,6 +11,7 @@ import {
   useLogger,
 } from '@nuxt/kit';
 import type { Nuxt, NuxtConfigLayer, NuxtModule, NuxtOptions } from '@nuxt/schema';
+import { describeComposition, formatCompositionReport } from '@lorion-org/capability-composition';
 import {
   createNuxtExtensionBootstrap,
   createNuxtProviderSelectionRuntimeConfig,
@@ -20,7 +21,6 @@ import {
 } from './extensions';
 import {
   createNuxtRuntimeConfig,
-  getNuxtExtensionSelection,
   getNuxtProviderSelection,
   mergeNuxtRuntimeConfig,
 } from './runtime-config';
@@ -100,10 +100,6 @@ const defaultRuntimeConfigSource = {
   contextOutputKey: '__contexts',
   paths: ['.runtimeconfig/runtime-config/*/runtime.config.json'],
 } as const;
-
-const joinLogIds = (ids: string[]): string => ids.join(', ');
-
-const hasLogIds = (ids: string[]): boolean => ids.length > 0;
 
 function pickRuntimeConfigOptions(
   options: RuntimeConfigNuxtModuleOptions,
@@ -724,38 +720,20 @@ export function createNuxtExtensionBootstrapLogEvent(input: {
   };
 }
 
+// Rendered from the shared composition report, so a Nuxt host and every other
+// host describe a resolution the same way. What stays here is this adapter's own
+// framing: the header line and, below, whether anything is logged at all.
 export function formatNuxtExtensionBootstrapLog(event: NuxtExtensionBootstrapLogEvent): string {
-  const lines = ['LORION Nuxt'];
   const bootstrap = event.bootstrap;
-  const extensionSelection = getNuxtExtensionSelection(bootstrap.publicRuntimeConfig);
-
-  if (hasLogIds(bootstrap.selectedExtensions)) {
-    lines.push(`Selected: ${joinLogIds(bootstrap.selectedExtensions)}`);
-  }
-
-  if (hasLogIds(bootstrap.baseExtensionIds)) {
-    lines.push(`Base: ${joinLogIds(bootstrap.baseExtensionIds)}`);
-  }
-
-  lines.push(`Descriptors found: ${bootstrap.discoveredExtensions.length}`);
-
-  if (hasLogIds(bootstrap.resolvedExtensionIds)) {
-    lines.push(`Injected: ${joinLogIds(bootstrap.resolvedExtensionIds)}`);
-  }
-
-  if (hasLogIds(extensionSelection.notInjectedExtensionIds)) {
-    lines.push(`Not injected: ${joinLogIds(extensionSelection.notInjectedExtensionIds)}`);
-  }
-
-  const providerSelections = Object.values(event.providerSelection?.selections ?? {}).sort(
-    (left, right) => left.capabilityId.localeCompare(right.capabilityId),
-  );
-
-  for (const selection of providerSelections) {
-    lines.push(`Provider ${selection.capabilityId}: ${selection.selectedProviderId}`);
-  }
-
-  return lines.join('\n');
+  const report = describeComposition({
+    requested: bootstrap.requestedExtensions,
+    selected: bootstrap.selectedExtensions,
+    base: bootstrap.baseExtensionIds,
+    resolved: bootstrap.resolvedExtensionIds,
+    discovered: bootstrap.discoveredExtensions.map((extension) => extension.descriptor.id),
+    providers: Object.values(event.providerSelection?.selections ?? {}),
+  });
+  return ['LORION Nuxt', ...formatCompositionReport(report)].join('\n');
 }
 
 export function reportNuxtExtensionBootstrap(input: {

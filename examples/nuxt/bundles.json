@@ -1,6 +1,5 @@
 {
-  "id": "bundles",
-  "version": "1.0.0",
+  "$schema": "https://lorion.dev/schemas/bundles.schema.json",
   "bundles": [
     {
       "id": "default",

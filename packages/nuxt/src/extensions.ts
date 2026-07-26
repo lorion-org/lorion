@@ -3,13 +3,19 @@ import { join } from 'node:path';
 import process from 'node:process';
 import {
   createDescriptorCatalog,
-  parseDescriptorIds,
   resolveDescriptorSelectionSeed,
   type DescriptorCatalog,
-  type Descriptor,
   type RelationDescriptor,
 } from '@lorion-org/composition-graph';
-import { discoverDescriptors } from '@lorion-org/descriptor-discovery';
+import {
+  discoverDescriptors,
+  loadBundleManifest,
+  NESTED_DESCRIPTOR_FIELD,
+  virtualDescriptorDirectory,
+  type SchemaDescriptor,
+} from '@lorion-org/descriptor-discovery';
+
+import { descriptorSchema } from './descriptor-schema';
 import {
   collectProviderDefaults,
   collectProviderPreferences,
@@ -18,14 +24,11 @@ import {
   type ProviderPreferenceMap,
 } from '@lorion-org/provider-selection';
 import {
-  applyProviderSelection,
-  assertSingleDefaultProvider,
-  descriptorSelectionPolicy,
   providerRelationDescriptors,
+  resolveDescriptorSelection,
+  selectDescriptorsWithProviders,
 } from '@lorion-org/descriptor-selection';
-import type { RuntimeConfigValidationPolicy } from '@lorion-org/runtime-config';
 import type {
-  NuxtBaseExtensionSelectionInput,
   NuxtExtensionSelectionRuntimeConfig,
   NuxtExtensionModuleOptions,
   NuxtExtensionSelectionSeedOptions,
@@ -33,7 +36,6 @@ import type {
   NuxtProviderSelectionRuntimeConfig,
   NuxtRuntimeConfig,
 } from './types';
-import { nuxtExtensionDescriptorSchema } from './descriptor-schema';
 
 export type {
   LorionNuxtModuleOptions,
@@ -42,12 +44,10 @@ export type {
   RuntimeConfigNuxtModuleOptions,
 } from './types';
 
-export type NuxtExtensionDescriptor = Descriptor & {
-  defaultFor?: string | string[];
-  providerPreferences?: ProviderPreferenceMap;
-  publicRuntimeConfig?: NuxtRuntimeConfig['public'];
-  runtimeConfig?: RuntimeConfigValidationPolicy;
-};
+// A Nuxt extension descriptor is the shared descriptor. Every field this adapter
+// reads is a core field declared by `descriptor.schema.json`, so there is nothing
+// left for this name to add beyond saying so in Nuxt's vocabulary.
+export type NuxtExtensionDescriptor = SchemaDescriptor;
 
 export type NuxtExtensionEntry = {
   appDir?: string;
@@ -66,6 +66,10 @@ export type NuxtExtensionBootstrap = {
   catalog: DescriptorCatalog;
   discoveredExtensions: NuxtExtensionEntry[];
   publicRuntimeConfig: NuxtRuntimeConfig;
+  // The ids this run asked for through `selected` or the seed, or null when it
+  // named none and took `defaultSelection`. Kept apart from `selectedExtensions`,
+  // which is the outcome, so a report can say which of the two a reader is seeing.
+  requestedExtensions: string[] | null;
   resolvedExtensionIds: string[];
   resolvedExtensions: NuxtExtensionEntry[];
   selectedExtensions: string[];
@@ -76,10 +80,11 @@ type NuxtProviderSelectionOptions = Omit<NuxtProviderSelectionModuleOptions, 'en
 type ResolvedNuxtExtensionOptions = {
   descriptorSchema: false | object;
   descriptorPaths: string[];
+  nestedField: false | string;
 };
 
 const defaultExtensionOptions = {
-  defaultSelection: 'default',
+  defaultSelection: ['default'] as readonly string[],
   publicRuntimeConfigKey: 'extensionSelection',
   descriptorPaths: ['extensions/*/extension.json'],
 } as const;
@@ -87,10 +92,6 @@ const defaultExtensionSelectionSeedKey = 'capability';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function normalizeSelection(value: string | string[] | undefined): string[] {
-  return parseDescriptorIds(value);
 }
 
 function resolveNuxtExtensionSelectionSeed(
@@ -111,35 +112,30 @@ function resolveExtensionOptions(
   options: NuxtExtensionModuleOptions,
 ): ResolvedNuxtExtensionOptions {
   return {
-    descriptorSchema: options.descriptorSchema ?? nuxtExtensionDescriptorSchema,
-    descriptorPaths: options.descriptorPaths ?? [...defaultExtensionOptions.descriptorPaths],
+    descriptorSchema: options.descriptorSchema ?? descriptorSchema,
+    nestedField: options.nestedField ?? NESTED_DESCRIPTOR_FIELD,
+    descriptorPaths: [
+      ...(options.descriptorPaths ??
+        (options.capabilitiesDir
+          ? [`${options.capabilitiesDir}/*/extension.json`]
+          : defaultExtensionOptions.descriptorPaths)),
+    ],
   };
 }
 
 export function resolveExtensionSelection(
   input: {
-    defaultSelection?: string | string[];
-    selected?: string | string[];
+    defaultSelection?: readonly string[];
+    selected?: readonly string[];
   } = {},
 ): string[] {
-  const candidates = [
-    normalizeSelection(input.selected),
-    normalizeSelection(input.defaultSelection ?? defaultExtensionOptions.defaultSelection),
-  ];
-
-  return candidates.find((candidate) => candidate.length > 0) ?? [];
-}
-
-function resolveBaseExtensionSelection(
-  input: NuxtBaseExtensionSelectionInput & {
-    options: NuxtExtensionModuleOptions;
-  },
-): string[] {
-  const baseExtensions = input.options.baseExtensions;
-
-  return typeof baseExtensions === 'function'
-    ? normalizeSelection(baseExtensions(input))
-    : normalizeSelection(baseExtensions);
+  // Resolved through the shared seed resolver, which rejects a string where a list
+  // is meant rather than spreading it into one-character ids.
+  return resolveDescriptorSelection({
+    ...(input.selected ? { selected: input.selected } : {}),
+    defaultSelection: input.defaultSelection ?? defaultExtensionOptions.defaultSelection,
+    selectionSeed: false,
+  });
 }
 
 function optionalDir(path: string): string | undefined {
@@ -209,7 +205,7 @@ export function discoverNuxtExtensionEntries(input: {
   return discoverDescriptors({
     cwd: input.projectRootDir,
     descriptorPaths: resolvedOptions.descriptorPaths,
-    nestedField: 'bundles',
+    ...(resolvedOptions.nestedField === false ? {} : { nestedField: resolvedOptions.nestedField }),
     ...(resolvedOptions.descriptorSchema === false
       ? {}
       : {
@@ -217,17 +213,36 @@ export function discoverNuxtExtensionEntries(input: {
             schema: resolvedOptions.descriptorSchema,
           },
         }),
-  }).map((entry) =>
-    createExtensionEntry({
-      cwd: entry.cwd,
-      descriptor: entry.descriptor,
-    }),
-  );
+  })
+    .map((entry) =>
+      createExtensionEntry({
+        // A nested descriptor owns no directory of its own: it shares its host's.
+        // Addressing it at a synthetic path keeps it out of layer registration, so
+        // a grouping never contributes its host's app, config or server dirs.
+        cwd: entry.nested
+          ? virtualDescriptorDirectory(input.projectRootDir, entry.descriptor.id)
+          : entry.cwd,
+        descriptor: entry.descriptor,
+      }),
+    )
+    .concat(
+      // Host-provided groupings: descriptors passed in directly and those a bundle
+      // manifest declares. They take part in selection and register nothing.
+      [
+        ...(input.options.virtualDescriptors ?? []),
+        ...(input.options.bundles ? loadBundleManifest(input.options.bundles) : []),
+      ].map((descriptor) =>
+        createExtensionEntry({
+          cwd: virtualDescriptorDirectory(input.projectRootDir, descriptor.id),
+          descriptor,
+        }),
+      ),
+    );
 }
 
 export function createNuxtExtensionCatalog(input: {
   entries: NuxtExtensionEntry[];
-  relationDescriptors?: RelationDescriptor[];
+  relationDescriptors?: readonly RelationDescriptor[];
 }): DescriptorCatalog {
   return createDescriptorCatalog({
     descriptors: input.entries.map((entry) => entry.descriptor),
@@ -239,15 +254,6 @@ export function createNuxtExtensionEntryMap(
   entries: NuxtExtensionEntry[],
 ): Map<string, NuxtExtensionEntry> {
   return new Map(entries.map((entry) => [entry.descriptor.id, entry]));
-}
-
-function pickEntriesById(
-  ids: string[],
-  entryById: Map<string, NuxtExtensionEntry>,
-): NuxtExtensionEntry[] {
-  return ids
-    .map((id) => entryById.get(id))
-    .filter((entry): entry is NuxtExtensionEntry => Boolean(entry));
 }
 
 // The capability -> selected-provider map, used by the module to expose provider
@@ -322,9 +328,11 @@ export function createNuxtExtensionBootstrap(input: {
   rootDir: string;
 }): NuxtExtensionBootstrap {
   const options = input.options ?? {};
+  const requested = options.selected ?? resolveNuxtExtensionSelectionSeed(options.selectionSeed);
+  const requestedExtensions = requested.length ? [...requested] : null;
   const selectedExtensions = resolveExtensionSelection({
     ...(options.defaultSelection ? { defaultSelection: options.defaultSelection } : {}),
-    selected: options.selected ?? resolveNuxtExtensionSelectionSeed(options.selectionSeed),
+    selected: requested,
   });
   const createCatalog = (entries: NuxtExtensionEntry[]): DescriptorCatalog =>
     createNuxtExtensionCatalog({
@@ -339,6 +347,7 @@ export function createNuxtExtensionBootstrap(input: {
       catalog: createCatalog([]),
       discoveredExtensions: [],
       publicRuntimeConfig: { public: {} },
+      requestedExtensions,
       resolvedExtensionIds: [],
       resolvedExtensions: [],
       selectedExtensions,
@@ -349,11 +358,7 @@ export function createNuxtExtensionBootstrap(input: {
     projectRootDir: input.rootDir,
     options,
   });
-  const baseExtensionIds = resolveBaseExtensionSelection({
-    descriptors: entries.map((entry) => entry.descriptor),
-    options,
-    selectedExtensions,
-  });
+  const baseExtensionIds = [...(options.baseDescriptors ?? [])];
 
   if (!entries.length) {
     return {
@@ -362,49 +367,51 @@ export function createNuxtExtensionBootstrap(input: {
       catalog: createCatalog(entries),
       discoveredExtensions: entries,
       publicRuntimeConfig: { public: {} },
+      requestedExtensions,
       resolvedExtensionIds: [],
       resolvedExtensions: [],
       selectedExtensions,
     };
   }
 
-  assertSingleDefaultProvider(entries.map((entry) => entry.descriptor));
-
-  const resolutionEntries = applyProviderSelection({
+  // One selection brain. Rebuilding this pipeline here is how the disabled filter
+  // and the single-selected-provider guard came to apply on one host and not the
+  // other for the very same descriptors.
+  const { items: resolvedExtensions, catalog } = selectDescriptorsWithProviders({
     items: entries,
-    selected: selectedExtensions,
     getDescriptor: (entry) => entry.descriptor,
     withDescriptor: (entry, descriptor) => ({ ...entry, descriptor }),
+    seed: {
+      baseDescriptors: baseExtensionIds,
+      selected: selectedExtensions,
+      // The selection is already resolved above, from options and the CLI/env seed.
+      selectionSeed: false,
+    },
+    ...(options.relationDescriptors
+      ? { relationDescriptors: [...options.relationDescriptors] }
+      : {}),
+    ...(options.policy ? { policy: options.policy } : {}),
   });
-  const catalog = createCatalog(resolutionEntries);
-  const selection = catalog.resolveSelection({
-    baseDescriptors: baseExtensionIds,
-    policy: descriptorSelectionPolicy(),
-    selected: selectedExtensions,
-  });
-  const resolvedExtensionIds = selection.getResolved();
-  const resolvedExtensions = pickEntriesById(
-    resolvedExtensionIds,
-    createNuxtExtensionEntryMap(resolutionEntries),
-  );
+  const resolvedExtensionIds = resolvedExtensions.map((entry) => entry.descriptor.id);
   const activeExtensions = resolvedExtensions.filter(canRegisterExtensionLayer);
 
   return {
     activeExtensions,
-    baseExtensionIds: selection.getBaseDescriptors(),
+    baseExtensionIds,
     catalog,
     discoveredExtensions: entries,
     publicRuntimeConfig: createExtensionSelectionRuntimeConfig({
       activeExtensions,
-      baseExtensionIds: selection.getBaseDescriptors(),
+      baseExtensionIds,
       discoveredExtensions: entries,
       publicRuntimeConfigKey: defaultExtensionOptions.publicRuntimeConfigKey,
       resolvedExtensionIds,
       selectedExtensions,
     }),
+    requestedExtensions,
     resolvedExtensionIds,
     resolvedExtensions,
-    selectedExtensions: selection.getSelected(),
+    selectedExtensions,
   };
 }
 

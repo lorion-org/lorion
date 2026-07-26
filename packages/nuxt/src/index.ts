@@ -18,11 +18,9 @@ export {
   type NuxtExtensionModuleOptions,
   type NuxtExtensionSelectionSeedOptions,
 } from './extensions';
-export { nuxtExtensionDescriptorSchema, type JsonSchemaObject } from './descriptor-schema';
+export { descriptorSchema, type JsonSchemaObject } from './descriptor-schema';
 export type {
   LorionNuxtModuleOptions,
-  NuxtBaseExtensionSelection,
-  NuxtBaseExtensionSelectionInput,
   NuxtExtensionBootstrapLogEvent,
   NuxtExtensionBootstrapReporter,
   NuxtProviderSelectionModuleOptions,

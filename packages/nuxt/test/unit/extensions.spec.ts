@@ -52,8 +52,8 @@ describe('Nuxt extension bootstrap', () => {
   it('uses configured selection before default selection', () => {
     expect(
       resolveExtensionSelection({
-        selected: 'settings',
-        defaultSelection: 'default',
+        selected: ['settings'],
+        defaultSelection: ['default'],
       }),
     ).toEqual(['settings']);
   });
@@ -126,7 +126,7 @@ describe('Nuxt extension bootstrap', () => {
     const bootstrap = createNuxtExtensionBootstrap({
       rootDir: root,
       options: {
-        selected: 'default',
+        selected: ['default'],
         selectionSeed: {
           argv: ['nuxt', '--capabilities=settings'],
           env: {},
@@ -273,7 +273,7 @@ describe('Nuxt extension bootstrap', () => {
     const bootstrap = createNuxtExtensionBootstrap({
       rootDir: root,
       options: {
-        baseExtensions: ['web'],
+        baseDescriptors: ['web'],
         selected: ['demo'],
       },
     });
@@ -354,7 +354,7 @@ describe('Nuxt extension bootstrap', () => {
     const bootstrap = createNuxtExtensionBootstrap({
       rootDir: root,
       options: {
-        selected: 'auth-oidc',
+        selected: ['auth-oidc'],
       },
     });
 
@@ -403,6 +403,13 @@ describe('Nuxt extension bootstrap', () => {
             'payment-provider-invoice': '^1.0.0',
             'payment-provider-stripe': '^1.0.0',
           },
+        },
+        // The capability the two providers fill. Declaring it is what lets a
+        // mistyped `providesFor` be reported instead of opening a second one.
+        {
+          id: 'payment',
+          version: '1.0.0',
+          description: 'Capability filled by a payment provider.',
         },
       ],
     });
@@ -549,7 +556,7 @@ describe('Nuxt extension bootstrap', () => {
     const bootstrap = createNuxtExtensionBootstrap({
       rootDir: root,
       options: {
-        baseExtensions: 'default',
+        baseDescriptors: ['default'],
         selected: ['auth-local-jwt', 'feature-prefers-oidc'],
       },
     });

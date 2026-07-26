@@ -78,9 +78,9 @@ component, composable, layout, middleware, plugin, shared, server, and other
 layer scans. The module does not hand-build Nuxt routes or register individual
 component, plugin, page, or server directories.
 
-Profile-only descriptors, such as `extensions/bundles/extension.json`,
-are resolved but not registered as layers because they do not contain Nuxt layer
-content.
+Grouping descriptors are resolved but never registered as layers: a grouping owns no
+directory, so it is addressed at a synthetic path and cannot contribute another
+extension's app, config or server folders.
 
 Resolved extension ids currently come from `@lorion-org/composition-graph` and
 are deterministic, but the dependency graph is a selection mechanism rather
@@ -210,13 +210,30 @@ The public package API is intentionally small: resolve extension descriptors in
 module with the resolved bootstrap for runtime config, provider selection, and
 file-only layer content.
 
-Descriptor files are validated before they are normalized. The module uses its
-LORION extension descriptor schema by default. Host apps with additional descriptor
-metadata can import the schema, extend it locally, and pass the result through
-`extensions.descriptorSchema`:
+### Extension options
+
+`lorion.extensions` accepts every option `CapabilitySelectionInput` declares, in the
+core's spelling, so the same composition is expressible here and in the React
+loader: `capabilitiesDir`, `descriptorPaths`, `descriptorSchema`,
+`virtualDescriptors`, `bundles`, `nestedField`, `relationDescriptors`, `policy`, and
+the seed fields `baseDescriptors`, `defaultSelection`, `selected` and
+`selectionSeed`. Each takes a list where the core takes a list. `enabled: false`
+turns the composition off, which a statically declared Nuxt module needs and a Vite
+plugin expresses by not being added.
+
+A grouping — declared in a `bundles.json`, passed as a `virtualDescriptor`, or
+nested in another descriptor under `nestedField` — resolves in the graph and
+registers no layer, whatever its host's directory holds.
+
+Descriptor files are validated before they are normalized. The module uses the
+shared LORION descriptor schema by default, the same one every host validates
+against, so a core field such as `bundles`, `providerPreferences`, `runtimeConfig`
+or `publicRuntimeConfig` is described in one place. Host apps with additional
+descriptor metadata can import the schema, extend it locally, and pass the result
+through `extensions.descriptorSchema`:
 
 ```ts
-import { nuxtExtensionDescriptorSchema } from '@lorion-org/nuxt/descriptor-schema';
+import { descriptorSchema } from '@lorion-org/nuxt/descriptor-schema';
 import LorionNuxtModule, {
   createNuxtExtensionBootstrap,
   createNuxtExtensionLayerPaths,
@@ -226,7 +243,7 @@ const extensionBootstrap = createNuxtExtensionBootstrap({
   rootDir: __dirname,
   options: {
     descriptorSchema: {
-      ...nuxtExtensionDescriptorSchema,
+      ...descriptorSchema,
       // host-specific schema extension
     },
   },
@@ -296,7 +313,7 @@ import LorionNuxtModule, {
 const extensionBootstrap = createNuxtExtensionBootstrap({
   rootDir: __dirname,
   options: {
-    selected: 'admin',
+    selected: ['admin'],
   },
 });
 
@@ -315,7 +332,7 @@ capability seed directly. By default the Nuxt bootstrap reads `--capabilities`,
 const extensionBootstrap = createNuxtExtensionBootstrap({
   rootDir: __dirname,
   options: {
-    defaultSelection: 'default',
+    defaultSelection: ['default'],
   },
 });
 ```
@@ -503,7 +520,9 @@ import LorionNuxtModule, {
 const extensionBootstrap = createNuxtExtensionBootstrap({
   rootDir: __dirname,
   options: {
-    defaultSelection: 'default',
+    // The groupings live in a manifest the host points at; `default` is one of them.
+    bundles: { cwd: __dirname },
+    defaultSelection: ['default'],
     descriptorPaths: ['layer-extensions/*/extension.json'],
   },
 });
@@ -519,9 +538,8 @@ The example app shape is:
 ```text
 examples/nuxt/
   app/
+  bundles.json
   layer-extensions/
-    bundles/
-      extension.json
     checkout/
     payments/
     shops/

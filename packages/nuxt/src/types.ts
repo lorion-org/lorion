@@ -7,16 +7,16 @@ import type {
   SectionedRuntimeConfig,
 } from '@lorion-org/runtime-config';
 import type { ProviderPreferenceMap, ProviderSelection } from '@lorion-org/provider-selection';
-import type {
-  Descriptor,
-  DescriptorSelectionSeedInput,
-  RelationDescriptor,
-} from '@lorion-org/composition-graph';
+import type { DescriptorSelectionSeedInput } from '@lorion-org/composition-graph';
 import type {
   RuntimeConfigPathPatternSource,
   ValidateRuntimeConfigPatternSourceScopesOptions,
 } from '@lorion-org/runtime-config-node';
 import type { JsonSchemaObject } from './descriptor-schema';
+import type {
+  CapabilitySelectionInput,
+  CapabilitySelectionSeed,
+} from '@lorion-org/capability-composition';
 import type { NuxtExtensionBootstrap } from './extensions';
 
 export type RuntimeConfigNuxtFragmentInput = RuntimeConfigFragment & Record<string, unknown>;
@@ -101,28 +101,22 @@ export type NuxtExtensionBootstrapLogEvent = {
 
 export type NuxtExtensionBootstrapReporter = (event: NuxtExtensionBootstrapLogEvent) => void;
 
-export type NuxtBaseExtensionSelectionInput = {
-  descriptors: Descriptor[];
-  selectedExtensions: string[];
-};
-
-export type NuxtBaseExtensionSelection =
-  | string
-  | string[]
-  | ((input: NuxtBaseExtensionSelectionInput) => string[]);
-
 export type NuxtExtensionSelectionSeedOptions = Omit<DescriptorSelectionSeedInput, 'defaultValue'>;
 
-export type NuxtExtensionModuleOptions = {
-  baseExtensions?: NuxtBaseExtensionSelection;
-  defaultSelection?: string | string[];
-  descriptorSchema?: false | JsonSchemaObject;
-  descriptorPaths?: string[];
-  enabled?: boolean;
-  relationDescriptors?: RelationDescriptor[];
-  selected?: string | string[];
-  selectionSeed?: false | NuxtExtensionSelectionSeedOptions;
-};
+// The shared composition options, plus the ones this adapter owns. The shared half
+// is derived from `CapabilitySelectionInput` rather than restated, so an option the
+// core gains is an option this module accepts, and a conformance test holds it to
+// forwarding each one (see test/unit/module.spec.ts).
+export type NuxtExtensionModuleOptions = Partial<
+  Omit<CapabilitySelectionInput, 'seed' | 'workspaceRoot' | 'descriptorSchema'>
+> &
+  Omit<CapabilitySelectionSeed, 'selectionSeed'> & {
+    descriptorSchema?: false | JsonSchemaObject;
+    // Turns this module's composition off entirely, which a statically declared Nuxt
+    // module needs and a Vite plugin expresses by not being added.
+    enabled?: boolean;
+    selectionSeed?: false | NuxtExtensionSelectionSeedOptions;
+  };
 
 export type LorionNuxtModuleOptions = {
   extensionBootstrap?: NuxtExtensionBootstrap;
