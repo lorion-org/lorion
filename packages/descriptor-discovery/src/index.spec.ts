@@ -303,13 +303,11 @@ describe('requirePackageName', () => {
 });
 
 describe('loadBundleManifest', () => {
-  it('reads the nested bundle descriptors as virtual descriptors and the base/default seeds', () => {
+  it('reads the nested bundle descriptors as virtual descriptors', () => {
     const root = createTempDir();
     writeFileSync(
       join(root, 'bundles.json'),
       JSON.stringify({
-        base: 'base',
-        default: 'shop',
         bundles: [
           { id: 'base', version: '0.0.0', dependencies: { ui: '^1.0.0', auth: '^1.0.0' } },
           { id: 'shop', version: '0.0.0', dependencies: { catalog: '^1.0.0', checkout: '^1.0.0' } },
@@ -317,35 +315,13 @@ describe('loadBundleManifest', () => {
       }),
     );
 
-    const manifest = loadBundleManifest({ cwd: root });
-
-    expect(manifest.baseDescriptors).toEqual(['base']);
-    expect(manifest.defaultSelection).toEqual(['shop']);
-    expect(manifest.virtualDescriptors).toEqual([
+    expect(loadBundleManifest({ cwd: root })).toEqual([
       { id: 'base', version: '0.0.0', dependencies: { ui: '^1.0.0', auth: '^1.0.0' } },
       { id: 'shop', version: '0.0.0', dependencies: { catalog: '^1.0.0', checkout: '^1.0.0' } },
     ]);
   });
 
-  it('defaults a missing bundle version to 0.0.0', () => {
-    const root = createTempDir();
-    writeFileSync(
-      join(root, 'bundles.json'),
-      JSON.stringify({
-        base: 'base',
-        default: 'base',
-        bundles: [{ id: 'base', dependencies: { ui: '^1.0.0' } }],
-      }),
-    );
-
-    expect(loadBundleManifest({ cwd: root }).virtualDescriptors[0]).toEqual({
-      id: 'base',
-      version: '0.0.0',
-      dependencies: { ui: '^1.0.0' },
-    });
-  });
-
-  it('discovers the manifest by walking up from a nested start directory', () => {
+  it('rejects a manifest key that is not a bundle declaration', () => {
     const root = createTempDir();
     writeFileSync(
       join(root, 'bundles.json'),
@@ -355,34 +331,52 @@ describe('loadBundleManifest', () => {
         bundles: [{ id: 'base', version: '0.0.0' }],
       }),
     );
-    const nested = join(root, 'web', 'src');
-    mkdirSync(nested, { recursive: true });
 
-    expect(loadBundleManifest({ cwd: nested }).defaultSelection).toEqual(['base']);
+    // A manifest declares descriptors only. A seed belongs to the run and is named
+    // by the host, so a run-wide key here is reported rather than ignored.
+    expect(() => loadBundleManifest({ cwd: root })).toThrow(/additionalProperties/);
   });
 
-  it('throws when a bundle is missing an id', () => {
-    const root = createTempDir();
-    writeFileSync(
-      join(root, 'bundles.json'),
-      JSON.stringify({ base: 'base', default: 'base', bundles: [{ dependencies: {} }] }),
-    );
-
-    expect(() => loadBundleManifest({ cwd: root })).toThrow(/missing a non-empty "id"/);
-  });
-
-  it('throws when base or default names an undefined bundle', () => {
+  it('accepts a manifest pointing at its own schema', () => {
     const root = createTempDir();
     writeFileSync(
       join(root, 'bundles.json'),
       JSON.stringify({
-        base: 'ghost',
-        default: 'shop',
-        bundles: [{ id: 'shop', version: '0.0.0' }],
+        $schema: 'https://lorion.dev/schemas/bundles.schema.json',
+        bundles: [{ id: 'base', version: '0.0.0' }],
       }),
     );
 
-    expect(() => loadBundleManifest({ cwd: root })).toThrow(/base bundle "ghost"/);
+    expect(loadBundleManifest({ cwd: root })).toEqual([{ id: 'base', version: '0.0.0' }]);
+  });
+
+  it('requires a bundle version, as the same grouping nested in a descriptor does', () => {
+    const root = createTempDir();
+    writeFileSync(
+      join(root, 'bundles.json'),
+      JSON.stringify({ bundles: [{ id: 'base', dependencies: { ui: '^1.0.0' } }] }),
+    );
+
+    expect(() => loadBundleManifest({ cwd: root })).toThrow(/required.*version/s);
+  });
+
+  it('discovers the manifest by walking up from a nested start directory', () => {
+    const root = createTempDir();
+    writeFileSync(
+      join(root, 'bundles.json'),
+      JSON.stringify({ bundles: [{ id: 'base', version: '0.0.0' }] }),
+    );
+    const nested = join(root, 'web', 'src');
+    mkdirSync(nested, { recursive: true });
+
+    expect(loadBundleManifest({ cwd: nested })).toEqual([{ id: 'base', version: '0.0.0' }]);
+  });
+
+  it('throws when a bundle is missing an id', () => {
+    const root = createTempDir();
+    writeFileSync(join(root, 'bundles.json'), JSON.stringify({ bundles: [{ dependencies: {} }] }));
+
+    expect(() => loadBundleManifest({ cwd: root })).toThrow(/missing a non-empty "id"/);
   });
 
   it('throws when no manifest is found upward', () => {

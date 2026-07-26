@@ -4,9 +4,11 @@ import { basename, dirname, join, resolve as resolvePath } from 'node:path';
 import Ajv, { type ErrorObject, type Options as AjvOptions } from 'ajv';
 import type { Descriptor } from '@lorion-org/composition-graph';
 
-import { descriptorSchema, type JsonSchemaObject } from './schema';
+import type { SchemaDescriptor } from './descriptor';
+import { bundleManifestSchema, descriptorSchema, type JsonSchemaObject } from './schema';
 
-export { descriptorSchema, type JsonSchemaObject };
+export { bundleManifestSchema, descriptorSchema, type JsonSchemaObject };
+export type { DescriptorField, SchemaDescriptor } from './descriptor';
 
 // A virtual descriptor is a grouping descriptor a host feeds to the graph without a
 // filesystem package (see `loadBundleManifest`). It is addressed at a synthetic
@@ -15,6 +17,11 @@ export { descriptorSchema, type JsonSchemaObject };
 // capability directory or the process cwd. Both the runtime and the build-time host
 // share this one convention instead of each hard-coding the segment.
 export const VIRTUAL_DESCRIPTOR_DIR = '__lorion_virtual__';
+
+// The descriptor field that holds further descriptors. `bundles` is declared by the
+// shared descriptor schema, so every host expands it by default; a host names
+// `nestedField` only to read a different field, and `false` to read none.
+export const NESTED_DESCRIPTOR_FIELD = 'bundles';
 
 // The synthetic directory a virtual descriptor is addressed at, under
 // `VIRTUAL_DESCRIPTOR_DIR` in the workspace. Kept here so every host agrees on the
@@ -46,6 +53,10 @@ export type DiscoveredDescriptor = {
   cwd: string;
   descriptorPath: string;
   descriptor: Descriptor;
+  // True for a descriptor declared inside another descriptor's nested field. It
+  // shares the host's directory but owns no package there, so a host must not
+  // read a package name or resolve a surface marker for it.
+  nested: boolean;
 };
 
 export type DescriptorSchemaValidationTarget = {
@@ -54,12 +65,16 @@ export type DescriptorSchemaValidationTarget = {
 
 export type DescriptorSchemaValidationErrorFormatter = (
   target: DescriptorSchemaValidationTarget,
-  validationError: ErrorObject,
+  validationErrors: readonly [ErrorObject, ...ErrorObject[]],
 ) => Error;
 
 export type DescriptorValidationOptions = {
   ajvOptions?: AjvOptions;
   formatError?: DescriptorSchemaValidationErrorFormatter;
+  // What the validated document is called in the error. A manifest wrapper is not a
+  // descriptor, and saying so is the difference between a reader looking at the file
+  // and a reader looking at a bundle entry.
+  label?: string;
   schema: object;
 };
 
@@ -81,19 +96,40 @@ export type DiscoverDescriptorsInput = {
   validation?: false | DescriptorValidationOptions;
 };
 
+// One line per violation, each naming where it is and what was rejected. Ajv
+// reports an additional property against the containing object, so the instance
+// path alone points at `/` and never names the offending key; a `required` error
+// names the missing property the same way.
+function formatValidationLine(validationError: ErrorObject): string {
+  const params = validationError.params as {
+    additionalProperty?: unknown;
+    missingProperty?: unknown;
+  };
+  const named =
+    typeof params.additionalProperty === 'string'
+      ? params.additionalProperty
+      : typeof params.missingProperty === 'string'
+        ? params.missingProperty
+        : undefined;
+
+  const jsonPath = validationError.instancePath || '/';
+  const key = named ? ` ("${named}")` : '';
+  const message = validationError.message ? `: ${validationError.message}` : '';
+
+  return `  ${jsonPath} ${validationError.keyword}${key}${message}`;
+}
+
 function formatDescriptorSchemaValidationError(
   target: DescriptorSchemaValidationTarget,
-  validationError: ErrorObject,
+  validationErrors: readonly [ErrorObject, ...ErrorObject[]],
+  label = 'Descriptor',
 ): Error {
-  const jsonPath = validationError.instancePath || '/';
-  const ajvError = `${validationError.keyword}${validationError.message ? `: ${validationError.message}` : ''}`;
-
   return new Error(
     [
-      'Descriptor schema validation failed.',
+      `${label} schema validation failed.`,
       `File: ${target.descriptorPath}`,
-      `JSON path: ${jsonPath}`,
-      `Schema error: ${ajvError}`,
+      'Schema errors:',
+      ...validationErrors.map(formatValidationLine),
     ].join('\n'),
   );
 }
@@ -105,19 +141,22 @@ function createDescriptorValidator(
 
   const ajv = new Ajv({
     strict: false,
-    allErrors: false,
+    allErrors: true,
     ...options.ajvOptions,
   });
   const validate = ajv.compile(options.schema);
-  const formatError = options.formatError ?? formatDescriptorSchemaValidationError;
+  const label = options.label ?? 'Descriptor';
+  const formatError: DescriptorSchemaValidationErrorFormatter =
+    options.formatError ??
+    ((target, errors) => formatDescriptorSchemaValidationError(target, errors, label));
 
   return (target, descriptor) => {
     if (validate(descriptor)) return;
 
-    const validationError = validate.errors?.[0];
-    if (validationError) throw formatError(target, validationError);
+    const [first, ...rest] = validate.errors ?? [];
+    if (first) throw formatError(target, [first, ...rest]);
 
-    throw new Error(`Descriptor schema validation failed: "${target.descriptorPath}"`);
+    throw new Error(`${label} schema validation failed: "${target.descriptorPath}"`);
   };
 }
 
@@ -357,11 +396,12 @@ export function discoverDescriptors(input: DiscoverDescriptorsInput): Discovered
       fallbackId: basename(cwd),
       idField,
       ...(input.nestedField ? { nestedField: input.nestedField } : {}),
-    }).map((descriptor) => ({
+    }).map((descriptor, index) => ({
       id: descriptor.id,
       cwd,
       descriptorPath,
       descriptor,
+      nested: index > 0,
     }));
   });
 }
@@ -369,21 +409,13 @@ export function discoverDescriptors(input: DiscoverDescriptorsInput): Discovered
 // A declarative bundle manifest groups discovered capabilities into named virtual
 // descriptors without one filesystem package per group. `bundles` is a nested list
 // of ordinary descriptors (`{ id, version, dependencies }`) — the same shape as any
-// capability's descriptor, not a bespoke format — and `base`/`default` name which
-// of them is the always-on base and the default selection. This is the
-// batteries-included path so a host needs no bundling code of its own: point it at
-// a manifest and feed the result to composition.
-export type BundleManifest = {
-  virtualDescriptors: Descriptor[];
-  baseDescriptors: string[];
-  defaultSelection: string[];
-};
-
-type RawBundleManifest = {
-  base: string;
-  default: string;
-  bundles: Array<Partial<Descriptor> & { id?: unknown }>;
-};
+// capability's descriptor, not a bespoke format. This is the batteries-included
+// path so a host needs no bundling code of its own: point it at a manifest and
+// feed the descriptors to composition.
+//
+// A manifest declares descriptors and nothing else. Which of them is the always-on
+// base and which is the default selection is a property of a run, not of a
+// grouping file, so the host names both in its seed.
 
 // Walk up from `fromDir` (inclusive) to the filesystem root, returning the first
 // directory `matches` accepts, or undefined when the root is reached without a hit.
@@ -407,53 +439,45 @@ function findManifestUp(fromDir: string, fileName: string): string {
   return join(dir, fileName);
 }
 
-// Resolves a bundle manifest into composition inputs: the declared bundle
-// descriptors as virtual descriptors, plus the base and default-selection seeds.
-// The manifest is discovered by walking up from `cwd`, so a host passes only where
-// it starts (for example its config directory).
-export function loadBundleManifest(options: { cwd: string; fileName?: string }): BundleManifest {
+// Resolves a bundle manifest into the virtual descriptors it declares. The
+// manifest is discovered by walking up from `cwd`, so a host passes only where it
+// starts (for example its config directory).
+export function loadBundleManifest(options: { cwd: string; fileName?: string }): Descriptor[] {
   const fileName = options.fileName ?? 'bundles.json';
   const manifestPath = findManifestUp(options.cwd, fileName);
-  const raw = JSON.parse(readFileSync(manifestPath, 'utf8')) as RawBundleManifest;
+  const raw: unknown = JSON.parse(readFileSync(manifestPath, 'utf8'));
 
-  if (
-    typeof raw?.base !== 'string' ||
-    typeof raw?.default !== 'string' ||
-    !Array.isArray(raw?.bundles)
-  ) {
-    throw new Error(
-      `Bundle manifest ${manifestPath} must declare string "base", string "default" and an array "bundles".`,
-    );
-  }
+  // `bundles.schema.json` is the definition of this file's shape, so it is validated
+  // rather than restated as a TypeScript type. A key that is not a bundle
+  // declaration is reported here instead of being ignored on the way to
+  // composition, and the narrowing below states the schema's guarantee once.
+  createDescriptorValidator({ schema: bundleManifestSchema, label: 'Bundle manifest' })?.(
+    { descriptorPath: manifestPath },
+    raw as object,
+  );
+  const { bundles } = raw as { bundles: Array<Partial<SchemaDescriptor> & { id?: unknown }> };
 
   // Each bundle is an ordinary descriptor, so validate it against the very schema a
   // capability's descriptor is held to — a malformed grouping (e.g. a non-semver
   // dependency) fails fast here with the shared schema error, not later as a
   // confusing graph-resolution error.
-  const validateDescriptor = createDescriptorValidator({ schema: descriptorSchema });
-  const virtualDescriptors: Descriptor[] = raw.bundles.map((bundle, index) => {
+  return bundles.map((bundle, index) => {
     if (typeof bundle?.id !== 'string' || !bundle.id.trim()) {
       throw new Error(`Bundle at index ${index} in ${manifestPath} is missing a non-empty "id".`);
     }
-    const descriptor: Descriptor = {
-      ...bundle,
-      id: bundle.id,
-      version:
-        typeof bundle.version === 'string' && bundle.version.trim() ? bundle.version : '0.0.0',
-    };
-    validateDescriptor?.({ descriptorPath: manifestPath }, descriptor);
+    // Trimmed like every other id: `resolveDescriptorId` trims what it reads from a
+    // descriptor file, and an id carrying spaces can never be named from a CLI flag
+    // or an environment variable, which split on whitespace.
+    const id = bundle.id.trim();
+    // Validated as written otherwise: the same grouping declared under a
+    // descriptor's nested field is held to the shared schema unchanged, so
+    // defaulting a version here would make one spelling accept what the other
+    // rejects. The error names the entry, since a manifest holds several.
+    const descriptor = { ...bundle, id } as Descriptor;
+    createDescriptorValidator({
+      schema: descriptorSchema,
+      label: `Bundle "${id}" (index ${index})`,
+    })?.({ descriptorPath: manifestPath }, descriptor);
     return descriptor;
   });
-
-  const ids = new Set(virtualDescriptors.map((descriptor) => descriptor.id));
-  if (!ids.has(raw.base)) {
-    throw new Error(`Bundle manifest ${manifestPath}: base bundle "${raw.base}" is not defined.`);
-  }
-  if (!ids.has(raw.default)) {
-    throw new Error(
-      `Bundle manifest ${manifestPath}: default bundle "${raw.default}" is not defined.`,
-    );
-  }
-
-  return { virtualDescriptors, baseDescriptors: [raw.base], defaultSelection: [raw.default] };
 }

@@ -10,7 +10,7 @@ the graph core expects.
 ## Install
 
 ```shell
-pnpm add @lorion-org/descriptor-discovery @lorion-org/composition-graph
+pnpm add @lorion-org/descriptor-discovery @lorion-org/composition-graph @lorion-org/runtime-config
 ```
 
 ## What it is
@@ -97,10 +97,10 @@ catalog.resolveSelection({
 
 ```jsonc
 // bundles.json — `bundles` is a nested list of ordinary descriptors (same shape as
-// any capability's descriptor); `base`/`default` name which of them seed the graph.
+// any capability's descriptor). A manifest declares descriptors and nothing else:
+// any other top-level key is rejected. `$schema` is allowed, for editor support.
 {
-  "base": "base",
-  "default": "shop",
+  "$schema": "https://lorion.dev/schemas/bundles.schema.json",
   "bundles": [
     { "id": "base", "version": "0.0.0", "dependencies": { "ui": "^1.0.0", "auth": "^1.0.0" } },
     {
@@ -115,18 +115,25 @@ catalog.resolveSelection({
 ```ts
 import { loadBundleManifest } from '@lorion-org/descriptor-discovery';
 
-const { virtualDescriptors, baseDescriptors, defaultSelection } = loadBundleManifest({
-  cwd: appDir,
-});
+const virtualDescriptors = loadBundleManifest({ cwd: appDir });
 ```
 
 `loadBundleManifest()` walks up from `cwd` to find a `bundles.json` (override with
-`fileName`), reads its `bundles` descriptor list as `virtualDescriptors`, and takes
-`base`/`default` as the `baseDescriptors` and `defaultSelection` seed. Each bundle is
+`fileName`) and reads its `bundles` list as virtual descriptors. Each bundle is
 validated against the same `descriptorSchema` a capability's descriptor is held to, so
 a malformed grouping fails fast. This is the filesystem-free way to define grouping
 bundles: a host declares them in data — no bespoke format, just descriptors — and
-feeds the result to composition, without one package per bundle.
+feeds them to composition, without one package per bundle. `bundleManifestSchema`
+states the wrapper's shape, and `SchemaDescriptor` is the descriptor as
+`descriptorSchema` describes it: the graph fields plus `runtimeConfig` and
+`publicRuntimeConfig`. `DescriptorField` names every declared field and is held to
+the JSON schema at compile time, in both directions.
+
+A manifest is a grouping file, so it declares descriptors on a package and feature
+basis and carries no run-wide keys. Which grouping is the always-on base and which is
+the default selection belongs to a run, so the host names both in its seed
+(`baseDescriptors`, `defaultSelection`) and one manifest serves runs that seed it
+differently.
 
 `virtualDescriptorDirectory(workspaceRoot, id)` (and the `VIRTUAL_DESCRIPTOR_DIR`
 segment it uses) is the one shared convention for where a virtual descriptor is

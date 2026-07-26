@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://lorion.dev/schemas/bundles.schema.json",
+  "type": "object",
+  "required": ["bundles"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "bundles": {
+      "type": "array",
+      "items": { "type": "object" }
+    }
+  }
+}

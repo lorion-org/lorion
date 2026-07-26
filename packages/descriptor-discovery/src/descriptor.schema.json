@@ -9,7 +9,9 @@
     },
     "dependencyMap": {
       "type": "object",
-      "additionalProperties": { "$ref": "#/$defs/semver" }
+      "additionalProperties": {
+        "$ref": "#/$defs/semver"
+      }
     },
     "descriptor": {
       "type": "object",
@@ -18,7 +20,13 @@
           "type": "string",
           "minLength": 1
         },
-        "version": { "$ref": "#/$defs/semver" },
+        "version": {
+          "$ref": "#/$defs/semver"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
         "providesFor": {
           "oneOf": [
             {
@@ -41,9 +49,15 @@
             "minLength": 1
           }
         },
-        "dependencies": { "$ref": "#/$defs/dependencyMap" },
-        "disabled": { "type": "boolean" },
-        "location": { "type": "string" },
+        "dependencies": {
+          "$ref": "#/$defs/dependencyMap"
+        },
+        "disabled": {
+          "type": "boolean"
+        },
+        "location": {
+          "type": "string"
+        },
         "defaultFor": {
           "oneOf": [
             {
@@ -58,10 +72,47 @@
               }
             }
           ]
+        },
+        "providerPreferences": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "bundles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/descriptor"
+          }
+        },
+        "runtimeConfig": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/runtimeConfigValidationMode"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "validation": {
+                  "$ref": "#/$defs/runtimeConfigValidationMode"
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "publicRuntimeConfig": {
+          "type": "object",
+          "additionalProperties": true
         }
       },
       "required": ["id", "version"],
       "additionalProperties": true
+    },
+    "runtimeConfigValidationMode": {
+      "type": "string",
+      "enum": ["none", "optional", "startup", "onUse"]
     }
   }
 }
