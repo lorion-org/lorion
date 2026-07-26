@@ -20,6 +20,9 @@ importers:
       '@eslint/js':
         specifier: ^9.26.0
         version: 9.39.4
+      '@lorion-org/descriptor-discovery':
+        specifier: workspace:*
+        version: link:packages/descriptor-discovery
       '@types/node':
         specifier: ^22.15.17
         version: 22.19.17
@@ -149,6 +152,9 @@ importers:
       '@lorion-org/descriptor-selection':
         specifier: workspace:^
         version: link:../descriptor-selection
+      '@lorion-org/runtime-config':
+        specifier: workspace:^
+        version: link:../runtime-config
       '@lorion-org/surface-activation':
         specifier: workspace:^
         version: link:../surface-activation
@@ -164,6 +170,9 @@ importers:
       '@lorion-org/composition-graph':
         specifier: workspace:*
         version: link:../composition-graph
+      '@lorion-org/runtime-config':
+        specifier: workspace:^
+        version: link:../runtime-config
 
   packages/descriptor-selection:
     dependencies:
@@ -176,6 +185,9 @@ importers:
 
   packages/nuxt:
     dependencies:
+      '@lorion-org/capability-composition':
+        specifier: workspace:^
+        version: link:../capability-composition
       '@lorion-org/composition-graph':
         specifier: workspace:^
         version: link:../composition-graph
@@ -218,6 +230,9 @@ importers:
 
   packages/react:
     dependencies:
+      '@lorion-org/capability-composition':
+        specifier: workspace:^
+        version: link:../capability-composition
       '@lorion-org/composition-graph':
         specifier: workspace:^
         version: link:../composition-graph
@@ -292,6 +307,42 @@ importers:
         version: 8.20.0
 
   packages/surface-activation: {}
+
+  tools/dist-consumer:
+    dependencies:
+      '@lorion-org/capability-composition':
+        specifier: workspace:^
+        version: link:../../packages/capability-composition
+      '@lorion-org/composition-graph':
+        specifier: workspace:^
+        version: link:../../packages/composition-graph
+      '@lorion-org/descriptor-discovery':
+        specifier: workspace:^
+        version: link:../../packages/descriptor-discovery
+      '@lorion-org/descriptor-selection':
+        specifier: workspace:^
+        version: link:../../packages/descriptor-selection
+      '@lorion-org/nuxt':
+        specifier: workspace:^
+        version: link:../../packages/nuxt
+      '@lorion-org/provider-selection':
+        specifier: workspace:^
+        version: link:../../packages/provider-selection
+      '@lorion-org/react':
+        specifier: workspace:^
+        version: link:../../packages/react
+      '@lorion-org/registry-hub':
+        specifier: workspace:^
+        version: link:../../packages/registry-hub
+      '@lorion-org/runtime-config':
+        specifier: workspace:^
+        version: link:../../packages/runtime-config
+      '@lorion-org/runtime-config-node':
+        specifier: workspace:^
+        version: link:../../packages/runtime-config-node
+      '@lorion-org/surface-activation':
+        specifier: workspace:^
+        version: link:../../packages/surface-activation
 
 packages:
 

@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "isolatedDeclarations": false,
+    "sourceMap": false,
+    "skipLibCheck": false,
+    "module": "Node16",
+    "moduleResolution": "Node16",
+    "verbatimModuleSyntax": false
+  },
+  "include": ["src/index.cts"]
+}

@@ -19,6 +19,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
+        with:
+          # The changeset gate compares against the base branch and needs its history.
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -37,6 +40,7 @@ jobs:
             pnpm-workspace.yaml
             packages/*/package.json
             examples/*/package.json
+            tools/*/package.json
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -65,8 +69,18 @@ jobs:
       - name: Check types across resolvers
         run: pnpm run attw
 
+      - name: Read published declarations as a consumer does
+        run: pnpm run declarations:check
+
+      - name: Validate bundle manifests
+        run: pnpm run manifests:check
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
       - name: Verify examples (dev-only; not part of the package build/typecheck gates)
         run: pnpm run examples:verify
+
+      - name: Require a changeset for package changes
+        if: github.event_name == 'pull_request'
+        run: pnpm run changeset:check

@@ -1,0 +1,22 @@
+{
+  "name": "@lorion-tools/dist-consumer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "node ../check-declarations.mjs"
+  },
+  "dependencies": {
+    "@lorion-org/capability-composition": "workspace:^",
+    "@lorion-org/composition-graph": "workspace:^",
+    "@lorion-org/descriptor-discovery": "workspace:^",
+    "@lorion-org/descriptor-selection": "workspace:^",
+    "@lorion-org/nuxt": "workspace:^",
+    "@lorion-org/provider-selection": "workspace:^",
+    "@lorion-org/react": "workspace:^",
+    "@lorion-org/registry-hub": "workspace:^",
+    "@lorion-org/runtime-config": "workspace:^",
+    "@lorion-org/runtime-config-node": "workspace:^",
+    "@lorion-org/surface-activation": "workspace:^"
+  }
+}
