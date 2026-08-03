@@ -1,5 +1,53 @@
 # @lorion-org/react
 
+## 1.0.0-beta.8
+
+### Major Changes
+
+- edd8bb9: Model provider choices as active slots whose participation, requirement, and
+  selection are independent.
+  - A capability with provider candidates may remain active and visibly `unfilled`
+    when no resolved descriptor depends on it.
+  - Dependencies of resolved descriptors make the capability required; explicit
+    and concrete dependency requests still select and require a provider, while a
+    default may fill an active non-required slot.
+  - Replace the winner-only `selections` map with a serializable, capability-sorted
+    `slots` array. Each slot is a `selected` or `unfilled` discriminated state and
+    carries its requirement and candidates.
+  - Publish the same provider-slot result through composition reports, Nuxt public
+    runtime config, and React's `virtual:capabilities` module.
+
+- f0be779: Use one descriptor-native contract for provider selection.
+  - Remove `providerPreferences` from descriptors and reject stale metadata during
+    schema validation and shared descriptor selection. A descriptor selects a
+    provider by depending on that provider.
+  - Resolve providers by `explicit` before `dependency` before `default`, report
+    overridden lower-tier choices, and fail when any tier names distinct providers.
+    Explicit provider roots from both `selected` and `baseDescriptors` take part in
+    the explicit tier, so a base provider cannot coexist with a competing default.
+  - Remove configured/fallback maps, mismatch reporting, and the implicit
+    alphabetically-first provider fallback from the provider-selection API.
+  - Remove React's runtime provider re-selection API. React and Nuxt now consume the
+    provider choice made by the shared descriptor selection; Nuxt exposes that
+    result as a read-only runtime projection.
+
+- f1e7339: Keep the code generators out of the published surface.
+
+  `renderCapabilityModule`, `renderRuntimeConfigModule` and `renderServerRuntimeConfigModule` were exported from `@lorion-org/react/vite`. They write the text of the virtual modules the loader emits, which is an implementation of the loader and not something a host calls, and publishing them froze that text into the contract. They move to an internal module. A host that reached for them was reading generated code rather than calling an API; what the loader emits is described by the loader's own options.
+
+### Patch Changes
+
+- Updated dependencies [edd8bb9]
+- Updated dependencies [f0be779]
+  - @lorion-org/capability-composition@1.0.0-beta.8
+  - @lorion-org/descriptor-selection@1.0.0-beta.8
+  - @lorion-org/provider-selection@1.0.0-beta.8
+  - @lorion-org/composition-graph@1.0.0-beta.8
+  - @lorion-org/descriptor-discovery@1.0.0-beta.8
+  - @lorion-org/runtime-config@1.0.0-beta.8
+  - @lorion-org/runtime-config-node@1.0.0-beta.8
+  - @lorion-org/surface-activation@1.0.0-beta.8
+
 ## 1.0.0-beta.7
 
 ### Major Changes
