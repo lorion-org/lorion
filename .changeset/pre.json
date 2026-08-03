@@ -19,6 +19,7 @@
     "@lorion-tools/dist-consumer": "0.0.0"
   },
   "changesets": [
+    "active-provider-slots",
     "adapter-option-conformance",
     "bundle-version-required",
     "capability-composition-surface-modules",
@@ -42,6 +43,8 @@
     "nuxt-runtime-safe-extensions",
     "one-descriptor-definition",
     "one-selection-brain",
+    "provider-dependency-selection",
+    "public-api-surface",
     "publish-tag-owned-by-changesets",
     "react-configurable-activation",
     "react-provider-relations",
