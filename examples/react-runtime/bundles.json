@@ -5,7 +5,8 @@
       "id": "commerce",
       "version": "0.0.0",
       "dependencies": {
-        "checkout": "^1.0.0"
+        "checkout": "^1.0.0",
+        "payment-provider-stripe": "^1.0.0"
       }
     },
     {

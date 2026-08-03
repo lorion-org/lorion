@@ -36,7 +36,6 @@ export type DescriptorField =
   | 'dependencies'
   | 'disabled'
   | 'location'
-  | 'providerPreferences'
   | 'bundles'
   | 'runtimeConfig'
   | 'publicRuntimeConfig';

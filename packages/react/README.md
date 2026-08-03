@@ -457,49 +457,39 @@ Provider-owned defaults use `defaultFor` on the provider descriptor:
 capability descriptor exists, `defaultFor` also creates the composition relation
 from that capability to the default provider.
 
-Profiles can still declare descriptor preferences with `providerPreferences`.
-Use this when the profile, not the provider package, owns the default choice:
+A descriptor selects a provider by depending on it alongside the capability it
+requires:
 
 ```json
 {
   "id": "web",
   "version": "1.0.0",
-  "providerPreferences": {
-    "checkout": "payment-provider-stripe"
+  "dependencies": {
+    "checkout": "^1.0.0",
+    "payment-provider-stripe": "^1.0.0"
   }
 }
 ```
 
-When a provider capability is explicitly selected through the normal selection
-seed, the Vite helper removes lower-priority `defaultFor` and
-`providerPreferences` relations for that capability before graph resolution.
-That selected provider wins over descriptor defaults and preferences. A losing
-provider is only present if another hard dependency still requires it.
+An explicit provider root overrides a descriptor dependency, which overrides
+`defaultFor`. Lower-priority providers are removed from the resolved composition.
+Naming different providers at the same tier fails fast instead of choosing one by
+discovery order.
 
-Read the resolved provider selection from the runtime:
+Provider roots from the resolved selection and `baseDescriptors` both belong to
+the `explicit` tier. Provider reports forward the provenance contract owned by
+`@lorion-org/provider-selection` unchanged. The removed `providerPreferences`
+field is rejected; migrate the choice to the descriptor's `dependencies` map.
 
-```ts
-import { getCapabilityProviderSelection } from '@lorion-org/react';
-
-const selection = getCapabilityProviderSelection(capabilityRuntime);
-```
-
-Explicit `configuredProviders` passed to `getCapabilityProviderSelection()`
-override selected providers, provider-owned defaults, and descriptor
-preferences. `selectedProviders` can mirror the descriptor seed at runtime, and
-`fallbackProviders` are merged with descriptor defaults and only used when no
-configured or selected provider exists.
-
-The React example uses the first variant by default: Stripe declares
-`defaultFor: "checkout"` and is selected as the fallback provider. Selecting
-`web payment-provider-invoice` through the seed switches checkout to Invoice and
-leaves Stripe out of the resolved capabilities.
+The React example's `commerce` bundle selects Stripe through a dependency.
+Selecting `web payment-provider-invoice` explicitly switches checkout to
+Invoice and leaves Stripe out of the resolved capabilities.
 
 ## API
 
 The package exposes two public entry points:
 
-- `@lorion-org/react` for runtime, contribution contracts, provider selection, runtime config, and React context helpers
+- `@lorion-org/react` for runtime, contribution contracts, runtime config, and React context helpers
 - `@lorion-org/react/vite` for capability discovery, runtime-config virtual modules, and TanStack-compatible route config
 
 ## Example apps

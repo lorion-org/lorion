@@ -1,11 +1,9 @@
 import {
   createContributionContract,
-  getCapabilityProviderSelection,
   useCapabilityRuntime,
   type CapabilityContribution,
   type CapabilityRuntime,
 } from '@lorion-org/react';
-import type { ProviderSelection } from '@lorion-org/provider-selection';
 
 export type CheckoutInput = {
   shopId: string;
@@ -15,12 +13,6 @@ export type PaymentCheckoutProvider = {
   createCheckoutPath: (input: CheckoutInput) => string;
   id: string;
   label: string;
-};
-
-export type PaymentSelectionOverview = {
-  excludedProviderIds: string[];
-  mismatches: Array<{ capabilityId: string; configuredProviderId: string }>;
-  selections: Record<string, ProviderSelection>;
 };
 
 export const PAYMENT_PROVIDER_CONTRACT = createContributionContract<PaymentCheckoutProvider>(
@@ -38,32 +30,21 @@ export function getPaymentProviders(runtime: CapabilityRuntime): PaymentCheckout
   return PAYMENT_PROVIDER_CONTRACT.get(runtime);
 }
 
-export function getPaymentSelectionOverview(runtime: CapabilityRuntime): PaymentSelectionOverview {
-  const resolution = getCapabilityProviderSelection(runtime);
-
-  return {
-    excludedProviderIds: resolution.excludedProviderIds,
-    mismatches: resolution.mismatches,
-    selections: Object.fromEntries(resolution.selections),
-  };
-}
-
 export function getPaymentProvider(
   runtime: CapabilityRuntime,
-  capabilityId = 'checkout',
 ): PaymentCheckoutProvider | undefined {
-  const selectedProviderId =
-    getPaymentSelectionOverview(runtime).selections[capabilityId]?.selectedProviderId;
+  const providers = getPaymentProviders(runtime);
+  if (providers.length > 1) {
+    throw new Error(
+      `Expected at most one active checkout provider, received: ${providers
+        .map((provider) => provider.id)
+        .join(', ')}.`,
+    );
+  }
 
-  return selectedProviderId
-    ? getPaymentProviders(runtime).find((provider) => provider.id === selectedProviderId)
-    : undefined;
+  return providers[0];
 }
 
 export function usePaymentProvider(): PaymentCheckoutProvider | undefined {
   return getPaymentProvider(useCapabilityRuntime());
-}
-
-export function usePaymentSelectionOverview(): PaymentSelectionOverview {
-  return getPaymentSelectionOverview(useCapabilityRuntime());
 }

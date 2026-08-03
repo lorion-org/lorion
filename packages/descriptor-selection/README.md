@@ -4,7 +4,7 @@ Framework-free, provider-aware descriptor selection.
 
 Given a set of items that each carry a descriptor and a selection seed, it
 resolves the active subset: it parses the seed (explicit selection, or CLI/env
-with a default fallback), applies **one-provider-per-capability** selection,
+with a default selection), applies **one-provider-per-capability** selection,
 builds the dependency graph, and returns the items reachable from the selection
 and the always-on base, ordered by id. The order is stable for a given input and
 independent of discovery order; it is not dependency order.
@@ -30,9 +30,6 @@ pnpm add @lorion-org/descriptor-selection
   and the `catalog` it resolved against. `selectDescriptors` wraps it for hosts that
   need only the items.
 - `resolveDescriptorSelection(seed)` resolves just the selection ids from a seed.
-- `describeProviderSelection({ items, selected, getDescriptor })` reports which
-  provider won each contested capability, in which mode, and which ones lost.
-- `applyProviderSelection({ items, selected, getDescriptor, withDescriptor })` applies one-provider-per-capability selection to a set of items, the step a host reuses when it drives its own graph resolution instead of calling `selectDescriptorsWithProviders`.
 - `assertKnownProviderCapabilities({ declared, providers })` throws when a descriptor
   provides for a capability no descriptor declares. A `providesFor` naming a
   capability that does not exist can never be selected, so the run says so at
@@ -44,6 +41,20 @@ pnpm add @lorion-org/descriptor-selection
 - `providerRelationDescriptors`, `defaultResolutionRelations`, and
   `descriptorSelectionPolicy(policy?)` expose the provider relations and the
   default resolution policy.
+
+## Provider contract
+
+A normal dependency on a capability only requires that capability. A dependency
+on a descriptor whose `providesFor` names that capability selects that provider.
+An explicit provider root overrides descriptor dependencies, and dependencies
+override `defaultFor`. Distinct providers selected at the same tier fail fast;
+discovery order never decides the winner. Provider descriptors named through the
+host's resolved selection or `baseDescriptors` belong to the `explicit` tier.
+Provider reports forward the public provenance contract owned by
+`@lorion-org/provider-selection`; `seed` remains the internal graph-input concept.
+
+The removed `providerPreferences` field is rejected explicitly. Replace it with
+a dependency on the provider so stale metadata cannot silently select a default.
 
 ## What It Is Not
 

@@ -36,10 +36,6 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@lorion-org/provider-selection': resolve(
-        projectRoot,
-        '../../packages/provider-selection/src/index.ts',
-      ),
       '@lorion-org/react': resolve(projectRoot, '../../packages/react/src/index.ts'),
     },
   },

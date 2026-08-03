@@ -93,6 +93,24 @@ describe('selectDescriptors', () => {
     expect(ids).not.toContain('auth-session');
   });
 
+  it('treats a provider in baseDescriptors as a seed choice', () => {
+    expect(
+      select(reference(), {
+        baseDescriptors: ['auth', 'auth-oidc'],
+        selected: ['dashboard'],
+      }),
+    ).toEqual(['auth', 'auth-oidc', 'dashboard']);
+  });
+
+  it('rejects distinct providers split across baseDescriptors and selected', () => {
+    expect(() =>
+      select(reference(), {
+        baseDescriptors: ['auth', 'auth-session'],
+        selected: ['dashboard', 'auth-oidc'],
+      }),
+    ).toThrow(/at most one selected provider per capability.*auth-oidc, auth-session/s);
+  });
+
   it('keeps the base floor on independent of the selection', () => {
     expect(select(reference(), { baseDescriptors: ['reports'], selected: ['dashboard'] })).toEqual([
       'dashboard',
@@ -100,8 +118,101 @@ describe('selectDescriptors', () => {
     ]);
   });
 
-  it('returns every enabled item when nothing is selected or based', () => {
-    expect(select(reference(), { selectionSeed: false })).toHaveLength(7);
+  it('returns every non-provider item and exactly one provider when nothing is selected or based', () => {
+    expect(select(reference(), { selectionSeed: false })).toEqual([
+      'auth',
+      'auth-session',
+      'dashboard',
+      'platform',
+      'reports',
+      'tokens',
+    ]);
+  });
+
+  it('treats a descriptor dependency on a provider as the provider choice', () => {
+    const items = reference().concat({
+      id: 'distribution',
+      version: '1.0.0',
+      dependencies: { auth: '^1.0.0', 'auth-oidc': '^1.0.0' },
+    });
+
+    expect(select(items, { selected: ['distribution'] })).toEqual([
+      'auth',
+      'auth-oidc',
+      'distribution',
+    ]);
+  });
+
+  it('lets an explicit provider root override a provider named by a descriptor dependency', () => {
+    const items = reference().concat({
+      id: 'distribution',
+      version: '1.0.0',
+      dependencies: { auth: '^1.0.0', 'auth-session': '^1.0.0' },
+    });
+
+    expect(select(items, { selected: ['distribution', 'auth-oidc'] })).toEqual([
+      'auth',
+      'auth-oidc',
+      'distribution',
+    ]);
+  });
+
+  it('rejects two dependency-selected providers at the same precedence', () => {
+    const items = reference().concat({
+      id: 'distribution',
+      version: '1.0.0',
+      dependencies: {
+        auth: '^1.0.0',
+        'auth-oidc': '^1.0.0',
+        'auth-session': '^1.0.0',
+      },
+    });
+
+    expect(() => select(items, { selected: ['distribution'] })).toThrow(
+      /auth.*multiple dependency providers.*auth-oidc \(distribution\).*auth-session \(distribution\)/s,
+    );
+  });
+
+  it('does not let an explicit provider root hide conflicting descriptor choices', () => {
+    const items = reference().concat({
+      id: 'distribution',
+      version: '1.0.0',
+      dependencies: {
+        auth: '^1.0.0',
+        'auth-oidc': '^1.0.0',
+        'auth-session': '^1.0.0',
+      },
+    });
+
+    expect(() => select(items, { selected: ['distribution', 'auth-oidc'] })).toThrow(
+      /auth.*multiple dependency providers.*auth-oidc \(distribution\).*auth-session \(distribution\)/s,
+    );
+  });
+
+  it('rejects removed providerPreferences metadata instead of silently ignoring it', () => {
+    const items = reference().concat({
+      id: 'distribution',
+      version: '1.0.0',
+      dependencies: { auth: '^1.0.0' },
+      providerPreferences: { auth: 'auth-oidc' },
+    });
+
+    expect(() => select(items, { selected: ['distribution'] })).toThrow(
+      /distribution.*providerPreferences.*dependencies/s,
+    );
+  });
+
+  it('rejects removed providerPreferences metadata on disabled descriptors', () => {
+    const items = reference().concat({
+      id: 'legacy-disabled',
+      version: '1.0.0',
+      disabled: true,
+      providerPreferences: { auth: 'auth-oidc' },
+    });
+
+    expect(() => select(items, { selected: ['dashboard'] })).toThrow(
+      /legacy-disabled.*providerPreferences.*dependencies/s,
+    );
   });
 
   it('filters out disabled items', () => {
@@ -118,8 +229,7 @@ describe('selectDescriptors', () => {
       label: `item:${descriptor.id}`,
     }));
 
-    // The override path rewrites descriptors (provider preferences applied); the
-    // wrapper fields must survive.
+    // Provider selection rewrites losing relations; the wrapper fields must survive.
     const selected = selectDescriptors({
       items,
       getDescriptor: (item) => item.descriptor,

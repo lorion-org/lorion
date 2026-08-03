@@ -24,6 +24,7 @@ export interface CompositionReport {
     capability: DescriptorId;
     provider: DescriptorId;
     mode: ProviderSelectionMode;
+    overridden: readonly DescriptorId[];
     resolved: boolean;
   }[];
 }
@@ -43,6 +44,7 @@ export interface DescribeCompositionInput {
     capabilityId: DescriptorId;
     selectedProviderId: DescriptorId;
     mode: ProviderSelectionMode;
+    overriddenProviderIds?: readonly DescriptorId[];
   }[];
 }
 
@@ -61,13 +63,14 @@ export function describeComposition(input: DescribeCompositionInput): Compositio
     resolved,
     discovered: sorted(input.discovered),
     // Every contested capability, with whether its winner is part of this
-    // composition. A winner that is not says the host configured a provider the
+    // composition. A winner that is not says the host named a provider the
     // run never built, which is the one thing a reader must not have to infer.
     providers: (input.providers ?? [])
       .map((selection) => ({
         capability: selection.capabilityId,
         provider: selection.selectedProviderId,
         mode: selection.mode,
+        overridden: sorted(selection.overriddenProviderIds),
         resolved: resolvedIds.has(selection.selectedProviderId),
       }))
       .sort((left, right) => left.capability.localeCompare(right.capability)),
@@ -113,8 +116,8 @@ const plainPalette: CompositionReportPalette = {
 
 const MIN_LABEL_WIDTH = 9;
 // The provider mode that means "nobody named one, the descriptor declaring
-// `defaultFor` won". Marked so a reader sees an unconfigured slot as such.
-const FALLBACK_MODE: ProviderSelectionMode = 'fallback';
+// `defaultFor` won". Marked so a reader sees the implicit default as such.
+const DEFAULT_MODE: ProviderSelectionMode = 'default';
 const INDENT = '  ';
 // Id lists hang below their heading rather than in the key column: a list is not
 // one row's value, and hundreds of ids read as a block, not as a column entry.
@@ -176,9 +179,11 @@ export function formatCompositionReport(
 
   for (const entry of report.providers) {
     const note = entry.resolved
-      ? entry.mode === FALLBACK_MODE
+      ? entry.mode === DEFAULT_MODE
         ? palette.muted(' (default)')
-        : ''
+        : entry.overridden.length
+          ? palette.muted(` (overrides ${entry.overridden.join(', ')})`)
+          : ''
       : palette.muted(' (not in this composition)');
     lines.push(row(entry.capability, `${palette.id(entry.provider)}${note}`));
   }

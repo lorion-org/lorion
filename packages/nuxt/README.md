@@ -96,9 +96,9 @@ runtime-config file conventions only when `lorion.runtimeConfig` is omitted. Set
 `lorion.runtimeConfig.enabled` to `false` to disable runtime-config loading.
 Runtime config stays separate from extension descriptors.
 
-Descriptors can also declare provider candidates with `providesFor`. After the
-selected profile is resolved, the module uses `@lorion-org/provider-selection`
-to choose one provider per capability and exposes the result in public runtime
+Descriptors can also declare provider candidates with `providesFor`. The shared
+descriptor selection chooses one provider per required capability while it
+resolves the composition, and the module exposes that result in public runtime
 config as `providerSelection`.
 
 ## Package shape
@@ -227,7 +227,7 @@ registers no layer, whatever its host's directory holds.
 
 Descriptor files are validated before they are normalized. The module uses the
 shared LORION descriptor schema by default, the same one every host validates
-against, so a core field such as `bundles`, `providerPreferences`, `runtimeConfig`
+against, so a core field such as `bundles`, `runtimeConfig`
 or `publicRuntimeConfig` is described in one place. Host apps with additional
 descriptor metadata can import the schema, extend it locally, and pass the result
 through `extensions.descriptorSchema`:
@@ -363,51 +363,29 @@ If a descriptor exists for that capability, the Nuxt bootstrap also treats
 `defaultFor` as a composition relation from the capability to the provider.
 
 The module writes a public `providerSelection` object with selected providers,
-candidates, excluded providers, configured providers, fallback providers, and
-mismatches. Profiles can declare provider preferences in descriptor metadata
-when the profile owns the default choice:
+candidates, overridden providers, and excluded providers. A descriptor selects a
+provider by depending on it alongside the capability it requires:
 
 ```json
 {
-  "id": "checkout-profile",
+  "id": "web",
   "version": "1.0.0",
-  "providerPreferences": {
-    "checkout": "payment-provider-invoice"
+  "dependencies": {
+    "checkout": "^1.0.0",
+    "payment-provider-invoice": "^1.0.0"
   }
 }
 ```
 
-If a provider descriptor is explicitly selected through the normal selection
-seed, that provider wins for its capability over descriptor preferences and
-`defaultFor` relations. This affects composition resolution too: a losing
-provider is not activated only because it declared `defaultFor`, unless another
-hard dependency still pulls it into the graph.
-
-Module options override the selected provider when a host app needs a
-deployment-specific choice:
-
-```ts
-export default defineNuxtConfig({
-  extends: createNuxtExtensionLayerPaths(extensionBootstrap),
-  modules: [
-    [
-      LorionNuxtModule,
-      {
-        extensionBootstrap,
-        providers: {
-          configuredProviders: {
-            checkout: 'payment-provider-invoice',
-          },
-        },
-      },
-    ],
-  ],
-});
-```
-
-Hosts that resolve provider choices outside the extension bootstrap can pass
-`providers.selectedProviders`; `providers.configuredProviders` remains the
-higher-priority deployment override.
+If a provider descriptor is an explicit composition root, that provider wins for
+its capability over descriptor dependencies and `defaultFor`. A descriptor
+dependency wins over `defaultFor`. Distinct providers named at the same tier fail
+fast instead of being chosen by discovery order. Provider roots from the resolved
+extension selection and `extensions.baseDescriptors` belong to the `explicit`
+tier. Provider reports and public runtime config forward the provenance contract
+owned by `@lorion-org/provider-selection` unchanged. The removed
+`providerPreferences` field is rejected; migrate the choice to the descriptor's
+`dependencies` map.
 
 ## Runtime Config
 
@@ -581,10 +559,10 @@ registers selected extensions as Nuxt layers; the example app does not list them
 in `nuxt.config.ts`.
 Provider extensions contribute checkout pages, register a small checkout
 provider implementation through the payments layer interface, and expose server
-routes. They declare `providesFor: "checkout"`; Stripe additionally
-declares `defaultFor: "checkout"` so the example app demonstrates the
-provider-owned default pattern. Runtime config for checkout, payments, and
-providers is loaded from
+routes. They declare `providesFor: "checkout"`; the `web` bundle selects Stripe
+through a dependency, and Stripe also declares `defaultFor: "checkout"` for
+compositions that name no provider. Selecting Invoice in the seed overrides both.
+Runtime config for checkout, payments, and providers is loaded from
 `.runtimeconfig/runtime-config/<scope>/runtime.config.json`.
 
 The module also exposes a public `extensionSelection` runtime-config object with

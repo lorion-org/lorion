@@ -19,11 +19,6 @@ export default defineNuxtConfig({
       LorionNuxtModule,
       {
         extensionBootstrap,
-        providers: {
-          configuredProviders: {
-            'payment-checkout': 'payment-provider-stripe',
-          },
-        },
       },
     ],
   ],

@@ -15,7 +15,6 @@ import { describeComposition, formatCompositionReport } from '@lorion-org/capabi
 import {
   createNuxtExtensionBootstrap,
   createNuxtProviderSelectionRuntimeConfig,
-  createNuxtSelectedProviderPreferences,
   type NuxtExtensionBootstrap,
   type NuxtExtensionEntry,
 } from './extensions';
@@ -694,16 +693,7 @@ function createProviderSelectionRuntimeConfig(
 ): NuxtRuntimeConfig | undefined {
   if (options?.enabled === false) return undefined;
 
-  return createNuxtProviderSelectionRuntimeConfig(bootstrap.resolvedExtensions, {
-    ...options,
-    selectedProviders: {
-      ...createNuxtSelectedProviderPreferences({
-        entries: bootstrap.resolvedExtensions,
-        selectedExtensions: bootstrap.selectedExtensions,
-      }),
-      ...(options?.selectedProviders ?? {}),
-    },
-  });
+  return createNuxtProviderSelectionRuntimeConfig(bootstrap.providerSelection);
 }
 
 export function createNuxtExtensionBootstrapLogEvent(input: {

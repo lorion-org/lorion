@@ -178,17 +178,13 @@ describe('nuxt runtime config adapter', () => {
           selectedExtensionIds: ['admin'],
         },
         providerSelection: {
-          configuredProviders: {
-            'payment-checkout': 'payment-provider-stripe',
-          },
           excludedProviderIds: ['payment-provider-invoice'],
-          fallbackProviders: {},
-          mismatches: [],
           selections: {
             'payment-checkout': {
               capabilityId: 'payment-checkout',
               candidateProviderIds: ['payment-provider-invoice', 'payment-provider-stripe'],
-              mode: 'configured',
+              mode: 'dependency',
+              overriddenProviderIds: [],
               selectedProviderId: 'payment-provider-stripe',
             },
           },

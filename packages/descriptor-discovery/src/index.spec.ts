@@ -283,6 +283,29 @@ describe('discoverDescriptors', () => {
       }),
     ).toThrow('Descriptor schema validation failed.');
   });
+
+  it('rejects removed providerPreferences metadata with the shared schema', () => {
+    const tempDir = createTempDir();
+    const featureDir = join(tempDir, 'features', 'web');
+
+    mkdirSync(featureDir, { recursive: true });
+    writeFileSync(
+      join(featureDir, 'feature.json'),
+      JSON.stringify({
+        id: 'web',
+        version: '1.0.0',
+        providerPreferences: { auth: 'keycloak' },
+      }),
+    );
+
+    expect(() =>
+      discoverDescriptors({
+        cwd: tempDir,
+        descriptorPaths: ['features/*/feature.json'],
+        validation: { schema: descriptorSchema },
+      }),
+    ).toThrow(/Descriptor schema validation failed.*providerPreferences/s);
+  });
 });
 
 describe('requirePackageName', () => {

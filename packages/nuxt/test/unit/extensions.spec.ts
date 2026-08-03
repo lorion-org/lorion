@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   createNuxtProviderSelectionRuntimeConfig,
-  createNuxtSelectedProviderPreferences,
   createNuxtExtensionBootstrap,
   createNuxtExtensionCatalog,
   createNuxtExtensionEntryMap,
@@ -392,15 +391,12 @@ describe('Nuxt extension bootstrap', () => {
           dependencies: {
             web: '^1.0.0',
           },
-          providerPreferences: {
-            payment: 'payment-provider-stripe',
-          },
         },
         {
           id: 'web',
           version: '1.0.0',
           dependencies: {
-            'payment-provider-invoice': '^1.0.0',
+            payment: '^1.0.0',
             'payment-provider-stripe': '^1.0.0',
           },
         },
@@ -436,20 +432,16 @@ describe('Nuxt extension bootstrap', () => {
 
     const bootstrap = createNuxtExtensionBootstrap({ rootDir: root });
 
-    expect(createNuxtProviderSelectionRuntimeConfig(bootstrap.resolvedExtensions)).toEqual({
+    expect(createNuxtProviderSelectionRuntimeConfig(bootstrap.providerSelection)).toEqual({
       public: {
         providerSelection: {
-          configuredProviders: {},
           excludedProviderIds: ['payment-provider-invoice'],
-          fallbackProviders: {
-            payment: 'payment-provider-stripe',
-          },
-          mismatches: [],
           selections: {
             payment: {
               capabilityId: 'payment',
               candidateProviderIds: ['payment-provider-invoice', 'payment-provider-stripe'],
-              mode: 'fallback',
+              mode: 'dependency',
+              overriddenProviderIds: [],
               selectedProviderId: 'payment-provider-stripe',
             },
           },
@@ -458,7 +450,7 @@ describe('Nuxt extension bootstrap', () => {
     });
   });
 
-  it('uses provider-owned defaults as fallbacks and composition relations', () => {
+  it('uses provider-owned defaults as composition relations', () => {
     const root = createTempRoot();
 
     createExtension(root, 'default', {
@@ -466,7 +458,6 @@ describe('Nuxt extension bootstrap', () => {
       version: '1.0.0',
       dependencies: {
         auth: '^1.0.0',
-        'auth-local-jwt': '^1.0.0',
       },
     });
     createExtension(root, 'auth', {
@@ -488,20 +479,16 @@ describe('Nuxt extension bootstrap', () => {
     const bootstrap = createNuxtExtensionBootstrap({ rootDir: root });
 
     expect(bootstrap.resolvedExtensionIds).toContain('auth-oidc');
-    expect(createNuxtProviderSelectionRuntimeConfig(bootstrap.resolvedExtensions)).toEqual({
+    expect(createNuxtProviderSelectionRuntimeConfig(bootstrap.providerSelection)).toEqual({
       public: {
         providerSelection: {
-          configuredProviders: {},
           excludedProviderIds: ['auth-local-jwt'],
-          fallbackProviders: {
-            auth: 'auth-oidc',
-          },
-          mismatches: [],
           selections: {
             auth: {
               capabilityId: 'auth',
               candidateProviderIds: ['auth-local-jwt', 'auth-oidc'],
-              mode: 'fallback',
+              mode: 'default',
+              overriddenProviderIds: [],
               selectedProviderId: 'auth-oidc',
             },
           },
@@ -510,7 +497,7 @@ describe('Nuxt extension bootstrap', () => {
     });
   });
 
-  it('uses explicitly selected provider seeds before descriptor preferences and defaults', () => {
+  it('uses explicit provider roots before descriptor dependencies and defaults', () => {
     const root = createTempRoot();
 
     createExtension(root, 'default', {
@@ -545,10 +532,11 @@ describe('Nuxt extension bootstrap', () => {
       },
       ['app'],
     );
-    createExtension(root, 'feature-prefers-oidc', {
-      id: 'feature-prefers-oidc',
-      providerPreferences: {
-        auth: 'auth-oidc',
+    createExtension(root, 'feature-selects-oidc', {
+      id: 'feature-selects-oidc',
+      dependencies: {
+        auth: '^1.0.0',
+        'auth-oidc': '^1.0.0',
       },
       version: '1.0.0',
     });
@@ -557,26 +545,21 @@ describe('Nuxt extension bootstrap', () => {
       rootDir: root,
       options: {
         baseDescriptors: ['default'],
-        selected: ['auth-local-jwt', 'feature-prefers-oidc'],
+        selected: ['auth-local-jwt', 'feature-selects-oidc'],
       },
     });
 
     expect(bootstrap.resolvedExtensionIds).toContain('auth-local-jwt');
-    expect(bootstrap.resolvedExtensionIds).toContain('feature-prefers-oidc');
+    expect(bootstrap.resolvedExtensionIds).toContain('feature-selects-oidc');
     expect(bootstrap.resolvedExtensionIds).not.toContain('auth-oidc');
-    expect(
-      createNuxtProviderSelectionRuntimeConfig(bootstrap.resolvedExtensions, {
-        selectedProviders: {
-          auth: 'auth-local-jwt',
-        },
-      }),
-    ).toMatchObject({
+    expect(createNuxtProviderSelectionRuntimeConfig(bootstrap.providerSelection)).toMatchObject({
       public: {
         providerSelection: {
-          excludedProviderIds: [],
+          excludedProviderIds: ['auth-oidc'],
           selections: {
             auth: {
-              mode: 'selected',
+              mode: 'explicit',
+              overriddenProviderIds: ['auth-oidc'],
               selectedProviderId: 'auth-local-jwt',
             },
           },
@@ -585,7 +568,7 @@ describe('Nuxt extension bootstrap', () => {
     });
   });
 
-  it('excludes default providers when a provider seed is selected with a host extension', () => {
+  it('excludes default providers when a provider is selected explicitly with a host extension', () => {
     const root = createTempRoot();
 
     createExtension(root, 'web', {
@@ -627,27 +610,16 @@ describe('Nuxt extension bootstrap', () => {
         selected: ['web', 'auth-local-jwt'],
       },
     });
-    const selectedProviders = createNuxtSelectedProviderPreferences({
-      entries: bootstrap.resolvedExtensions,
-      selectedExtensions: bootstrap.selectedExtensions,
-    });
-
     expect(bootstrap.resolvedExtensionIds).toEqual(['auth', 'auth-local-jwt', 'web']);
-    expect(selectedProviders).toEqual({
-      auth: 'auth-local-jwt',
-    });
-    expect(
-      createNuxtProviderSelectionRuntimeConfig(bootstrap.resolvedExtensions, {
-        selectedProviders,
-      }),
-    ).toMatchObject({
+    expect(createNuxtProviderSelectionRuntimeConfig(bootstrap.providerSelection)).toMatchObject({
       public: {
         providerSelection: {
-          excludedProviderIds: [],
+          excludedProviderIds: ['auth-oidc'],
           selections: {
             auth: {
-              candidateProviderIds: ['auth-local-jwt'],
-              mode: 'selected',
+              candidateProviderIds: ['auth-local-jwt', 'auth-oidc'],
+              mode: 'explicit',
+              overriddenProviderIds: ['auth-oidc'],
               selectedProviderId: 'auth-local-jwt',
             },
           },

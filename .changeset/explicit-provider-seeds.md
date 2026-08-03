@@ -9,4 +9,4 @@
 '@lorion-org/runtime-config-node': minor
 ---
 
-Prefer explicitly selected provider descriptors over descriptor-level provider preferences and defaults, and expose a Lorion source export condition for workspace example development.
+Prefer explicitly selected provider descriptors over descriptor dependency choices and provider-owned defaults, and expose a Lorion source export condition for workspace example development.

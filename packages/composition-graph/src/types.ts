@@ -15,9 +15,6 @@ export type Descriptor = {
   dependencies?: VersionConstraintMap;
   disabled?: boolean;
   location?: string;
-  // Which provider this descriptor prefers per capability. A graph relation like
-  // `dependencies`, resolved by the same walk, so it is declared with them.
-  providerPreferences?: Partial<Record<DescriptorId, DescriptorId>>;
   // Descriptors declared inside this one. A grouping needs no filesystem package,
   // so it takes part in the graph from here.
   bundles?: Descriptor[];

@@ -16,13 +16,7 @@ import {
 } from '@lorion-org/descriptor-discovery';
 
 import { descriptorSchema } from './descriptor-schema';
-import {
-  collectProviderDefaults,
-  collectProviderPreferences,
-  collectSelectedProviderPreferences,
-  resolveItemProviderSelection,
-  type ProviderPreferenceMap,
-} from '@lorion-org/provider-selection';
+import type { ProviderSelectionResolution } from '@lorion-org/provider-selection';
 import {
   providerRelationDescriptors,
   resolveDescriptorSelection,
@@ -32,7 +26,6 @@ import type {
   NuxtExtensionSelectionRuntimeConfig,
   NuxtExtensionModuleOptions,
   NuxtExtensionSelectionSeedOptions,
-  NuxtProviderSelectionModuleOptions,
   NuxtProviderSelectionRuntimeConfig,
   NuxtRuntimeConfig,
 } from './types';
@@ -70,12 +63,11 @@ export type NuxtExtensionBootstrap = {
   // named none and took `defaultSelection`. Kept apart from `selectedExtensions`,
   // which is the outcome, so a report can say which of the two a reader is seeing.
   requestedExtensions: string[] | null;
+  providerSelection: ProviderSelectionResolution;
   resolvedExtensionIds: string[];
   resolvedExtensions: NuxtExtensionEntry[];
   selectedExtensions: string[];
 };
-
-type NuxtProviderSelectionOptions = Omit<NuxtProviderSelectionModuleOptions, 'enabled'>;
 
 type ResolvedNuxtExtensionOptions = {
   descriptorSchema: false | object;
@@ -256,21 +248,6 @@ export function createNuxtExtensionEntryMap(
   return new Map(entries.map((entry) => [entry.descriptor.id, entry]));
 }
 
-// The capability -> selected-provider map, used by the module to expose provider
-// selection through runtime config. The selection cleaning itself is delegated to
-// @lorion-org/descriptor-selection's `applyProviderSelection`.
-export function createNuxtSelectedProviderPreferences(input: {
-  entries: NuxtExtensionEntry[];
-  selectedExtensions: string[];
-}): ProviderPreferenceMap {
-  return collectSelectedProviderPreferences({
-    items: input.entries,
-    getCapabilityId: (entry) => entry.descriptor.providesFor,
-    getProviderId: (entry) => entry.descriptor.id,
-    selectedProviderIds: input.selectedExtensions,
-  });
-}
-
 function mergeRuntimeConfigSection(
   target: NuxtRuntimeConfig['public'] = {},
   source: NuxtRuntimeConfig['public'] = {},
@@ -339,6 +316,10 @@ export function createNuxtExtensionBootstrap(input: {
       entries,
       ...(options.relationDescriptors ? { relationDescriptors: options.relationDescriptors } : {}),
     });
+  const emptyProviderSelection = (): ProviderSelectionResolution => ({
+    excludedProviderIds: [],
+    selections: new Map(),
+  });
 
   if (options.enabled === false) {
     return {
@@ -347,6 +328,7 @@ export function createNuxtExtensionBootstrap(input: {
       catalog: createCatalog([]),
       discoveredExtensions: [],
       publicRuntimeConfig: { public: {} },
+      providerSelection: emptyProviderSelection(),
       requestedExtensions,
       resolvedExtensionIds: [],
       resolvedExtensions: [],
@@ -367,6 +349,7 @@ export function createNuxtExtensionBootstrap(input: {
       catalog: createCatalog(entries),
       discoveredExtensions: entries,
       publicRuntimeConfig: { public: {} },
+      providerSelection: emptyProviderSelection(),
       requestedExtensions,
       resolvedExtensionIds: [],
       resolvedExtensions: [],
@@ -377,7 +360,11 @@ export function createNuxtExtensionBootstrap(input: {
   // One selection brain. Rebuilding this pipeline here is how the disabled filter
   // and the single-selected-provider guard came to apply on one host and not the
   // other for the very same descriptors.
-  const { items: resolvedExtensions, catalog } = selectDescriptorsWithProviders({
+  const {
+    items: resolvedExtensions,
+    catalog,
+    providerSelection,
+  } = selectDescriptorsWithProviders({
     items: entries,
     getDescriptor: (entry) => entry.descriptor,
     withDescriptor: (entry, descriptor) => ({ ...entry, descriptor }),
@@ -408,6 +395,7 @@ export function createNuxtExtensionBootstrap(input: {
       resolvedExtensionIds,
       selectedExtensions,
     }),
+    providerSelection,
     requestedExtensions,
     resolvedExtensionIds,
     resolvedExtensions,
@@ -422,42 +410,14 @@ export function createNuxtExtensionLayerPaths(bootstrap: NuxtExtensionBootstrap)
 }
 
 export function createNuxtProviderSelectionRuntimeConfig(
-  extensions: NuxtExtensionEntry[],
-  options: NuxtProviderSelectionOptions = {},
+  resolution: ProviderSelectionResolution,
 ): NuxtRuntimeConfig {
   const publicRuntimeConfigKey = 'providerSelection';
-  const descriptorPreferences = collectProviderPreferences({
-    items: extensions,
-    getProviderPreferences: (extension) => extension.descriptor.providerPreferences,
-  });
-  const providerDefaults = collectProviderDefaults({
-    items: extensions,
-    getDefaultFor: (extension) => extension.descriptor.defaultFor,
-    getProviderId: (extension) => extension.descriptor.id,
-  });
-  const configuredProviders = options.configuredProviders ?? {};
-  const selectedProviders = options.selectedProviders ?? {};
-  const fallbackProviders = {
-    ...providerDefaults,
-    ...descriptorPreferences,
-    ...(options.fallbackProviders ?? {}),
-  };
-  const resolution = resolveItemProviderSelection({
-    items: extensions,
-    getCapabilityId: (extension) => extension.descriptor.providesFor,
-    getProviderId: (extension) => extension.descriptor.id,
-    configuredProviders,
-    fallbackProviders,
-    selectedProviders,
-  });
 
   return {
     public: {
       [publicRuntimeConfigKey]: {
-        configuredProviders,
         excludedProviderIds: resolution.excludedProviderIds,
-        fallbackProviders,
-        mismatches: resolution.mismatches,
         selections: Object.fromEntries(resolution.selections),
       } satisfies NuxtProviderSelectionRuntimeConfig,
     },

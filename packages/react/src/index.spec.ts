@@ -5,7 +5,6 @@ import {
   defineCapability,
   defineContribution,
   defineExtensionPoint,
-  getCapabilityProviderSelection,
   getCapabilityRuntimeConfig,
   getCapabilityRuntimeConfigScope,
 } from './index';
@@ -70,87 +69,6 @@ describe('createCapabilityRuntime', () => {
 
     expect(contract.extensionPoint.id).toBe('test.contract');
     expect(contract.get(runtime)).toEqual([{ id: 'owner-item' }]);
-  });
-
-  it('resolves provider selection from capability descriptors', () => {
-    const runtime = createCapabilityRuntime([
-      defineCapability({
-        id: 'provider-a',
-        manifest: { id: 'provider-a', version: '0.1.0', providesFor: 'checkout' },
-      }),
-      defineCapability({
-        id: 'provider-b',
-        manifest: {
-          id: 'provider-b',
-          version: '0.1.0',
-          defaultFor: 'checkout',
-          providesFor: 'checkout',
-        },
-      }),
-      defineCapability({
-        id: 'shop',
-        manifest: {
-          id: 'shop',
-          version: '0.1.0',
-        },
-      }),
-    ]);
-
-    const selection = getCapabilityProviderSelection(runtime);
-
-    expect(Object.fromEntries(selection.selections)).toEqual({
-      checkout: {
-        capabilityId: 'checkout',
-        candidateProviderIds: ['provider-a', 'provider-b'],
-        mode: 'fallback',
-        selectedProviderId: 'provider-b',
-      },
-    });
-    expect(selection.excludedProviderIds).toEqual(['provider-a']);
-  });
-
-  it('uses selected providers before descriptor preferences and defaults', () => {
-    const runtime = createCapabilityRuntime([
-      defineCapability({
-        id: 'provider-a',
-        manifest: { id: 'provider-a', version: '0.1.0', providesFor: 'checkout' },
-      }),
-      defineCapability({
-        id: 'provider-b',
-        manifest: {
-          id: 'provider-b',
-          version: '0.1.0',
-          defaultFor: 'checkout',
-          providesFor: 'checkout',
-        },
-      }),
-      defineCapability({
-        id: 'shop',
-        manifest: {
-          id: 'shop',
-          version: '0.1.0',
-          providerPreferences: {
-            checkout: 'provider-b',
-          },
-        },
-      }),
-    ]);
-
-    const selection = getCapabilityProviderSelection(runtime, {
-      selectedProviders: {
-        checkout: 'provider-a',
-      },
-    });
-
-    expect(Object.fromEntries(selection.selections)).toEqual({
-      checkout: {
-        capabilityId: 'checkout',
-        candidateProviderIds: ['provider-a', 'provider-b'],
-        mode: 'selected',
-        selectedProviderId: 'provider-a',
-      },
-    });
-    expect(selection.excludedProviderIds).toEqual(['provider-b']);
   });
 
   it('reads scoped public runtime config without exposing private values', () => {

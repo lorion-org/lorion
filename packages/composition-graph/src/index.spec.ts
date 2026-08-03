@@ -240,7 +240,7 @@ describe('buildDescriptorGraph', () => {
   it('can read relation targets from map values', () => {
     const descriptorMap = buildDescriptorMap([
       createDescriptor('auth', {
-        providerPreferences: {
+        preferredTargets: {
           auth: 'auth-oidc',
         },
       }),
@@ -252,7 +252,8 @@ describe('buildDescriptorGraph', () => {
       relationDescriptors: [
         ...defaultRelationDescriptors,
         createRelationDescriptor({
-          id: 'providerPreferences',
+          field: 'preferredTargets',
+          id: 'preferredTargets',
           targetMode: 'values',
         }),
       ],
@@ -261,7 +262,7 @@ describe('buildDescriptorGraph', () => {
     expect(graph.edges).toContainEqual({
       from: 'auth',
       to: 'auth-oidc',
-      relation: 'providerPreferences',
+      relation: 'preferredTargets',
       source: 'descriptor',
     });
   });

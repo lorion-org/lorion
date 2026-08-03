@@ -6,7 +6,7 @@ import type {
   RuntimeConfigSection,
   SectionedRuntimeConfig,
 } from '@lorion-org/runtime-config';
-import type { ProviderPreferenceMap, ProviderSelection } from '@lorion-org/provider-selection';
+import type { ProviderSelection } from '@lorion-org/provider-selection';
 import type { DescriptorSelectionSeedInput } from '@lorion-org/composition-graph';
 import type {
   RuntimeConfigPathPatternSource,
@@ -67,20 +67,11 @@ export type NuxtRuntimeConfigValidationOptions = Pick<
 >;
 
 export type NuxtProviderSelectionModuleOptions = {
-  configuredProviders?: ProviderPreferenceMap;
   enabled?: boolean;
-  fallbackProviders?: ProviderPreferenceMap;
-  selectedProviders?: ProviderPreferenceMap;
 };
 
 export type NuxtProviderSelectionRuntimeConfig = {
-  configuredProviders: ProviderPreferenceMap;
   excludedProviderIds: string[];
-  fallbackProviders: ProviderPreferenceMap;
-  mismatches: Array<{
-    capabilityId: string;
-    configuredProviderId: string;
-  }>;
   selections: Record<string, ProviderSelection>;
 };
 

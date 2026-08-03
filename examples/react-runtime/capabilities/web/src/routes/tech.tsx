@@ -1,6 +1,6 @@
 import { Link, createFileRoute } from '@tanstack/react-router';
 import { useMemo, type ReactElement } from 'react';
-import { usePaymentSelectionOverview } from '../../../payments/src';
+import { getPaymentProviders } from '../../../payments/src';
 import { createDemoOverview } from '../../../../src/demoOverview';
 
 export const Route = createFileRoute('/tech')({
@@ -10,14 +10,7 @@ export const Route = createFileRoute('/tech')({
 function TechMonitor(): ReactElement {
   const { capabilityRuntime } = Route.useRouteContext();
   const overview = useMemo(() => createDemoOverview(capabilityRuntime), [capabilityRuntime]);
-  const providerSelection = usePaymentSelectionOverview();
-  const providerSelections = Object.values(providerSelection.selections);
-  const selectedProviderIds = providerSelections
-    .map((selection) => selection.selectedProviderId)
-    .filter(Boolean);
-  const providerCandidateIds = [
-    ...new Set(providerSelections.flatMap((selection) => selection.candidateProviderIds)),
-  ];
+  const activeProviderIds = getPaymentProviders(capabilityRuntime).map((provider) => provider.id);
 
   return (
     <main className="page page-wide">
@@ -33,8 +26,7 @@ function TechMonitor(): ReactElement {
           title="Resolved capabilities"
           values={overview.capabilitySelection.resolvedCapabilityIds}
         />
-        <MonitorCard title="Selected provider" values={selectedProviderIds} />
-        <MonitorCard title="Provider candidates" values={providerCandidateIds} />
+        <MonitorCard title="Active provider" values={activeProviderIds} />
         <MonitorCard
           title="Not injected"
           values={overview.capabilitySelection.notInjectedCapabilityIds}

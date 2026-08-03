@@ -73,13 +73,7 @@
             }
           ]
         },
-        "providerPreferences": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
+        "providerPreferences": false,
         "bundles": {
           "type": "array",
           "items": {

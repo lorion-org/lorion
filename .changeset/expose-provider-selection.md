@@ -3,7 +3,7 @@
 '@lorion-org/capability-composition': major
 ---
 
-Publish the provider outcome of a composition. `resolveCapabilitySelection` returns the resolved capabilities together with the `ProviderSelectionResolution`: which provider won each contested capability, in which mode, the candidates and the providers that lost. `selectDescriptorsWithProviders` and `describeProviderSelection` expose the same for descriptor selection.
+Publish the provider outcome of a composition. `resolveCapabilitySelection` returns the resolved capabilities together with the `ProviderSelectionResolution`: which provider won each contested capability, in which mode, the candidates and the providers that lost. `selectDescriptorsWithProviders` exposes the same for descriptor selection.
 
 The Nuxt adapter already published this; a React host had to re-derive the winner from the resolved set, which loses `mode` and `excludedProviderIds` and costs a second resolution. `resolveSelectedCapabilities` and `selectDescriptors` keep returning the plain set.
 

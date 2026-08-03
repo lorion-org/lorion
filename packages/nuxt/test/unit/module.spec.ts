@@ -108,17 +108,13 @@ describe('LORION Nuxt module', () => {
       providerSelectionRuntimeConfig: {
         public: {
           providerSelection: {
-            configuredProviders: {
-              payment: 'stripe',
-            },
             excludedProviderIds: ['invoice'],
-            fallbackProviders: {},
-            mismatches: [],
             selections: {
               payment: {
                 capabilityId: 'payment',
                 candidateProviderIds: ['invoice', 'stripe'],
-                mode: 'configured',
+                mode: 'dependency',
+                overriddenProviderIds: [],
                 selectedProviderId: 'stripe',
               },
             },
@@ -128,17 +124,13 @@ describe('LORION Nuxt module', () => {
     });
 
     expect(event.providerSelection).toEqual({
-      configuredProviders: {
-        payment: 'stripe',
-      },
       excludedProviderIds: ['invoice'],
-      fallbackProviders: {},
-      mismatches: [],
       selections: {
         payment: {
           capabilityId: 'payment',
           candidateProviderIds: ['invoice', 'stripe'],
-          mode: 'configured',
+          mode: 'dependency',
+          overriddenProviderIds: [],
           selectedProviderId: 'stripe',
         },
       },
@@ -166,23 +158,20 @@ describe('LORION Nuxt module', () => {
       formatNuxtExtensionBootstrapLog({
         bootstrap,
         providerSelection: {
-          configuredProviders: {
-            payment: 'shop',
-          },
           excludedProviderIds: ['invoice'],
-          fallbackProviders: {},
-          mismatches: [],
           selections: {
             payment: {
               capabilityId: 'payment',
               candidateProviderIds: ['invoice', 'shop'],
-              mode: 'configured',
+              mode: 'dependency',
+              overriddenProviderIds: [],
               selectedProviderId: 'shop',
             },
             shipping: {
               capabilityId: 'shipping',
               candidateProviderIds: ['stripe'],
-              mode: 'configured',
+              mode: 'dependency',
+              overriddenProviderIds: [],
               selectedProviderId: 'stripe',
             },
           },

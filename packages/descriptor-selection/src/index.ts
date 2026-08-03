@@ -13,12 +13,12 @@ export type {
   ProviderSelectionResolution,
 } from '@lorion-org/provider-selection';
 import {
-  collectProviderDefaults,
-  collectProviderPreferences,
-  collectSelectedProviderPreferences,
+  collectProviderRequests,
+  collectProvidersByCapability,
+  type ProviderSelectionRequest,
   type ProviderSelectionResolution,
-  resolveItemProviderSelection,
-  resolveSelectedProviderRelationPreferences,
+  type ProvidersByCapability,
+  resolveProviderSelection,
 } from '@lorion-org/provider-selection';
 
 // Provider-aware descriptor selection: given a set of items that each carry a
@@ -27,19 +27,15 @@ import {
 // the item type, so build-time bundlers, runtime hosts, and framework adapters
 // share one selection brain instead of re-gluing the graph and provider layers.
 
-// The relations that make provider resolution work: a capability's default
-// provider (an incoming `defaultFor` edge) and its explicit provider preferences.
+// A capability's provider-owned default is an incoming edge. Dependencies that
+// target provider descriptors are interpreted as provider choices before graph
+// resolution and only the winning edge is retained.
 export const providerRelationDescriptors: RelationDescriptor[] = [
   { direction: 'incoming', field: 'defaultFor', id: 'defaultProviders' },
-  { field: 'providerPreferences', id: 'providerPreferences', targetMode: 'values' },
 ];
 
 // The relations walked when resolving, inspecting, and tracing provenance.
-export const defaultResolutionRelations = [
-  'dependencies',
-  'defaultProviders',
-  'providerPreferences',
-] as const;
+export const defaultResolutionRelations = ['dependencies', 'defaultProviders'] as const;
 
 export function descriptorSelectionPolicy(
   policy?: Partial<CompositionPolicy>,
@@ -219,92 +215,124 @@ export function assertSingleSelectedProvider(
   }
 }
 
-export interface ProviderSelectionInput<T> {
-  items: readonly T[];
-  selected: readonly DescriptorId[];
-  getDescriptor: (item: T) => Descriptor;
-  withDescriptor: (item: T, descriptor: Descriptor) => T;
+function assertNoRemovedProviderPreferences(descriptors: readonly Descriptor[]): void {
+  const offenders = descriptors
+    .filter((descriptor) => Object.hasOwn(descriptor, 'providerPreferences'))
+    .map((descriptor) => descriptor.id)
+    .sort();
+
+  if (offenders.length) {
+    throw new Error(
+      `Descriptors ${offenders.join(', ')} use removed "providerPreferences" metadata. Select a provider through dependencies instead.`,
+    );
+  }
 }
 
-// Apply one-provider-per-capability selection: for each explicitly selected
-// provider, drop the competing `defaultFor`/`providerPreferences` from the other
-// items so the graph resolves exactly one provider. Items are returned untouched
-// when no provider is selected.
-export function applyProviderSelection<T>(input: ProviderSelectionInput<T>): T[] {
-  const { items, selected, getDescriptor, withDescriptor } = input;
+function descriptorIds(value: DescriptorId | DescriptorId[] | undefined): DescriptorId[] {
+  return (Array.isArray(value) ? value : [value]).filter(
+    (entry): entry is DescriptorId => typeof entry === 'string' && entry.length > 0,
+  );
+}
 
-  const selectedProviders = collectSelectedProviderPreferences({
-    items,
-    getCapabilityId: (item) => getDescriptor(item).providesFor,
-    getProviderId: (item) => getDescriptor(item).id,
-    selectedProviderIds: selected,
+function sortedRequests(requests: ProviderSelectionRequest[]): ProviderSelectionRequest[] {
+  return requests.sort(
+    (left, right) =>
+      left.capabilityId.localeCompare(right.capabilityId) ||
+      left.providerId.localeCompare(right.providerId) ||
+      left.sourceId.localeCompare(right.sourceId),
+  );
+}
+
+function createProviderCapabilitiesById(
+  descriptors: readonly Descriptor[],
+): Map<DescriptorId, DescriptorId[]> {
+  return new Map(
+    descriptors
+      .filter((descriptor) => descriptor.providesFor)
+      .map((descriptor) => [descriptor.id, descriptorIds(descriptor.providesFor)]),
+  );
+}
+
+function createDependencyProviderRequests(input: {
+  descriptors: readonly Descriptor[];
+  providerCapabilitiesById: ReadonlyMap<DescriptorId, DescriptorId[]>;
+  resolvedIds: ReadonlySet<DescriptorId>;
+}): ProviderSelectionRequest[] {
+  const requests: ProviderSelectionRequest[] = [];
+
+  for (const descriptor of input.descriptors) {
+    if (!input.resolvedIds.has(descriptor.id)) continue;
+    for (const dependencyId of Object.keys(descriptor.dependencies ?? {})) {
+      for (const capabilityId of input.providerCapabilitiesById.get(dependencyId) ?? []) {
+        requests.push({ capabilityId, providerId: dependencyId, sourceId: descriptor.id });
+      }
+    }
+  }
+
+  return sortedRequests(requests);
+}
+
+function stripProviderActivationRelations(
+  descriptor: Descriptor,
+  providerIds: ReadonlySet<DescriptorId>,
+): Descriptor {
+  const dependencies = Object.fromEntries(
+    Object.entries(descriptor.dependencies ?? {}).filter(
+      ([dependencyId]) => !providerIds.has(dependencyId),
+    ),
+  );
+  const stripped: Descriptor = {
+    ...descriptor,
+    ...(Object.keys(dependencies).length ? { dependencies } : {}),
+  };
+  if (!Object.keys(dependencies).length) delete stripped.dependencies;
+  delete stripped.defaultFor;
+  return stripped;
+}
+
+function applyProviderResolution(
+  descriptor: Descriptor,
+  resolution: ProviderSelectionResolution,
+  providerCapabilitiesById: ReadonlyMap<DescriptorId, DescriptorId[]>,
+): Descriptor {
+  const dependencies = Object.fromEntries(
+    Object.entries(descriptor.dependencies ?? {}).filter(([dependencyId]) => {
+      const capabilityIds = providerCapabilitiesById.get(dependencyId);
+      if (!capabilityIds) return true;
+      return capabilityIds.some(
+        (capabilityId) =>
+          resolution.selections.get(capabilityId)?.selectedProviderId === dependencyId,
+      );
+    }),
+  );
+  const defaultFor = descriptorIds(descriptor.defaultFor).filter((capabilityId) => {
+    const selection = resolution.selections.get(capabilityId);
+    return selection?.mode === 'default' && selection.selectedProviderId === descriptor.id;
   });
-
-  if (!Object.keys(selectedProviders).length) return [...items];
-
-  return items.map((item) => {
-    const descriptor: Descriptor = { ...getDescriptor(item) };
-    const preferences = resolveSelectedProviderRelationPreferences({
-      providerId: descriptor.id,
-      defaultFor: descriptor.defaultFor,
-      providerPreferences: descriptor.providerPreferences,
-      selectedProviders,
-    });
-    delete descriptor.defaultFor;
-    delete descriptor.providerPreferences;
-    return withDescriptor(item, { ...descriptor, ...preferences });
-  });
+  const rewritten: Descriptor = {
+    ...descriptor,
+    ...(Object.keys(dependencies).length ? { dependencies } : {}),
+    ...(defaultFor.length
+      ? { defaultFor: Array.isArray(descriptor.defaultFor) ? defaultFor : defaultFor[0] }
+      : {}),
+  };
+  if (!Object.keys(dependencies).length) delete rewritten.dependencies;
+  if (!defaultFor.length) delete rewritten.defaultFor;
+  return rewritten;
 }
 
 export interface DescriptorSelectionInput<T> {
   items: readonly T[];
   // Read the descriptor an item carries.
   getDescriptor: (item: T) => Descriptor;
-  // Return a copy of the item with a rewritten descriptor (provider preferences
-  // applied). Keeps the item type opaque to this package.
+  // Return a copy with losing provider relations removed. Keeps the item type
+  // opaque to this package.
   withDescriptor: (item: T, descriptor: Descriptor) => T;
   seed: DescriptorSelectionSeed;
   // Extra relations to resolve alongside the provider relations (for example a
   // host's own dependency or grouping edges).
   relationDescriptors?: readonly RelationDescriptor[];
   policy?: Partial<CompositionPolicy>;
-}
-
-// Which provider won each contested capability, for a set of items and the ids a
-// host selected. Reports the winner, its `mode` (configured, selected, fallback or
-// first), the candidates and the providers that lost — so a host can show or check
-// the outcome instead of re-deriving it from the resolved set.
-export function describeProviderSelection<T>(input: {
-  items: readonly T[];
-  selected: readonly DescriptorId[];
-  getDescriptor: (item: T) => Descriptor;
-}): ProviderSelectionResolution {
-  const { items, selected, getDescriptor } = input;
-  const getCapabilityId = (item: T): Descriptor['providesFor'] => getDescriptor(item).providesFor;
-  const getProviderId = (item: T): DescriptorId => getDescriptor(item).id;
-
-  return resolveItemProviderSelection({
-    items,
-    getCapabilityId,
-    getProviderId,
-    fallbackProviders: {
-      ...collectProviderDefaults({
-        items,
-        getDefaultFor: (item) => getDescriptor(item).defaultFor,
-        getProviderId,
-      }),
-      ...collectProviderPreferences({
-        items,
-        getProviderPreferences: (item) => getDescriptor(item).providerPreferences,
-      }),
-    },
-    selectedProviders: collectSelectedProviderPreferences({
-      items,
-      getCapabilityId,
-      getProviderId,
-      selectedProviderIds: selected,
-    }),
-  });
 }
 
 // Resolve the active subset of items and report which provider won each contested
@@ -320,45 +348,122 @@ export function selectDescriptorsWithProviders<T>(input: DescriptorSelectionInpu
 } {
   const { items, getDescriptor, withDescriptor, seed } = input;
 
+  const declared = items.map(getDescriptor);
+  assertNoRemovedProviderPreferences(declared);
   const enabled = items.filter((item) => getDescriptor(item).disabled !== true);
+  const descriptors = enabled.map(getDescriptor);
   assertKnownProviderCapabilities({
-    declared: items.map(getDescriptor),
-    providers: enabled.map(getDescriptor),
+    declared,
+    providers: descriptors,
   });
-  assertSingleDefaultProvider(enabled.map(getDescriptor));
+  assertSingleDefaultProvider(descriptors);
 
   const selected = resolveDescriptorSelection(seed);
   const baseDescriptors = toDescriptorIds(seed.baseDescriptors, 'baseDescriptors');
-  assertSingleSelectedProvider(enabled.map(getDescriptor), selected);
+  const seedRoots = [...new Set([...selected, ...baseDescriptors])].sort();
+  assertSingleSelectedProvider(descriptors, seedRoots);
 
-  const selectionItems = applyProviderSelection({
-    items: enabled,
-    selected,
-    getDescriptor,
-    withDescriptor,
+  const providersByCapability: ProvidersByCapability = collectProvidersByCapability({
+    items: descriptors,
+    getCapabilityId: (descriptor) => descriptor.providesFor,
+    getProviderId: (descriptor) => descriptor.id,
   });
+  const providerCapabilitiesById = createProviderCapabilitiesById(descriptors);
+  const providerIds = new Set(providerCapabilitiesById.keys());
+  const descriptorsById = new Map(descriptors.map((descriptor) => [descriptor.id, descriptor]));
+  const explicitRequests = collectProviderRequests({
+    items: seedRoots
+      .map((id) => descriptorsById.get(id))
+      .filter((descriptor): descriptor is Descriptor => Boolean(descriptor?.providesFor)),
+    getCapabilityId: (descriptor) => descriptor.providesFor,
+    getProviderId: (descriptor) => descriptor.id,
+    getSourceId: (descriptor) => descriptor.id,
+  });
+  const defaultRequests = collectProviderRequests({
+    items: descriptors.filter((descriptor) => descriptor.defaultFor),
+    getCapabilityId: (descriptor) => descriptor.defaultFor,
+    getProviderId: (descriptor) => descriptor.id,
+    getSourceId: (descriptor) => descriptor.id,
+  });
+  const implicitSelected =
+    selected.length || baseDescriptors.length
+      ? []
+      : descriptors
+          .filter((descriptor) => !descriptor.providesFor)
+          .map((descriptor) => descriptor.id);
+  const strippedItems = enabled.map((item) =>
+    withDescriptor(item, stripProviderActivationRelations(getDescriptor(item), providerIds)),
+  );
+  const strippedCatalog = createDescriptorCatalog({
+    descriptors: strippedItems.map(getDescriptor),
+    relationDescriptors: [...providerRelationDescriptors, ...(input.relationDescriptors ?? [])],
+  });
+  const providerRoots = new Set(explicitRequests.map((request) => request.providerId));
+  let providerSelection: ProviderSelectionResolution = {
+    selections: new Map(),
+    excludedProviderIds: [],
+  };
+  let iterativeResolvedIds = new Set<DescriptorId>();
+
+  for (let iteration = 0; iteration <= descriptors.length + 1; iteration += 1) {
+    const closure = createCompositionSelection({
+      catalog: strippedCatalog,
+      selected: [...selected, ...implicitSelected, ...providerRoots],
+      baseDescriptors: [...baseDescriptors],
+      policy: descriptorSelectionPolicy(input.policy),
+    });
+    const nextResolvedIds = new Set(closure.getResolved());
+    const dependencyRequests = createDependencyProviderRequests({
+      descriptors,
+      providerCapabilitiesById,
+      resolvedIds: nextResolvedIds,
+    });
+    const requiredCapabilityIds = new Set([
+      ...Array.from(nextResolvedIds).filter((id) => providersByCapability.has(id)),
+      ...explicitRequests.map((request) => request.capabilityId),
+      ...dependencyRequests.map((request) => request.capabilityId),
+    ]);
+    const nextProviderSelection = resolveProviderSelection({
+      providersByCapability,
+      requiredCapabilityIds,
+      explicitRequests,
+      dependencyRequests,
+      defaultRequests,
+    });
+    const nextProviderRoots = new Set(
+      Array.from(nextProviderSelection.selections.values()).map(
+        (selection) => selection.selectedProviderId,
+      ),
+    );
+    const stable =
+      Array.from(nextResolvedIds).sort().join('\0') ===
+        Array.from(iterativeResolvedIds).sort().join('\0') &&
+      Array.from(nextProviderRoots).sort().join('\0') ===
+        Array.from(providerRoots).sort().join('\0');
+
+    iterativeResolvedIds = nextResolvedIds;
+    providerSelection = nextProviderSelection;
+    providerRoots.clear();
+    for (const providerId of nextProviderRoots) providerRoots.add(providerId);
+    if (stable) break;
+    if (iteration === descriptors.length + 1) {
+      throw new Error('Provider selection did not converge. Check provider dependency cycles.');
+    }
+  }
+
+  const selectionItems = enabled.map((item) =>
+    withDescriptor(
+      item,
+      applyProviderResolution(getDescriptor(item), providerSelection, providerCapabilitiesById),
+    ),
+  );
   const catalog = createDescriptorCatalog({
     descriptors: selectionItems.map(getDescriptor),
     relationDescriptors: [...providerRelationDescriptors, ...(input.relationDescriptors ?? [])],
   });
-
-  // Nothing to resolve against: with neither a selection nor a base floor, every
-  // enabled item takes part. Sorted like every other path, because the id order is
-  // a contract of this function and not of the path a given input happens to take.
-  if (!selected.length && !baseDescriptors.length) {
-    const items = [...enabled].sort((left, right) =>
-      getDescriptor(left).id.localeCompare(getDescriptor(right).id),
-    );
-    return {
-      items,
-      providerSelection: describeProviderSelection({ items, selected, getDescriptor }),
-      catalog,
-    };
-  }
-
   const selection = createCompositionSelection({
     catalog,
-    selected: [...selected],
+    selected: [...selected, ...implicitSelected],
     baseDescriptors: [...baseDescriptors],
     policy: descriptorSelectionPolicy(input.policy),
   });
@@ -367,22 +472,15 @@ export function selectDescriptorsWithProviders<T>(input: DescriptorSelectionInpu
   // workspace agree; it is NOT dependency order, and a host that needs its
   // dependencies mounted first sorts for that itself.
   const resolvedOrder = selection.getResolved();
-  const resolvedIds = new Set(resolvedOrder);
   const itemsById = new Map(selectionItems.map((item) => [getDescriptor(item).id, item]));
 
   return {
     items: resolvedOrder
       .map((id) => itemsById.get(id))
       .filter((item): item is T => item !== undefined),
-    // Described over the composed set, not the discovered one: a host that names an
-    // artifact after the winning provider must not be handed a provider that this
-    // composition never activates. The originally discovered descriptors are used
-    // because provider selection strips the `defaultFor` a report needs.
-    providerSelection: describeProviderSelection({
-      items: enabled.filter((item) => resolvedIds.has(getDescriptor(item).id)),
-      selected,
-      getDescriptor,
-    }),
+    // The same provider outcome that shaped the returned composition. Hosts can
+    // report it without rebuilding or re-resolving the catalog.
+    providerSelection,
     catalog,
   };
 }

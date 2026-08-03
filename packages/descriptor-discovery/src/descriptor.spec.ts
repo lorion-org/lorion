@@ -9,7 +9,10 @@ import type descriptorSchemaData from './descriptor.schema.json';
 // both the declared union and the typed descriptor to it, so the three cannot
 // drift. They live in a test because a JSON import reachable from the package
 // entry is inlined as a value into the emitted declaration file.
-type SchemaField = keyof typeof descriptorSchemaData.$defs.descriptor.properties;
+type DescriptorSchemaProperties = typeof descriptorSchemaData.$defs.descriptor.properties;
+type SchemaField = Exclude<keyof DescriptorSchemaProperties, 'providerPreferences'>;
+type RemovedProviderPreferencesStillAccepted =
+  false extends DescriptorSchemaProperties['providerPreferences'] ? never : 'providerPreferences';
 
 // A field the schema declares but `DescriptorField` does not, and the reverse.
 type FieldsOnlyInSchema = Exclude<SchemaField, DescriptorField>;
@@ -32,9 +35,10 @@ type Conformance = [
   FieldsOnlyInSchema,
   FieldsOnlyInUnion,
   UndeclaredOnType,
+  RemovedProviderPreferencesStillAccepted,
   UnexpectedManifestKey,
   MissingManifestKey,
-] extends [never, never, never, never, never]
+] extends [never, never, never, never, never, never]
   ? true
   : never;
 

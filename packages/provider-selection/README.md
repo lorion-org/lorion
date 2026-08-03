@@ -1,44 +1,17 @@
 # @lorion-org/provider-selection
 
-`@lorion-org/provider-selection` is a small framework-free core for selecting one
-provider per capability from multiple candidates.
+Framework-free selection of exactly one provider for each required capability.
 
-It solves these things:
+A provider declares which capability it implements. The public selection modes
+name why the provider won, in this order:
 
-- collect provider candidates by capability
-- collect provider-owned defaults from descriptors
-- collect provider preferences from descriptors or config-like records
-- collect explicit provider preferences from selected provider ids
-- optionally collect and resolve in one call
-- pick one provider with configured and fallback preferences
-- report misconfigured provider selections
-- return excluded providers that lost the selection
+1. `explicit`: a provider named directly as a composition root by the host
+2. `dependency`: a provider named as a descriptor dependency
+3. `default`: the provider declaring `defaultFor`
 
-Selection order is always:
-
-1. configured provider
-2. explicitly selected provider
-3. fallback provider
-4. first provider in deterministic sort order
-
-If a configured provider is set but not present among the candidates, the package
-does not silently fall back. It reports a mismatch and leaves that capability
-unselected.
-
-Example descriptors in this repository:
-
-- `examples/nuxt/layer-extensions/payment-provider-stripe/extension.json`
-- `examples/nuxt/layer-extensions/payment-provider-invoice/extension.json`
-- `examples/react-runtime/capabilities/payment-provider-stripe/capability.json`
-- `examples/react-runtime/capabilities/payment-provider-invoice/capability.json`
-
-It does not know anything about:
-
-- framework runtime config
-- feature manifests
-- plugins
-- filesystems
-- application-specific contract names
+There is no implicit "first provider" fallback. Distinct providers requested at
+the same tier are an error, as is a request for an unknown provider. A winner at
+a higher tier records the lower-tier provider ids it overrides.
 
 ## Install
 
@@ -48,190 +21,64 @@ pnpm add @lorion-org/provider-selection
 
 ## Example
 
-Use provider-owned defaults when a provider descriptor should decide the normal
-provider for a capability:
-
 ```ts
 import {
-  collectProviderDefaults,
+  collectProviderRequests,
   resolveItemProviderSelection,
 } from '@lorion-org/provider-selection';
 
-const descriptors = [
-  { id: 'payment-provider-stripe', providesFor: 'checkout', defaultFor: 'checkout' },
-  { id: 'payment-provider-invoice', providesFor: 'checkout' },
+const providers = [
+  { id: 'keycloak', providesFor: 'auth' },
+  { id: 'local-auth', providesFor: 'auth', defaultFor: 'auth' },
 ];
 
-const fallbackProviders = collectProviderDefaults({
-  items: descriptors,
-  getDefaultFor: (item) => item.defaultFor,
-  getProviderId: (item) => item.id,
-});
-
 const result = resolveItemProviderSelection({
-  items: descriptors,
-  getCapabilityId: (item) => item.providesFor,
-  getProviderId: (item) => item.id,
-  fallbackProviders,
+  items: providers,
+  getCapabilityId: (provider) => provider.providesFor,
+  getProviderId: (provider) => provider.id,
+  requiredCapabilityIds: ['auth'],
+  dependencyRequests: [{ capabilityId: 'auth', providerId: 'keycloak', sourceId: 'web' }],
+  explicitRequests: collectProviderRequests({
+    items: providers.filter((provider) => provider.id === 'local-auth'),
+    getCapabilityId: (provider) => provider.providesFor,
+    getProviderId: (provider) => provider.id,
+    getSourceId: (provider) => provider.id,
+  }),
+  defaultRequests: [{ capabilityId: 'auth', providerId: 'local-auth', sourceId: 'local-auth' }],
 });
 ```
 
-This selects Stripe with mode `fallback`. `providesFor` and `defaultFor` both
-accept a string or string array, so one provider can serve multiple capabilities.
+The host explicitly selects `local-auth`. Its selection has mode `explicit` and
+reports `keycloak` in `overriddenProviderIds`. The result also exposes the
+collected `providersByCapability` and all `excludedProviderIds`.
 
-Use explicit selected providers for seed-owned overrides. This is useful when a
-host app lets users select descriptors through a normal feature or profile seed,
-and a selected descriptor is also a provider for a capability:
+## Selection modes
 
-```ts
-import {
-  collectSelectedProviderPreferences,
-  resolveItemProviderSelection,
-} from '@lorion-org/provider-selection';
+`ProviderSelectionMode` is `'explicit' | 'dependency' | 'default'`:
 
-const selectedProviders = collectSelectedProviderPreferences({
-  items: descriptors,
-  getCapabilityId: (descriptor) => descriptor.providesFor,
-  getProviderId: (descriptor) => descriptor.id,
-  selectedProviderIds: ['payment-provider-invoice'],
-});
+- `explicit`: the host names the provider directly among its resolved composition
+  roots. This includes roots from `selected`, `baseDescriptors`, a CLI or
+  environment selection, and `defaultSelection`.
+- `dependency`: an active descriptor depends on the provider descriptor.
+- `default`: the provider declares `defaultFor` for the required capability.
 
-const result = resolveItemProviderSelection({
-  items: descriptors,
-  getCapabilityId: (descriptor) => descriptor.providesFor,
-  getProviderId: (descriptor) => descriptor.id,
-  fallbackProviders,
-  selectedProviders,
-});
-```
+These are public provenance terms, not names for the graph algorithm. Internally,
+Lorion may call the input that starts graph resolution a selection seed; provider
+reports use `explicit` so consumers do not need that implementation vocabulary.
 
-This selects Invoice with mode `selected`, even though Stripe owns the fallback
-default. Configured providers still have higher priority.
-
-Use configured providers for deployment-owned overrides:
-
-```ts
-import { resolveItemProviderSelection } from '@lorion-org/provider-selection';
-
-const result = resolveItemProviderSelection({
-  items: descriptors,
-  getCapabilityId: (item) => item.providesFor,
-  getProviderId: (item) => item.id,
-  configuredProviders: { checkout: 'payment-provider-invoice' },
-  fallbackProviders,
-});
-
-result.selections;
-result.providersByCapability;
-result.mismatches;
-result.excludedProviderIds;
-```
-
-If you already have a `Map<capability, providers>`, use the lower-level
-resolver directly:
-
-```ts
-import { resolveProviderSelection } from '@lorion-org/provider-selection';
-
-const result = resolveProviderSelection({
-  providersByCapability: new Map([
-    ['checkout', ['payment-provider-invoice', 'payment-provider-stripe']],
-  ]),
-  configuredProviders: {
-    checkout: 'missing-provider',
-  },
-});
-
-result.selections;
-result.mismatches;
-// => [{ capabilityId: 'checkout', configuredProviderId: 'missing-provider' }]
-```
-
-If profile or descriptor preferences are stored on descriptors, collect them as
-fallback preferences before resolving:
-
-```ts
-import {
-  collectProviderDefaults,
-  collectProviderPreferences,
-  resolveItemProviderSelection,
-} from '@lorion-org/provider-selection';
-
-const providerDefaults = collectProviderDefaults({
-  items: descriptors,
-  getDefaultFor: (descriptor) => descriptor.defaultFor,
-  getProviderId: (descriptor) => descriptor.id,
-});
-const descriptorPreferences = collectProviderPreferences({
-  items: descriptors,
-  getProviderPreferences: (descriptor) => descriptor.providerPreferences,
-});
-
-const result = resolveItemProviderSelection({
-  items: descriptors,
-  getCapabilityId: (descriptor) => descriptor.providesFor,
-  getProviderId: (descriptor) => descriptor.id,
-  fallbackProviders: {
-    ...providerDefaults,
-    ...descriptorPreferences,
-  },
-});
-```
+This package owns that vocabulary. `ProviderSelection`, composition reports, and
+the Nuxt public runtime config expose the values unchanged. Internal resolution
+may evolve behind them, but changing the `mode` field or one of its values is a
+coordinated breaking API and serialization change, not a local wording cleanup.
 
 ## API
 
-```ts
-type CapabilityId = string;
-type ProviderId = string;
-type ProviderSelectionMode = 'configured' | 'selected' | 'fallback' | 'first';
-type ProviderPreferenceMap = Partial<Record<CapabilityId, ProviderId>>;
-type ProvidersByCapability = Map<CapabilityId, ProviderId[]>;
-type ProviderCollectionInput<T> = {
-  items: Iterable<T>;
-  getCapabilityId: (item: T) => unknown;
-  getProviderId: (item: T) => ProviderId;
-};
-type SelectedProviderPreferenceCollectionInput<T> = ProviderCollectionInput<T> & {
-  selectedProviderIds: Iterable<ProviderId>;
-};
-type ProviderDefaultCollectionInput<T> = {
-  items: Iterable<T>;
-  getDefaultFor: (item: T) => unknown;
-  getProviderId: (item: T) => ProviderId;
-};
-
-type ProviderSelection = {
-  capabilityId: CapabilityId;
-  selectedProviderId: ProviderId;
-  candidateProviderIds: ProviderId[];
-  mode: ProviderSelectionMode;
-};
-
-type ProviderMismatch = {
-  capabilityId: CapabilityId;
-  configuredProviderId: ProviderId;
-};
-
-type ProviderSelectionResolution = {
-  selections: Map<CapabilityId, ProviderSelection>;
-  mismatches: ProviderMismatch[];
-  excludedProviderIds: ProviderId[];
-};
-
-type ItemProviderSelectionResolution = ProviderSelectionResolution & {
-  providersByCapability: ProvidersByCapability;
-};
-```
-
-The package exposes:
-
-- `collectProviderDefaults()`
-- `collectProviderPreferences()`
-- `collectProvidersByCapability()`
-- `collectSelectedProviderPreferences()`
-- `resolveItemProviderSelection()`
-- `resolveSelectedProviderRelationPreferences()`
-- `resolveProviderSelection()`
+- `collectProvidersByCapability()` groups candidates by capability.
+- `collectProviderRequests()` turns provider-like items into source-labelled
+  selection requests.
+- `resolveProviderSelection()` resolves pre-grouped candidates.
+- `resolveItemProviderSelection()` collects candidates and resolves them in one
+  call.
 
 ## Local commands
 

@@ -565,8 +565,18 @@ describe('CAPABILITY_SELECTION_OPTIONS', () => {
 
 describe('composition report', () => {
   const providers = [
-    { capabilityId: 'auth', selectedProviderId: 'auth-oidc', mode: 'fallback' },
-    { capabilityId: 'pay', selectedProviderId: 'pay-stripe', mode: 'selected' },
+    {
+      capabilityId: 'auth',
+      selectedProviderId: 'auth-oidc',
+      overriddenProviderIds: [],
+      mode: 'default',
+    },
+    {
+      capabilityId: 'pay',
+      selectedProviderId: 'pay-stripe',
+      overriddenProviderIds: ['pay-invoice'],
+      mode: 'explicit',
+    },
   ] as const;
 
   it('describes a resolution in descriptor terms and marks a winner that took no part', () => {
@@ -584,8 +594,20 @@ describe('composition report', () => {
     // the winner without saying so would credit a provider the run never built;
     // dropping it would hide a misconfiguration.
     expect(report.providers).toEqual([
-      { capability: 'auth', provider: 'auth-oidc', mode: 'fallback', resolved: true },
-      { capability: 'pay', provider: 'pay-stripe', mode: 'selected', resolved: false },
+      {
+        capability: 'auth',
+        provider: 'auth-oidc',
+        overridden: [],
+        mode: 'default',
+        resolved: true,
+      },
+      {
+        capability: 'pay',
+        provider: 'pay-stripe',
+        overridden: ['pay-invoice'],
+        mode: 'explicit',
+        resolved: false,
+      },
     ]);
     expect(notResolved(report)).toEqual(['pay-stripe', 'unused']);
   });
@@ -603,7 +625,7 @@ describe('composition report', () => {
     expect(notResolved(report)).toEqual(['admin']);
   });
 
-  it('renders every row a host shares, marking a fallback and a winner left out', () => {
+  it('renders every row a host shares, marking a default and a winner left out', () => {
     const report = describeComposition({
       requested: ['shell'],
       selected: ['shell'],

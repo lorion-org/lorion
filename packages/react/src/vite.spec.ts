@@ -420,7 +420,7 @@ describe('React capability Vite helpers', () => {
     );
   });
 
-  it('uses explicitly selected provider capabilities before preferences and defaults', () => {
+  it('uses explicitly selected provider capabilities before dependencies and defaults', () => {
     const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-capability-loader-'));
 
     writeCapability(workspaceRoot, 'auth', '@react-workspace/auth');
@@ -431,24 +431,25 @@ describe('React capability Vite helpers', () => {
       defaultFor: 'auth',
       providesFor: 'auth',
     });
-    writeCapability(workspaceRoot, 'feature-prefers-oidc', '@react-workspace/feature', {
-      providerPreferences: {
-        auth: 'auth-oidc',
+    writeCapability(workspaceRoot, 'feature-selects-oidc', '@react-workspace/feature', {
+      dependencies: {
+        auth: '0.1.0',
+        'auth-oidc': '0.1.0',
       },
     });
 
     const capabilities = discoverSelectedCapabilities(workspaceRoot, {
-      selected: ['auth', 'auth-local-jwt', 'feature-prefers-oidc'],
+      selected: ['auth', 'auth-local-jwt', 'feature-selects-oidc'],
     });
 
     expect(capabilities.map((capability) => capability.id)).toEqual([
       'auth',
       'auth-local-jwt',
-      'feature-prefers-oidc',
+      'feature-selects-oidc',
     ]);
   });
 
-  it('excludes default provider capabilities when a provider seed is selected with a host capability', () => {
+  it('excludes default provider capabilities when a provider is an explicit host root', () => {
     const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-capability-loader-'));
 
     writeCapability(workspaceRoot, 'web', '@react-workspace/web', {
@@ -790,7 +791,6 @@ function writeCapability(
         defaultFor?: string | string[];
         disabled?: boolean;
         exports?: Record<string, string>;
-        providerPreferences?: Record<string, string>;
         providesFor?: string | string[];
         runtimeConfig?: Record<string, unknown>;
       } = { './capability': './src/capability.ts' },
@@ -802,7 +802,6 @@ function writeCapability(
       'defaultFor' in exportsOrOptions ||
       'disabled' in exportsOrOptions ||
       'exports' in exportsOrOptions ||
-      'providerPreferences' in exportsOrOptions ||
       'providesFor' in exportsOrOptions ||
       'runtimeConfig' in exportsOrOptions)
       ? exportsOrOptions
@@ -816,7 +815,6 @@ function writeCapability(
       : { './capability': './src/capability.ts' };
   const dependencies = optionObject?.dependencies;
   const defaultFor = optionObject?.defaultFor;
-  const providerPreferences = optionObject?.providerPreferences;
   const providesFor = optionObject?.providesFor;
   const runtimeConfig = optionObject?.runtimeConfig;
 
@@ -829,7 +827,6 @@ function writeCapability(
       disabled,
       ...(dependencies ? { dependencies } : {}),
       ...(defaultFor ? { defaultFor } : {}),
-      ...(providerPreferences ? { providerPreferences } : {}),
       ...(providesFor ? { providesFor } : {}),
       ...(runtimeConfig ? { runtimeConfig } : {}),
     }),
@@ -1202,7 +1199,13 @@ describe('describeCapabilityComposition', () => {
     expect(report.resolved).toEqual(['auth', 'auth-oidc', 'platform', 'shop', 'storefront']);
     expect(report.discovered).toContain('storefront');
     expect(report.providers).toEqual([
-      { capability: 'auth', provider: 'auth-oidc', mode: 'fallback', resolved: true },
+      {
+        capability: 'auth',
+        mode: 'default',
+        overridden: [],
+        provider: 'auth-oidc',
+        resolved: true,
+      },
     ]);
     expect(notResolved(report)).toEqual(['admin']);
 

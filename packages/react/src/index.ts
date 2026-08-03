@@ -4,13 +4,6 @@ import {
   createDescriptorCatalog,
   type DescriptorCatalog,
 } from '@lorion-org/composition-graph';
-import {
-  collectProviderDefaults,
-  collectProviderPreferences,
-  resolveItemProviderSelection,
-  type ProviderPreferenceMap,
-  type ProviderSelectionResolution,
-} from '@lorion-org/provider-selection';
 import type { SchemaDescriptor } from '@lorion-org/descriptor-discovery';
 import { defaultCapabilityRelationDescriptors } from './relations';
 
@@ -75,49 +68,6 @@ export function createContributionContract<T>(id: string): ContributionContract<
     define: (values) => defineContribution(extensionPoint, values),
     get: (runtime) => runtime.getContributions(extensionPoint),
     use: () => useCapabilityRuntime().getContributions(extensionPoint),
-  };
-}
-
-export type CapabilityProviderSelectionOptions = {
-  configuredProviders?: ProviderPreferenceMap;
-  fallbackProviders?: ProviderPreferenceMap;
-  selectedProviders?: ProviderPreferenceMap;
-};
-
-export function getCapabilityProviderSelection(
-  runtime: CapabilityRuntime,
-  options: CapabilityProviderSelectionOptions = {},
-): ProviderSelectionResolution {
-  const descriptors = runtime.catalog.getAllDescriptors();
-  const descriptorPreferences = collectProviderPreferences({
-    items: descriptors,
-    getProviderPreferences: (descriptor) => descriptor.providerPreferences,
-  });
-  const providerDefaults = collectProviderDefaults({
-    items: descriptors,
-    getDefaultFor: (descriptor) => descriptor.defaultFor,
-    getProviderId: (descriptor) => descriptor.id,
-  });
-  const configuredProviders = options.configuredProviders ?? {};
-  const selectedProviders = options.selectedProviders ?? {};
-  const fallbackProviders = {
-    ...providerDefaults,
-    ...descriptorPreferences,
-    ...(options.fallbackProviders ?? {}),
-  };
-  const resolution = resolveItemProviderSelection({
-    items: descriptors,
-    getCapabilityId: (descriptor) => descriptor.providesFor,
-    getProviderId: (descriptor) => descriptor.id,
-    configuredProviders,
-    fallbackProviders,
-    selectedProviders,
-  });
-
-  return {
-    excludedProviderIds: resolution.excludedProviderIds,
-    mismatches: resolution.mismatches,
-    selections: resolution.selections,
   };
 }
 
