@@ -82,5 +82,5 @@ jobs:
         run: pnpm run examples:verify
 
       - name: Require a changeset for package changes
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && !startsWith(github.head_ref, 'changeset-release/')
         run: pnpm run changeset:check
