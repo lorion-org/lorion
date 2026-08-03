@@ -2,17 +2,18 @@
 const { data: overview } = await useFetch('/api/demo/overview');
 
 const extensionSelection = computed(() => overview.value?.extensionSelection);
-const providerSelections = computed(() =>
-  Object.values(overview.value?.providerSelection?.selections ?? {}),
-);
+const providerSlots = computed(() => overview.value?.providerSelection?.slots ?? []);
 const selectedProviderIds = computed(() =>
-  providerSelections.value
-    .map((selection) => selection.selectedProviderId)
-    .filter((id): id is string => Boolean(id)),
+  providerSlots.value
+    .filter((slot) => slot.state === 'selected')
+    .map((slot) => slot.selectedProviderId),
 );
 const providerCandidateIds = computed(() => [
-  ...new Set(providerSelections.value.flatMap((selection) => selection.candidateProviderIds)),
+  ...new Set(providerSlots.value.flatMap((slot) => slot.candidateProviderIds)),
 ]);
+const unfilledProviderCapabilities = computed(() =>
+  providerSlots.value.filter((slot) => slot.state === 'unfilled').map((slot) => slot.capabilityId),
+);
 </script>
 
 <template>
@@ -47,6 +48,15 @@ const providerCandidateIds = computed(() => [
         <h2>Provider candidates</h2>
         <ul class="list">
           <li v-for="id in providerCandidateIds" :key="id">
+            <span>{{ id }}</span>
+          </li>
+        </ul>
+      </article>
+
+      <article>
+        <h2>Unfilled provider slots</h2>
+        <ul class="list">
+          <li v-for="id in unfilledProviderCapabilities" :key="id">
             <span>{{ id }}</span>
           </li>
         </ul>

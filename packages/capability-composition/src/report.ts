@@ -1,5 +1,26 @@
 import type { DescriptorId } from '@lorion-org/composition-graph';
-import type { ProviderSelectionMode } from '@lorion-org/descriptor-selection';
+import type {
+  ProviderSelectionMode,
+  ProviderSlotResolution,
+} from '@lorion-org/descriptor-selection';
+
+export type CompositionProviderSlot =
+  | {
+      capability: DescriptorId;
+      state: 'selected';
+      required: boolean;
+      provider: DescriptorId;
+      candidates: readonly DescriptorId[];
+      mode: ProviderSelectionMode;
+      overridden: readonly DescriptorId[];
+      resolved: boolean;
+    }
+  | {
+      capability: DescriptorId;
+      state: 'unfilled';
+      required: false;
+      candidates: readonly DescriptorId[];
+    };
 
 // What one resolution amounts to, in terms every host shares: descriptor ids and
 // the provider outcome. Derived from a single resolution, so a report cannot
@@ -18,15 +39,10 @@ export interface CompositionReport {
   // What this composition activates, and everything the workspace holds.
   resolved: readonly DescriptorId[];
   discovered: readonly DescriptorId[];
-  // The winner of each contested capability, in capability order. `resolved` is
-  // false when that winner is not part of this composition.
-  providers: readonly {
-    capability: DescriptorId;
-    provider: DescriptorId;
-    mode: ProviderSelectionMode;
-    overridden: readonly DescriptorId[];
-    resolved: boolean;
-  }[];
+  // Every active provider slot in capability order. A selected slot names its
+  // winner and whether the winner is in this composition; an unfilled slot is a
+  // positive outcome rather than an omitted selection.
+  providerSlots: readonly CompositionProviderSlot[];
 }
 
 export interface DescribeCompositionInput {
@@ -38,14 +54,8 @@ export interface DescribeCompositionInput {
   // second to the first would make the count claim that nothing was left out. A
   // resolution returns it, so a host passes it through rather than deriving it.
   discovered: readonly DescriptorId[];
-  // Flattened from a `ProviderSelectionResolution`, so this module needs no
-  // knowledge of how a host stores it.
-  providers?: readonly {
-    capabilityId: DescriptorId;
-    selectedProviderId: DescriptorId;
-    mode: ProviderSelectionMode;
-    overriddenProviderIds?: readonly DescriptorId[];
-  }[];
+  // Passed through from the provider resolution that shaped `resolved`.
+  providerSlots?: readonly ProviderSlotResolution[];
 }
 
 // Every id list of a report is deduplicated and ordered the same way, so two
@@ -62,17 +72,27 @@ export function describeComposition(input: DescribeCompositionInput): Compositio
     base: sorted(input.base),
     resolved,
     discovered: sorted(input.discovered),
-    // Every contested capability, with whether its winner is part of this
-    // composition. A winner that is not says the host named a provider the
-    // run never built, which is the one thing a reader must not have to infer.
-    providers: (input.providers ?? [])
-      .map((selection) => ({
-        capability: selection.capabilityId,
-        provider: selection.selectedProviderId,
-        mode: selection.mode,
-        overridden: sorted(selection.overriddenProviderIds),
-        resolved: resolvedIds.has(selection.selectedProviderId),
-      }))
+    providerSlots: (input.providerSlots ?? [])
+      .map(
+        (slot): CompositionProviderSlot =>
+          slot.state === 'selected'
+            ? {
+                capability: slot.capabilityId,
+                state: 'selected',
+                required: slot.required,
+                provider: slot.selectedProviderId,
+                candidates: sorted(slot.candidateProviderIds),
+                mode: slot.mode,
+                overridden: sorted(slot.overriddenProviderIds),
+                resolved: resolvedIds.has(slot.selectedProviderId),
+              }
+            : {
+                capability: slot.capabilityId,
+                state: 'unfilled',
+                required: false,
+                candidates: sorted(slot.candidateProviderIds),
+              },
+      )
       .sort((left, right) => left.capability.localeCompare(right.capability)),
   };
 }
@@ -145,8 +165,8 @@ function wrapIds(ids: readonly string[], width: number): string[][] {
   return rows;
 }
 
-// Renders a report as lines: an aligned key column for what was asked and what won
-// each contested capability, then one hanging block per descriptor set.
+// Renders a report as lines: an aligned key column for what was asked and each
+// active provider-slot outcome, then one hanging block per descriptor set.
 export function formatCompositionReport(
   report: CompositionReport,
   options: CompositionReportOptions = {},
@@ -156,7 +176,7 @@ export function formatCompositionReport(
   const labelWidth = Math.max(
     MIN_LABEL_WIDTH,
     ...leadingRows.map((entry) => entry.label.length),
-    ...report.providers.map((entry) => entry.capability.length),
+    ...report.providerSlots.map((entry) => entry.capability.length),
   );
   const row = (label: string, value: string): string =>
     `${INDENT}${palette.label(label.padEnd(labelWidth))} ${value}`;
@@ -177,7 +197,15 @@ export function formatCompositionReport(
   if (report.selected.length) lines.push(row('Selected', idList(report.selected)));
   if (report.base.length) lines.push(row('Base', idList(report.base)));
 
-  for (const entry of report.providers) {
+  for (const entry of report.providerSlots) {
+    if (entry.state === 'unfilled') {
+      const detail = entry.candidates.length
+        ? `unfilled; candidates: ${entry.candidates.join(', ')}`
+        : 'unfilled; no candidates';
+      lines.push(row(entry.capability, palette.muted(`(${detail})`)));
+      continue;
+    }
+
     const note = entry.resolved
       ? entry.mode === DEFAULT_MODE
         ? palette.muted(' (default)')

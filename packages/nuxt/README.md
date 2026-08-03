@@ -97,9 +97,9 @@ runtime-config file conventions only when `lorion.runtimeConfig` is omitted. Set
 Runtime config stays separate from extension descriptors.
 
 Descriptors can also declare provider candidates with `providesFor`. The shared
-descriptor selection chooses one provider per required capability while it
-resolves the composition, and the module exposes that result in public runtime
-config as `providerSelection`.
+descriptor selection resolves every active provider slot and requires a winner
+only when a resolved descriptor depends on that capability. The module exposes
+selected and unfilled slots in public runtime config as `providerSelection`.
 
 ## Package shape
 
@@ -362,9 +362,10 @@ Provider extensions can declare the capability they implement:
 If a descriptor exists for that capability, the Nuxt bootstrap also treats
 `defaultFor` as a composition relation from the capability to the provider.
 
-The module writes a public `providerSelection` object with selected providers,
-candidates, overridden providers, and excluded providers. A descriptor selects a
-provider by depending on it alongside the capability it requires:
+The module writes the shared `providerSelection` result unchanged: a sorted
+`slots` array containing selected or unfilled slots plus `excludedProviderIds`.
+A descriptor selects a provider by depending on it alongside the capability it
+requires:
 
 ```json
 {
@@ -567,10 +568,10 @@ Runtime config for checkout, payments, and providers is loaded from
 
 The module also exposes a public `extensionSelection` runtime-config object with
 the selected profile, resolved descriptors, and active layer extension ids. The
-module exposes a public `providerSelection` object with the selected provider,
-candidate providers, selection mode, and excluded providers. The example app reads
-those objects on `/tech` and its demo API returns a minimal view of them from
-`/api/demo/overview`.
+module exposes the shared public `providerSelection` result with selected and
+unfilled slots, candidates, requirement state, selection mode, and excluded
+providers. The example app reads it on `/tech`; its demo API returns the same
+projection from `/api/demo/overview`.
 
 Demo extensions:
 

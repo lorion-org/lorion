@@ -86,30 +86,26 @@ describe('resolveProviderSelection', () => {
       ],
     });
 
-    expect(result.selections).toEqual(
-      new Map([
-        [
-          'auth',
-          {
-            capabilityId: 'auth',
-            selectedProviderId: 'auth-local',
-            candidateProviderIds: ['auth-local', 'auth-oidc'],
-            overriddenProviderIds: ['auth-oidc'],
-            mode: 'explicit',
-          },
-        ],
-        [
-          'checkout',
-          {
-            capabilityId: 'checkout',
-            selectedProviderId: 'checkout-invoice',
-            candidateProviderIds: ['checkout-invoice', 'checkout-stripe'],
-            overriddenProviderIds: ['checkout-stripe'],
-            mode: 'dependency',
-          },
-        ],
-      ]),
-    );
+    expect(result.slots).toEqual([
+      {
+        capabilityId: 'auth',
+        state: 'selected',
+        required: true,
+        selectedProviderId: 'auth-local',
+        candidateProviderIds: ['auth-local', 'auth-oidc'],
+        overriddenProviderIds: ['auth-oidc'],
+        mode: 'explicit',
+      },
+      {
+        capabilityId: 'checkout',
+        state: 'selected',
+        required: true,
+        selectedProviderId: 'checkout-invoice',
+        candidateProviderIds: ['checkout-invoice', 'checkout-stripe'],
+        overriddenProviderIds: ['checkout-stripe'],
+        mode: 'dependency',
+      },
+    ]);
     expect(result.excludedProviderIds).toEqual(['auth-oidc', 'checkout-stripe']);
   });
 
@@ -120,10 +116,58 @@ describe('resolveProviderSelection', () => {
       defaultRequests: [request('auth', 'auth-oidc', 'auth-oidc')],
     });
 
-    expect(result.selections.get('auth')).toMatchObject({
+    expect(result.slots[0]).toMatchObject({
+      state: 'selected',
+      required: true,
       mode: 'default',
       selectedProviderId: 'auth-oidc',
     });
+  });
+
+  it('keeps an active capability unfilled when no consumer requires a provider', () => {
+    const result = resolveProviderSelection({
+      providersByCapability,
+      activeCapabilityIds: ['auth'],
+      requiredCapabilityIds: [],
+    });
+
+    expect(result).toEqual({
+      slots: [
+        {
+          capabilityId: 'auth',
+          state: 'unfilled',
+          required: false,
+          candidateProviderIds: ['auth-local', 'auth-oidc'],
+        },
+      ],
+      excludedProviderIds: ['auth-local', 'auth-oidc'],
+    });
+  });
+
+  it('applies a default to an active capability without making it required', () => {
+    const result = resolveProviderSelection({
+      providersByCapability,
+      activeCapabilityIds: ['auth'],
+      requiredCapabilityIds: [],
+      defaultRequests: [request('auth', 'auth-oidc', 'auth-oidc')],
+    });
+
+    expect(result.slots[0]).toMatchObject({
+      state: 'selected',
+      required: false,
+      mode: 'default',
+      selectedProviderId: 'auth-oidc',
+    });
+  });
+
+  it('does not activate a capability from a default alone', () => {
+    expect(
+      resolveProviderSelection({
+        providersByCapability,
+        requiredCapabilityIds: [],
+        defaultRequests: [request('auth', 'auth-oidc', 'auth-oidc')],
+      }),
+    ).toEqual({ slots: [], excludedProviderIds: [] });
   });
 
   it('rejects two providers at the active precedence tier and names their sources', () => {
@@ -155,6 +199,19 @@ describe('resolveProviderSelection', () => {
     ).toThrow(
       /auth.*multiple dependency providers.*auth-local \(distribution-a\).*auth-oidc \(distribution-b\)/s,
     );
+  });
+
+  it('rejects conflicting defaults even when the capability is inactive', () => {
+    expect(() =>
+      resolveProviderSelection({
+        providersByCapability,
+        requiredCapabilityIds: [],
+        defaultRequests: [
+          request('auth', 'auth-local', 'auth-local'),
+          request('auth', 'auth-oidc', 'auth-oidc'),
+        ],
+      }),
+    ).toThrow(/auth.*multiple default providers.*auth-local.*auth-oidc/s);
   });
 
   it('rejects missing choices instead of selecting the first candidate', () => {
@@ -197,7 +254,9 @@ describe('resolveItemProviderSelection', () => {
         ['mailer', ['mailer-postmark']],
       ]),
     );
-    expect(result.selections.get('auth')).toMatchObject({
+    expect(result.slots[0]).toMatchObject({
+      state: 'selected',
+      required: true,
       selectedProviderId: 'auth-local',
       mode: 'dependency',
     });

@@ -318,7 +318,7 @@ export function createNuxtExtensionBootstrap(input: {
     });
   const emptyProviderSelection = (): ProviderSelectionResolution => ({
     excludedProviderIds: [],
-    selections: new Map(),
+    slots: [],
   });
 
   if (options.enabled === false) {
@@ -418,7 +418,7 @@ export function createNuxtProviderSelectionRuntimeConfig(
     public: {
       [publicRuntimeConfigKey]: {
         excludedProviderIds: resolution.excludedProviderIds,
-        selections: Object.fromEntries(resolution.selections),
+        slots: resolution.slots,
       } satisfies NuxtProviderSelectionRuntimeConfig,
     },
   };

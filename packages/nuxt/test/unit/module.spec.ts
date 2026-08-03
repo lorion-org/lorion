@@ -109,15 +109,17 @@ describe('LORION Nuxt module', () => {
         public: {
           providerSelection: {
             excludedProviderIds: ['invoice'],
-            selections: {
-              payment: {
+            slots: [
+              {
                 capabilityId: 'payment',
+                state: 'selected',
+                required: true,
                 candidateProviderIds: ['invoice', 'stripe'],
                 mode: 'dependency',
                 overriddenProviderIds: [],
                 selectedProviderId: 'stripe',
               },
-            },
+            ],
           },
         },
       },
@@ -125,15 +127,17 @@ describe('LORION Nuxt module', () => {
 
     expect(event.providerSelection).toEqual({
       excludedProviderIds: ['invoice'],
-      selections: {
-        payment: {
+      slots: [
+        {
           capabilityId: 'payment',
+          state: 'selected',
+          required: true,
           candidateProviderIds: ['invoice', 'stripe'],
           mode: 'dependency',
           overriddenProviderIds: [],
           selectedProviderId: 'stripe',
         },
-      },
+      ],
     });
   });
 
@@ -159,22 +163,26 @@ describe('LORION Nuxt module', () => {
         bootstrap,
         providerSelection: {
           excludedProviderIds: ['invoice'],
-          selections: {
-            payment: {
+          slots: [
+            {
               capabilityId: 'payment',
+              state: 'selected',
+              required: true,
               candidateProviderIds: ['invoice', 'shop'],
               mode: 'dependency',
               overriddenProviderIds: [],
               selectedProviderId: 'shop',
             },
-            shipping: {
+            {
               capabilityId: 'shipping',
+              state: 'selected',
+              required: true,
               candidateProviderIds: ['stripe'],
               mode: 'dependency',
               overriddenProviderIds: [],
               selectedProviderId: 'stripe',
             },
-          },
+          ],
         },
       }),
     ).toBe(

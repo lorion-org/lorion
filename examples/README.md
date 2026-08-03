@@ -42,3 +42,8 @@ thing these examples model — and can never be mistaken for a published
 model the same fictional consumer's capability packages, not two different
 vendors. Contract ids follow the same convention (`acme.*`). The Nuxt example
 needs no scope: Nuxt layers are directories, not npm packages.
+
+All three examples expose the same provider-slot outcome on `/tech`: selected
+providers, all candidates, and active slots that intentionally remain unfilled.
+Nuxt reads it from public runtime config; both React models read the identical
+`providerSelection` structure from `virtual:capabilities`.

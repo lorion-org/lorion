@@ -34,7 +34,8 @@ helpers:
 
 - descriptors describe available layers and profiles
 - the composition graph resolves the selected profile
-- provider selection chooses one implementation per capability
+- provider selection models active capability slots and requires an implementation
+  only when an active consumer depends on that capability
 - runtime-config packages keep layer-owned config scoped and projectable
 - framework adapters activate the resolved application shape
 

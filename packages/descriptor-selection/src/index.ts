@@ -11,11 +11,13 @@ import {
 export type {
   ProviderSelectionMode,
   ProviderSelectionResolution,
+  ProviderSlotResolution,
 } from '@lorion-org/provider-selection';
 import {
   collectProviderRequests,
   collectProvidersByCapability,
   type ProviderSelectionRequest,
+  type ProviderSelection,
   type ProviderSelectionResolution,
   type ProvidersByCapability,
   resolveProviderSelection,
@@ -23,7 +25,7 @@ import {
 
 // Provider-aware descriptor selection: given a set of items that each carry a
 // descriptor and a selection seed, resolve the active subset — applying
-// dependency resolution and one-provider-per-capability selection. Generic over
+// dependency resolution and active provider-slot selection. Generic over
 // the item type, so build-time bundlers, runtime hosts, and framework adapters
 // share one selection brain instead of re-gluing the graph and provider layers.
 
@@ -272,6 +274,39 @@ function createDependencyProviderRequests(input: {
   return sortedRequests(requests);
 }
 
+function createRequiredCapabilityIds(input: {
+  descriptors: readonly Descriptor[];
+  providerCapabilitiesById: ReadonlyMap<DescriptorId, DescriptorId[]>;
+  providersByCapability: ProvidersByCapability;
+  resolvedIds: ReadonlySet<DescriptorId>;
+}): DescriptorId[] {
+  const required = new Set<DescriptorId>();
+
+  for (const descriptor of input.descriptors) {
+    if (!input.resolvedIds.has(descriptor.id)) continue;
+    for (const dependencyId of Object.keys(descriptor.dependencies ?? {})) {
+      if (input.providersByCapability.has(dependencyId)) required.add(dependencyId);
+      for (const capabilityId of input.providerCapabilitiesById.get(dependencyId) ?? []) {
+        required.add(capabilityId);
+      }
+    }
+  }
+
+  return [...required].sort();
+}
+
+function selectedProviderSlots(resolution: ProviderSelectionResolution): ProviderSelection[] {
+  return resolution.slots.filter((slot): slot is ProviderSelection => slot.state === 'selected');
+}
+
+function selectedProviderFor(
+  resolution: ProviderSelectionResolution,
+  capabilityId: DescriptorId,
+): ProviderSelection | undefined {
+  const slot = resolution.slots.find((entry) => entry.capabilityId === capabilityId);
+  return slot?.state === 'selected' ? slot : undefined;
+}
+
 function stripProviderActivationRelations(
   descriptor: Descriptor,
   providerIds: ReadonlySet<DescriptorId>,
@@ -301,12 +336,12 @@ function applyProviderResolution(
       if (!capabilityIds) return true;
       return capabilityIds.some(
         (capabilityId) =>
-          resolution.selections.get(capabilityId)?.selectedProviderId === dependencyId,
+          selectedProviderFor(resolution, capabilityId)?.selectedProviderId === dependencyId,
       );
     }),
   );
   const defaultFor = descriptorIds(descriptor.defaultFor).filter((capabilityId) => {
-    const selection = resolution.selections.get(capabilityId);
+    const selection = selectedProviderFor(resolution, capabilityId);
     return selection?.mode === 'default' && selection.selectedProviderId === descriptor.id;
   });
   const rewritten: Descriptor = {
@@ -400,7 +435,7 @@ export function selectDescriptorsWithProviders<T>(input: DescriptorSelectionInpu
   });
   const providerRoots = new Set(explicitRequests.map((request) => request.providerId));
   let providerSelection: ProviderSelectionResolution = {
-    selections: new Map(),
+    slots: [],
     excludedProviderIds: [],
   };
   let iterativeResolvedIds = new Set<DescriptorId>();
@@ -418,22 +453,25 @@ export function selectDescriptorsWithProviders<T>(input: DescriptorSelectionInpu
       providerCapabilitiesById,
       resolvedIds: nextResolvedIds,
     });
-    const requiredCapabilityIds = new Set([
-      ...Array.from(nextResolvedIds).filter((id) => providersByCapability.has(id)),
-      ...explicitRequests.map((request) => request.capabilityId),
-      ...dependencyRequests.map((request) => request.capabilityId),
-    ]);
+    const activeCapabilityIds = Array.from(nextResolvedIds).filter((id) =>
+      providersByCapability.has(id),
+    );
+    const requiredCapabilityIds = createRequiredCapabilityIds({
+      descriptors,
+      providerCapabilitiesById,
+      providersByCapability,
+      resolvedIds: nextResolvedIds,
+    });
     const nextProviderSelection = resolveProviderSelection({
       providersByCapability,
       requiredCapabilityIds,
+      activeCapabilityIds,
       explicitRequests,
       dependencyRequests,
       defaultRequests,
     });
     const nextProviderRoots = new Set(
-      Array.from(nextProviderSelection.selections.values()).map(
-        (selection) => selection.selectedProviderId,
-      ),
+      selectedProviderSlots(nextProviderSelection).map((selection) => selection.selectedProviderId),
     );
     const stable =
       Array.from(nextResolvedIds).sort().join('\0') ===

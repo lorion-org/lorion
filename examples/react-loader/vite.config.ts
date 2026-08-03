@@ -32,6 +32,7 @@ const capabilityAliases = readdirSync(capabilitiesRoot, { withFileTypes: true })
 // always-on base and which is the default selection, because that is a property of
 // this run and not of the grouping file.
 const baseBundle = 'commerce';
+const optionalProviderSlot = 'product-theme';
 const defaultBundle = 'storefront';
 
 const activation = conventionActivation({
@@ -80,7 +81,7 @@ export default defineConfig({
     capabilityLoader({
       workspaceRoot: projectRoot,
       bundles: { cwd: projectRoot },
-      baseDescriptors: [baseBundle],
+      baseDescriptors: [baseBundle, optionalProviderSlot],
       defaultSelection: [defaultBundle],
       selectionSeed: { cliKeys: ['features'], envKeys: ['LORION_FEATURES'] },
       surface: { name: 'web', resolver: activation },

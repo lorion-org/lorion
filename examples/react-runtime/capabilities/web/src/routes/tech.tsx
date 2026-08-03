@@ -11,6 +11,12 @@ function TechMonitor(): ReactElement {
   const { capabilityRuntime } = Route.useRouteContext();
   const overview = useMemo(() => createDemoOverview(capabilityRuntime), [capabilityRuntime]);
   const activeProviderIds = getPaymentProviders(capabilityRuntime).map((provider) => provider.id);
+  const providerCandidateIds = [
+    ...new Set(overview.providerSelection.slots.flatMap((slot) => slot.candidateProviderIds)),
+  ];
+  const unfilledProviderSlots = overview.providerSelection.slots
+    .filter((slot) => slot.state === 'unfilled')
+    .map((slot) => slot.capabilityId);
 
   return (
     <main className="page page-wide">
@@ -27,6 +33,8 @@ function TechMonitor(): ReactElement {
           values={overview.capabilitySelection.resolvedCapabilityIds}
         />
         <MonitorCard title="Active provider" values={activeProviderIds} />
+        <MonitorCard title="Provider candidates" values={providerCandidateIds} />
+        <MonitorCard title="Unfilled provider slots" values={unfilledProviderSlots} />
         <MonitorCard
           title="Not injected"
           values={overview.capabilitySelection.notInjectedCapabilityIds}

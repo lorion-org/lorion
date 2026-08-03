@@ -9,6 +9,17 @@
         "payment-provider-stripe": "^1.0.0"
       }
     },
-    { "id": "storefront", "version": "0.0.0", "dependencies": { "web": "^1.0.0" } }
+    { "id": "storefront", "version": "0.0.0", "dependencies": { "web": "^1.0.0" } },
+    { "id": "product-theme", "version": "0.0.0" },
+    {
+      "id": "theme-classic",
+      "version": "0.0.0",
+      "providesFor": "product-theme"
+    },
+    {
+      "id": "theme-contrast",
+      "version": "0.0.0",
+      "providesFor": "product-theme"
+    }
   ]
 }

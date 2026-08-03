@@ -1,4 +1,8 @@
-import { resolvedCapabilityIds, selectedCapabilityIds } from 'virtual:capabilities';
+import {
+  providerSelection,
+  resolvedCapabilityIds,
+  selectedCapabilityIds,
+} from 'virtual:capabilities';
 import type { HostRuntime } from './plugin';
 import {
   PAYMENT_PROVIDER_EXTENSION,
@@ -32,5 +36,6 @@ export function createDemoOverview(runtime: HostRuntime) {
     ),
     notInjectedCapabilityIds: discoveredCapabilityIds.filter((id) => !resolvedSet.has(id)),
     selectedProviderIds: providers.map((provider) => provider.id),
+    providerSelection,
   };
 }

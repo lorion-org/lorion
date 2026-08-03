@@ -5,6 +5,12 @@ import { createDemoOverview } from '../../../src/demoOverview';
 export function TechMonitorPage(): ReactElement {
   const runtime = useHostRuntime();
   const overview = createDemoOverview(runtime);
+  const providerCandidateIds = [
+    ...new Set(overview.providerSelection.slots.flatMap((slot) => slot.candidateProviderIds)),
+  ];
+  const unfilledProviderSlots = overview.providerSelection.slots
+    .filter((slot) => slot.state === 'unfilled')
+    .map((slot) => slot.capabilityId);
 
   return (
     <main className="page page-wide">
@@ -18,6 +24,8 @@ export function TechMonitorPage(): ReactElement {
       <section className="grid">
         <MonitorCard title="Resolved capabilities" values={overview.resolvedCapabilityIds} />
         <MonitorCard title="Selected provider" values={overview.selectedProviderIds} />
+        <MonitorCard title="Provider candidates" values={providerCandidateIds} />
+        <MonitorCard title="Unfilled provider slots" values={unfilledProviderSlots} />
         <MonitorCard title="Not injected" values={overview.notInjectedCapabilityIds} />
       </section>
     </main>

@@ -475,6 +475,28 @@ describe('React capability Vite helpers', () => {
     ]);
   });
 
+  it('emits an active unfilled provider slot through the React virtual module', () => {
+    const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-capability-loader-'));
+
+    writeCapability(workspaceRoot, 'product', '@react-workspace/product');
+    writeCapability(workspaceRoot, 'product-a', '@react-workspace/product-a', {
+      providesFor: 'product',
+    });
+    writeCapability(workspaceRoot, 'product-b', '@react-workspace/product-b', {
+      providesFor: 'product',
+    });
+
+    const plugin = capabilityLoader({ workspaceRoot, baseDescriptors: ['product'] });
+    plugin.configResolved({ root: workspaceRoot });
+    const moduleId = plugin.resolveId('virtual:capabilities');
+    const source = moduleId ? plugin.load(moduleId) : null;
+
+    expect(source).toContain('export const providerSelection =');
+    expect(source).toContain(
+      '"capabilityId":"product","state":"unfilled","required":false,"candidateProviderIds":["product-a","product-b"]',
+    );
+  });
+
   it('builds route config from selected capabilities only', () => {
     const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-capability-loader-'));
     const hostRoutesDirectory = join(workspaceRoot, 'hosts', 'web', 'src', 'routes');
@@ -1198,9 +1220,12 @@ describe('describeCapabilityComposition', () => {
     expect(report.base).toEqual(['auth']);
     expect(report.resolved).toEqual(['auth', 'auth-oidc', 'platform', 'shop', 'storefront']);
     expect(report.discovered).toContain('storefront');
-    expect(report.providers).toEqual([
+    expect(report.providerSlots).toEqual([
       {
         capability: 'auth',
+        state: 'selected',
+        required: false,
+        candidates: ['auth-oidc'],
         mode: 'default',
         overridden: [],
         provider: 'auth-oidc',

@@ -436,15 +436,59 @@ describe('Nuxt extension bootstrap', () => {
       public: {
         providerSelection: {
           excludedProviderIds: ['payment-provider-invoice'],
-          selections: {
-            payment: {
+          slots: [
+            {
               capabilityId: 'payment',
+              state: 'selected',
+              required: true,
               candidateProviderIds: ['payment-provider-invoice', 'payment-provider-stripe'],
               mode: 'dependency',
               overriddenProviderIds: [],
               selectedProviderId: 'payment-provider-stripe',
             },
-          },
+          ],
+        },
+      },
+    });
+  });
+
+  it('publishes an active unfilled provider slot through Nuxt runtime config', () => {
+    const root = createTempRoot();
+
+    createExtension(root, 'product', { id: 'product', version: '1.0.0' });
+    createExtension(root, 'product-a', {
+      id: 'product-a',
+      providesFor: 'product',
+      version: '1.0.0',
+    });
+    createExtension(root, 'product-b', {
+      id: 'product-b',
+      providesFor: 'product',
+      version: '1.0.0',
+    });
+
+    const bootstrap = createNuxtExtensionBootstrap({
+      rootDir: root,
+      options: {
+        baseDescriptors: ['product'],
+        defaultSelection: [],
+        selectionSeed: false,
+      },
+    });
+
+    expect(bootstrap.resolvedExtensionIds).toEqual(['product']);
+    expect(createNuxtProviderSelectionRuntimeConfig(bootstrap.providerSelection)).toEqual({
+      public: {
+        providerSelection: {
+          excludedProviderIds: ['product-a', 'product-b'],
+          slots: [
+            {
+              capabilityId: 'product',
+              state: 'unfilled',
+              required: false,
+              candidateProviderIds: ['product-a', 'product-b'],
+            },
+          ],
         },
       },
     });
@@ -483,15 +527,17 @@ describe('Nuxt extension bootstrap', () => {
       public: {
         providerSelection: {
           excludedProviderIds: ['auth-local-jwt'],
-          selections: {
-            auth: {
+          slots: [
+            {
               capabilityId: 'auth',
+              state: 'selected',
+              required: true,
               candidateProviderIds: ['auth-local-jwt', 'auth-oidc'],
               mode: 'default',
               overriddenProviderIds: [],
               selectedProviderId: 'auth-oidc',
             },
-          },
+          ],
         },
       },
     });
@@ -556,13 +602,16 @@ describe('Nuxt extension bootstrap', () => {
       public: {
         providerSelection: {
           excludedProviderIds: ['auth-oidc'],
-          selections: {
-            auth: {
+          slots: [
+            {
+              capabilityId: 'auth',
+              state: 'selected',
+              required: true,
               mode: 'explicit',
               overriddenProviderIds: ['auth-oidc'],
               selectedProviderId: 'auth-local-jwt',
             },
-          },
+          ],
         },
       },
     });
@@ -615,14 +664,17 @@ describe('Nuxt extension bootstrap', () => {
       public: {
         providerSelection: {
           excludedProviderIds: ['auth-oidc'],
-          selections: {
-            auth: {
+          slots: [
+            {
+              capabilityId: 'auth',
+              state: 'selected',
+              required: true,
               candidateProviderIds: ['auth-local-jwt', 'auth-oidc'],
               mode: 'explicit',
               overriddenProviderIds: ['auth-oidc'],
               selectedProviderId: 'auth-local-jwt',
             },
-          },
+          ],
         },
       },
     });

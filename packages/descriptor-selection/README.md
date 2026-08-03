@@ -4,7 +4,7 @@ Framework-free, provider-aware descriptor selection.
 
 Given a set of items that each carry a descriptor and a selection seed, it
 resolves the active subset: it parses the seed (explicit selection, or CLI/env
-with a default selection), applies **one-provider-per-capability** selection,
+with a default selection), applies provider-slot selection,
 builds the dependency graph, and returns the items reachable from the selection
 and the always-on base, ordered by id. The order is stable for a given input and
 independent of discovery order; it is not dependency order.
@@ -52,6 +52,14 @@ discovery order never decides the winner. Provider descriptors named through the
 host's resolved selection or `baseDescriptors` belong to the `explicit` tier.
 Provider reports forward the public provenance contract owned by
 `@lorion-org/provider-selection`; `seed` remains the internal graph-input concept.
+
+Base membership means participation, not consumption. When an active capability
+has provider candidates but no resolved descriptor depends on it, the result
+keeps the capability active and reports an `unfilled` provider slot. A dependency
+from a resolved descriptor makes the slot required; leaving that slot unfilled is
+a composition error. Dependencies of descriptors outside the resolved set do not
+create requirements. A `defaultFor` provider may fill either a required slot or a
+participating, non-required slot.
 
 The removed `providerPreferences` field is rejected explicitly. Replace it with
 a dependency on the provider so stale metadata cannot silently select a default.

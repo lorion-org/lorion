@@ -12,6 +12,7 @@ const generatedRouteTree = resolve(projectRoot, 'src/routeTree.gen.ts');
 // always-on base and which is the default selection, because that is a property of
 // this run and not of the grouping file.
 const baseBundle = 'commerce';
+const optionalProviderSlot = 'product-theme';
 const defaultBundle = 'storefront';
 
 const lorion = lorionReact({
@@ -25,7 +26,7 @@ const lorion = lorionReact({
   // default), the default selection `storefront` is the full shop. --features /
   // LORION_FEATURES replaces the selection, the `commerce` base stays on.
   bundles: { cwd: projectRoot },
-  baseDescriptors: [baseBundle],
+  baseDescriptors: [baseBundle, optionalProviderSlot],
   defaultSelection: [defaultBundle],
 });
 

@@ -12,8 +12,8 @@ pnpm add @lorion-org/capability-composition
 
 ## API
 
-- `resolveSelectedCapabilities(input)` resolves the active capabilities: base descriptors, the selection seed, transitive dependencies, and exactly one provider per capability. Items come back ordered by id: stable for a given input and independent of discovery order, but not dependency order.
-- `resolveCapabilitySelection(input)` resolves the same set and additionally returns the `ProviderSelectionResolution` (which provider won each contested capability, in which mode, and which ones lost) and `discovered`, every descriptor id the run knew about, groupings and nested descriptors included. It describes the composed set, so a host can name an artifact after the winner or report on the run.
+- `resolveSelectedCapabilities(input)` resolves the active capabilities: base descriptors, the selection seed, transitive dependencies, and active provider slots. A slot may remain unfilled unless a resolved descriptor requires its capability. Items come back ordered by id: stable for a given input and independent of discovery order, but not dependency order.
+- `resolveCapabilitySelection(input)` resolves the same set and additionally returns the `ProviderSelectionResolution`: every active provider slot, whether it is selected or unfilled, whether it was required, its candidates, and the winning mode where applicable. It also returns `discovered`, every descriptor id the run knew about, groupings and nested descriptors included.
 - `CapabilitySelectionInput` is the composition contract every host adapter accepts: `workspaceRoot`, `capabilitiesDir`, `descriptorPaths`, `descriptorSchema`, `virtualDescriptors`, `bundles`, `nestedField`, `relationDescriptors`, `policy` and `seed`. `CAPABILITY_SELECTION_OPTIONS` enumerates the options an adapter must forward. Each adapter's test suite carries one behavioural case per entry, and a missing case fails to compile.
 - `conventionActivation(surfaces)` builds an activation resolver from per-surface conventions (a file-layout marker plus an export-name derivation), so descriptors carry no surface config. Re-exported from [`@lorion-org/surface-activation`](../surface-activation), which owns the addressing convention.
 - `composeCapabilities(input)` takes `CapabilityCompositionInput`, the selection input plus `surface`, `activation`, `load` and `register`. It forwards the selection input whole, so a runtime composition resolves exactly what the build-time one does. It resolves the active set and, for each capability that provides the surface, loads its module and hands the exported value to the host's registration. Registry- and framework-agnostic.
@@ -38,6 +38,7 @@ See `snippets/composition-report.ts` for the wiring. Rendered, a report reads:
   Selected  storefront
   Base      commerce
   auth      auth-oidc (default)
+  product   (unfilled; candidates: product-a, product-b)
   payment   payment-stripe (not in this composition)
 
   Resolved 4/6 descriptors
@@ -47,8 +48,9 @@ See `snippets/composition-report.ts` for the wiring. Rendered, a report reads:
     admin, payment-stripe
 ```
 
-An aligned key column carries what was asked for and what won each contested
-capability; each descriptor set hangs below its own heading, because a list of
+An aligned key column carries what was asked for and the outcome of every active
+provider slot. An unfilled slot is reported positively instead of disappearing;
+each descriptor set hangs below its own heading, because a list of
 hundreds of ids is a block and not one row's value.
 
 The report is stated in descriptor ids alone. Whether a descriptor is a package on

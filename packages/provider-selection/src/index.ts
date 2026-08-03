@@ -14,17 +14,28 @@ export type ProviderSelectionRequest = {
 
 export type ProviderSelection = {
   capabilityId: CapabilityId;
+  state: 'selected';
+  required: boolean;
   selectedProviderId: ProviderId;
-  candidateProviderIds: ProviderId[];
-  overriddenProviderIds: ProviderId[];
+  candidateProviderIds: readonly ProviderId[];
+  overriddenProviderIds: readonly ProviderId[];
   mode: ProviderSelectionMode;
 };
+
+export type UnfilledProviderSlot = {
+  capabilityId: CapabilityId;
+  state: 'unfilled';
+  required: false;
+  candidateProviderIds: readonly ProviderId[];
+};
+
+export type ProviderSlotResolution = ProviderSelection | UnfilledProviderSlot;
 
 export type ProvidersByCapability = Map<CapabilityId, ProviderId[]>;
 
 export type ProviderSelectionResolution = {
-  selections: Map<CapabilityId, ProviderSelection>;
-  excludedProviderIds: ProviderId[];
+  slots: readonly ProviderSlotResolution[];
+  excludedProviderIds: readonly ProviderId[];
 };
 
 export type ItemProviderSelectionResolution = ProviderSelectionResolution & {
@@ -43,6 +54,7 @@ export type ProviderRequestCollectionInput<T> = ProviderCollectionInput<T> & {
 
 export type ResolveProviderSelectionInput = {
   providersByCapability: ProvidersByCapability;
+  activeCapabilityIds?: Iterable<CapabilityId>;
   requiredCapabilityIds: Iterable<CapabilityId>;
   explicitRequests?: Iterable<ProviderSelectionRequest>;
   dependencyRequests?: Iterable<ProviderSelectionRequest>;
@@ -113,6 +125,28 @@ function resolveTier(input: {
   return providerIds[0];
 }
 
+function validateRequests(input: {
+  providersByCapability: ProvidersByCapability;
+  tiers: readonly {
+    mode: ProviderSelectionMode;
+    requests: ReadonlyMap<CapabilityId, ProviderSelectionRequest[]>;
+  }[];
+}): void {
+  for (const tier of input.tiers) {
+    for (const [capabilityId, requests] of tier.requests) {
+      resolveTier({ capabilityId, mode: tier.mode, requests });
+      const candidates = toSortedUniqueIds(input.providersByCapability.get(capabilityId) ?? []);
+      for (const providerId of toSortedUniqueIds(requests.map((request) => request.providerId))) {
+        if (!candidates.includes(providerId)) {
+          throw new Error(
+            `Provider selection for capability "${capabilityId}" names unknown provider "${providerId}". Candidates: ${candidates.length ? candidates.join(', ') : '(none)'}.`,
+          );
+        }
+      }
+    }
+  }
+}
+
 export function collectProvidersByCapability<T>(
   input: ProviderCollectionInput<T>,
 ): ProvidersByCapability {
@@ -154,20 +188,37 @@ export function collectProviderRequests<T>(
 export function resolveProviderSelection(
   input: ResolveProviderSelectionInput,
 ): ProviderSelectionResolution {
-  const selections = new Map<CapabilityId, ProviderSelection>();
   const explicitRequests = groupRequests(input.explicitRequests);
   const dependencyRequests = groupRequests(input.dependencyRequests);
   const defaultRequests = groupRequests(input.defaultRequests);
+  const tiers = [
+    { mode: 'explicit' as const, requests: explicitRequests },
+    { mode: 'dependency' as const, requests: dependencyRequests },
+    { mode: 'default' as const, requests: defaultRequests },
+  ];
+  validateRequests({ providersByCapability: input.providersByCapability, tiers });
 
-  for (const capabilityId of toSortedUniqueIds(input.requiredCapabilityIds)) {
+  const requiredCapabilityIds = new Set([
+    ...toSortedUniqueIds(input.requiredCapabilityIds),
+    ...explicitRequests.keys(),
+    ...dependencyRequests.keys(),
+  ]);
+  const activeCapabilityIds = new Set([
+    ...toSortedUniqueIds(input.activeCapabilityIds ?? []),
+    ...requiredCapabilityIds,
+  ]);
+  const slots: ProviderSlotResolution[] = [];
+
+  for (const capabilityId of toSortedUniqueIds(activeCapabilityIds)) {
     const candidates = toSortedUniqueIds(input.providersByCapability.get(capabilityId) ?? []);
-    if (!candidates.length) {
+    const required = requiredCapabilityIds.has(capabilityId);
+    if (!candidates.length && required) {
       throw new Error(
         `Provider selection requires capability "${capabilityId}", but no provider declares providesFor "${capabilityId}".`,
       );
     }
 
-    const tiers = [
+    const slotTiers = [
       { mode: 'explicit' as const, requests: explicitRequests.get(capabilityId) ?? [] },
       { mode: 'dependency' as const, requests: dependencyRequests.get(capabilityId) ?? [] },
       { mode: 'default' as const, requests: defaultRequests.get(capabilityId) ?? [] },
@@ -175,32 +226,37 @@ export function resolveProviderSelection(
     // Validate every tier before applying precedence. A valid explicit choice may
     // override a dependency choice, but it must not hide that two descriptors
     // made contradictory choices at the dependency tier.
-    const tierProviderIds = tiers.map((tier) => resolveTier({ capabilityId, ...tier }));
+    const tierProviderIds = slotTiers.map((tier) => resolveTier({ capabilityId, ...tier }));
     const selectedTierIndex = tierProviderIds.findIndex(Boolean);
     const selectedProviderId = tierProviderIds[selectedTierIndex];
-    const selectedMode = tiers[selectedTierIndex]?.mode;
+    const selectedMode = slotTiers[selectedTierIndex]?.mode;
 
     if (!selectedProviderId || !selectedMode) {
-      throw new Error(
-        `Provider selection for capability "${capabilityId}" has candidates (${candidates.join(', ')}) but no provider was selected by an explicit root, descriptor dependency, or defaultFor.`,
-      );
-    }
-
-    if (!candidates.includes(selectedProviderId)) {
-      throw new Error(
-        `Provider selection for capability "${capabilityId}" names unknown provider "${selectedProviderId}". Candidates: ${candidates.join(', ')}.`,
-      );
+      if (required) {
+        throw new Error(
+          `Provider selection for capability "${capabilityId}" has candidates (${candidates.join(', ')}) but no provider was selected by an explicit root, descriptor dependency, or defaultFor.`,
+        );
+      }
+      slots.push({
+        capabilityId,
+        state: 'unfilled',
+        required: false,
+        candidateProviderIds: candidates,
+      });
+      continue;
     }
 
     const overriddenProviderIds = toSortedUniqueIds(
-      tiers
+      slotTiers
         .slice(selectedTierIndex + 1)
         .flatMap((tier) => tier.requests.map((request) => request.providerId))
         .filter((providerId) => providerId !== selectedProviderId),
     );
 
-    selections.set(capabilityId, {
+    slots.push({
       capabilityId,
+      state: 'selected',
+      required,
       selectedProviderId,
       candidateProviderIds: candidates,
       overriddenProviderIds,
@@ -209,14 +265,14 @@ export function resolveProviderSelection(
   }
 
   const excludedProviderIds = toSortedUniqueIds(
-    Array.from(selections.values()).flatMap((selection) =>
-      selection.candidateProviderIds.filter(
-        (providerId) => providerId !== selection.selectedProviderId,
-      ),
+    slots.flatMap((slot) =>
+      slot.state === 'selected'
+        ? slot.candidateProviderIds.filter((providerId) => providerId !== slot.selectedProviderId)
+        : slot.candidateProviderIds,
     ),
   );
 
-  return { selections, excludedProviderIds };
+  return { slots, excludedProviderIds };
 }
 
 export function resolveItemProviderSelection<T>(
@@ -225,6 +281,7 @@ export function resolveItemProviderSelection<T>(
   const providersByCapability = collectProvidersByCapability(input);
   const resolution = resolveProviderSelection({
     providersByCapability,
+    ...(input.activeCapabilityIds ? { activeCapabilityIds: input.activeCapabilityIds } : {}),
     requiredCapabilityIds: input.requiredCapabilityIds,
     ...(input.explicitRequests ? { explicitRequests: input.explicitRequests } : {}),
     ...(input.dependencyRequests ? { dependencyRequests: input.dependencyRequests } : {}),

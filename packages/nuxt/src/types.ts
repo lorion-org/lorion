@@ -6,7 +6,7 @@ import type {
   RuntimeConfigSection,
   SectionedRuntimeConfig,
 } from '@lorion-org/runtime-config';
-import type { ProviderSelection } from '@lorion-org/provider-selection';
+import type { ProviderSelectionResolution } from '@lorion-org/provider-selection';
 import type { DescriptorSelectionSeedInput } from '@lorion-org/composition-graph';
 import type {
   RuntimeConfigPathPatternSource,
@@ -70,10 +70,7 @@ export type NuxtProviderSelectionModuleOptions = {
   enabled?: boolean;
 };
 
-export type NuxtProviderSelectionRuntimeConfig = {
-  excludedProviderIds: string[];
-  selections: Record<string, ProviderSelection>;
-};
+export type NuxtProviderSelectionRuntimeConfig = ProviderSelectionResolution;
 
 export type NuxtExtensionSelectionRuntimeConfig = {
   discoveredExtensionIds: string[];

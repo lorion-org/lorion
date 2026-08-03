@@ -7,11 +7,13 @@ import LorionNuxtModule, {
 // groupings, this host names which of them runs by default. No extension package
 // exists just to carry a grouping.
 const defaultBundle = 'default';
+const optionalProviderSlot = 'product-theme';
 
 const extensionBootstrap = createNuxtExtensionBootstrap({
   rootDir: __dirname,
   options: {
     bundles: { cwd: __dirname },
+    baseDescriptors: [optionalProviderSlot],
     defaultSelection: [defaultBundle],
     descriptorPaths: ['layer-extensions/*/extension.json'],
   },

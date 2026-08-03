@@ -1,6 +1,11 @@
 # @lorion-org/provider-selection
 
-Framework-free selection of exactly one provider for each required capability.
+Framework-free resolution of active provider slots.
+
+An active slot may be `unfilled` when no active consumer requires its capability.
+A required slot must select exactly one provider. This separates three concerns
+that hosts commonly need independently: whether a slot participates in a
+composition, whether a consumer requires it, and which provider wins.
 
 A provider declares which capability it implements. The public selection modes
 name why the provider won, in this order:
@@ -48,9 +53,27 @@ const result = resolveItemProviderSelection({
 });
 ```
 
-The host explicitly selects `local-auth`. Its selection has mode `explicit` and
-reports `keycloak` in `overriddenProviderIds`. The result also exposes the
-collected `providersByCapability` and all `excludedProviderIds`.
+The host explicitly selects `local-auth`. The selected slot has mode `explicit`,
+`required: true`, and reports `keycloak` in `overriddenProviderIds`. The result
+also exposes the collected `providersByCapability` and all `excludedProviderIds`.
+
+Pass `activeCapabilityIds` for slots that participate without being required. If
+no request or default fills one, the result contains a deterministic slot such as:
+
+```ts
+{
+  capabilityId: 'distribution',
+  state: 'unfilled',
+  required: false,
+  candidateProviderIds: ['dist-a', 'dist-b'],
+}
+```
+
+`ProviderSelectionResolution.slots` is a capability-sorted array, directly safe
+to serialize into reports, generated modules, or runtime config. Selected slots
+carry `selectedProviderId`, `mode`, and `overriddenProviderIds`; unfilled slots
+carry no invented winner. `excludedProviderIds` contains every non-winning
+candidate, including all candidates of an unfilled slot.
 
 ## Selection modes
 
@@ -60,7 +83,8 @@ collected `providersByCapability` and all `excludedProviderIds`.
   roots. This includes roots from `selected`, `baseDescriptors`, a CLI or
   environment selection, and `defaultSelection`.
 - `dependency`: an active descriptor depends on the provider descriptor.
-- `default`: the provider declares `defaultFor` for the required capability.
+- `default`: the provider declares `defaultFor` for the active capability. A
+  default can fill a participating slot without making it required.
 
 These are public provenance terms, not names for the graph algorithm. Internally,
 Lorion may call the input that starts graph resolution a selection seed; provider
@@ -76,7 +100,10 @@ coordinated breaking API and serialization change, not a local wording cleanup.
 - `collectProvidersByCapability()` groups candidates by capability.
 - `collectProviderRequests()` turns provider-like items into source-labelled
   selection requests.
-- `resolveProviderSelection()` resolves pre-grouped candidates.
+- `resolveProviderSelection()` resolves pre-grouped candidates. Its
+  `activeCapabilityIds` participate in selection; its `requiredCapabilityIds`
+  must be filled. Explicit and dependency requests activate and require their
+  capability, while a default alone does not activate an otherwise inactive slot.
 - `resolveItemProviderSelection()` collects candidates and resolves them in one
   call.
 

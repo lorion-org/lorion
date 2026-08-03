@@ -721,7 +721,7 @@ export function formatNuxtExtensionBootstrapLog(event: NuxtExtensionBootstrapLog
     base: bootstrap.baseExtensionIds,
     resolved: bootstrap.resolvedExtensionIds,
     discovered: bootstrap.discoveredExtensions.map((extension) => extension.descriptor.id),
-    providers: Object.values(event.providerSelection?.selections ?? {}),
+    providerSlots: event.providerSelection?.slots ?? [],
   });
   return ['LORION Nuxt', ...formatCompositionReport(report)].join('\n');
 }

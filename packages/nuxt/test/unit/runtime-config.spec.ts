@@ -179,15 +179,17 @@ describe('nuxt runtime config adapter', () => {
         },
         providerSelection: {
           excludedProviderIds: ['payment-provider-invoice'],
-          selections: {
-            'payment-checkout': {
+          slots: [
+            {
               capabilityId: 'payment-checkout',
+              state: 'selected',
+              required: true,
               candidateProviderIds: ['payment-provider-invoice', 'payment-provider-stripe'],
               mode: 'dependency',
               overriddenProviderIds: [],
               selectedProviderId: 'payment-provider-stripe',
             },
-          },
+          ],
         },
       },
     };
@@ -198,9 +200,12 @@ describe('nuxt runtime config adapter', () => {
       resolvedExtensionIds: ['admin', 'payments'],
       selectedExtensionIds: ['admin'],
     });
-    expect(
-      getNuxtProviderSelection(runtimeConfig)?.selections['payment-checkout']?.selectedProviderId,
-    ).toBe('payment-provider-stripe');
+    const paymentSlot = getNuxtProviderSelection(runtimeConfig)?.slots.find(
+      (slot) => slot.capabilityId === 'payment-checkout',
+    );
+    expect(paymentSlot?.state).toBe('selected');
+    if (paymentSlot?.state !== 'selected') throw new Error('Expected selected payment slot.');
+    expect(paymentSlot.selectedProviderId).toBe('payment-provider-stripe');
   });
 
   it('returns an empty extension selection projection when Nuxt runtime config has none', () => {

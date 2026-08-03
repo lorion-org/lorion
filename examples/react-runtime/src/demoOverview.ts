@@ -1,5 +1,5 @@
 import type { CapabilityRuntime } from '@lorion-org/react';
-import { selectedCapabilityIds } from 'virtual:capabilities';
+import { providerSelection, selectedCapabilityIds } from 'virtual:capabilities';
 
 export const discoveredCapabilityIds = [
   'admin',
@@ -27,5 +27,6 @@ export function createDemoOverview(runtime: CapabilityRuntime) {
       resolvedCapabilityIds,
       selectedCapabilityIds,
     },
+    providerSelection,
   };
 }

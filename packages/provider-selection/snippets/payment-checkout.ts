@@ -33,8 +33,8 @@ const result = resolveItemProviderSelection({
 console.log(result.providersByCapability);
 // Map { checkout => ['payment-provider-invoice', 'payment-provider-stripe'] }
 
-console.log(result.selections);
-// Map { checkout => { selectedProviderId: 'payment-provider-stripe', mode: 'dependency', ... } }
+console.log(result.slots);
+// [{ capabilityId: 'checkout', state: 'selected', selectedProviderId: 'payment-provider-stripe', ... }]
 
 console.log(result.excludedProviderIds);
 // ['payment-provider-invoice']

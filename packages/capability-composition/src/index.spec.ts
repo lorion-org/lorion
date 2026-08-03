@@ -564,18 +564,30 @@ describe('CAPABILITY_SELECTION_OPTIONS', () => {
 });
 
 describe('composition report', () => {
-  const providers = [
+  const providerSlots = [
     {
       capabilityId: 'auth',
+      state: 'selected',
+      required: false,
       selectedProviderId: 'auth-oidc',
+      candidateProviderIds: ['auth-local', 'auth-oidc'],
       overriddenProviderIds: [],
       mode: 'default',
     },
     {
       capabilityId: 'pay',
+      state: 'selected',
+      required: true,
       selectedProviderId: 'pay-stripe',
+      candidateProviderIds: ['pay-invoice', 'pay-stripe'],
       overriddenProviderIds: ['pay-invoice'],
       mode: 'explicit',
+    },
+    {
+      capabilityId: 'distribution',
+      state: 'unfilled',
+      required: false,
+      candidateProviderIds: ['dist-a', 'dist-b'],
     },
   ] as const;
 
@@ -586,24 +598,36 @@ describe('composition report', () => {
       base: ['platform'],
       resolved: ['shell', 'auth-oidc', 'platform'],
       discovered: ['shell', 'auth-oidc', 'platform', 'pay-stripe', 'unused'],
-      providers,
+      providerSlots,
     });
 
     expect(report.resolved).toEqual(['auth-oidc', 'platform', 'shell']);
     // `pay-stripe` won a capability but is not in this composition. Reporting it as
     // the winner without saying so would credit a provider the run never built;
     // dropping it would hide a misconfiguration.
-    expect(report.providers).toEqual([
+    expect(report.providerSlots).toEqual([
       {
         capability: 'auth',
+        state: 'selected',
+        required: false,
         provider: 'auth-oidc',
+        candidates: ['auth-local', 'auth-oidc'],
         overridden: [],
         mode: 'default',
         resolved: true,
       },
       {
+        capability: 'distribution',
+        state: 'unfilled',
+        required: false,
+        candidates: ['dist-a', 'dist-b'],
+      },
+      {
         capability: 'pay',
+        state: 'selected',
+        required: true,
         provider: 'pay-stripe',
+        candidates: ['pay-invoice', 'pay-stripe'],
         overridden: ['pay-invoice'],
         mode: 'explicit',
         resolved: false,
@@ -632,18 +656,19 @@ describe('composition report', () => {
       base: ['platform'],
       resolved: ['shell', 'auth-oidc', 'platform'],
       discovered: ['shell', 'auth-oidc', 'platform', 'pay-stripe', 'unused'],
-      providers,
+      providerSlots,
     });
 
     expect(
       formatCompositionReport(report, { leadingRows: [{ label: 'Server', value: 'http://x' }] }),
     ).toEqual([
-      '  Server    http://x',
-      '  Requested shell',
-      '  Selected  shell',
-      '  Base      platform',
-      '  auth      auth-oidc (default)',
-      '  pay       pay-stripe (not in this composition)',
+      '  Server       http://x',
+      '  Requested    shell',
+      '  Selected     shell',
+      '  Base         platform',
+      '  auth         auth-oidc (default)',
+      '  distribution (unfilled; candidates: dist-a, dist-b)',
+      '  pay          pay-stripe (not in this composition)',
       '',
       '  Resolved 3/5 descriptors',
       '    auth-oidc, platform, shell',

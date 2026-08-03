@@ -13,6 +13,10 @@ export {
   defaultCapabilityResolutionRelations,
 } from './relations';
 export * from './runtime-config';
+export type {
+  ProviderSelectionResolution,
+  ProviderSlotResolution,
+} from '@lorion-org/provider-selection';
 
 // The runtime's descriptor is the shared one. It described the same fields a fifth
 // time, with `runtimeConfig` narrower than the code accepts and a `description`

@@ -30,7 +30,7 @@ import {
 // Capability composition: descriptor-defined capabilities that live as filesystem
 // packages, composed into a host. This package owns disk discovery and the
 // runtime/build-time compose loop; resolving the active set (seed, dependencies,
-// one provider per capability) is delegated to @lorion-org/descriptor-selection and
+// active provider slots) is delegated to @lorion-org/descriptor-selection and
 // the surface-addressing convention to @lorion-org/surface-activation, so no logic
 // is duplicated here.
 
@@ -46,6 +46,7 @@ export { conventionActivation, fileSurfaceConvention } from '@lorion-org/surface
 export type {
   ProviderSelectionMode,
   ProviderSelectionResolution,
+  ProviderSlotResolution,
 } from '@lorion-org/descriptor-selection';
 export { loadBundleManifest } from '@lorion-org/descriptor-discovery';
 export {
@@ -53,6 +54,7 @@ export {
   formatCompositionReport,
   notResolved,
   type CompositionReport,
+  type CompositionProviderSlot,
   type DescribeCompositionInput,
   type CompositionReportOptions,
   type CompositionReportPalette,
@@ -79,7 +81,7 @@ function readPackageName(directory: string): string {
 }
 
 // Resolves the active capability set: base + seed + transitive dependencies +
-// exactly one provider per capability, over capabilities discovered on disk.
+// active provider slots, over capabilities discovered on disk.
 // The selection itself is owned by @lorion-org/descriptor-selection.
 //
 // `virtualDescriptors` are host-provided descriptors that join the discovered set
@@ -140,11 +142,10 @@ export const CAPABILITY_SELECTION_OPTIONS = [
 
 export type CapabilitySelectionOption = (typeof CAPABILITY_SELECTION_OPTIONS)[number];
 
-// The resolved capabilities together with the provider outcome: which provider won
-// each contested capability, in which mode, and which ones lost, plus every
-// descriptor id the workspace holds. A host that reports on a composition, names
-// an artifact after the selected provider or checks the outcome reads it here
-// instead of re-deriving it from the resolved set.
+// The resolved capabilities together with every selected or unfilled provider
+// slot, plus every descriptor id the workspace holds. A host that reports on a
+// composition, names an artifact after a selected provider or checks the outcome
+// reads it here instead of re-deriving it from the resolved set.
 export function resolveCapabilitySelection(options: CapabilitySelectionInput): {
   capabilities: ResolvedCapability[];
   providerSelection: ProviderSelectionResolution;

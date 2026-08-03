@@ -36,7 +36,7 @@ const report = describeComposition({
   // Descriptor ids, not packages: a host that distinguishes the two filters here.
   resolved: capabilities.map((capability) => capability.id),
   discovered,
-  providers: [...providerSelection.selections.values()],
+  providerSlots: providerSelection.slots,
 });
 
 for (const line of formatCompositionReport(report)) console.log(line);

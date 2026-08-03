@@ -210,7 +210,7 @@ export function getNuxtProviderSelection(
 ): NuxtProviderSelectionRuntimeConfig | undefined {
   const providerSelection = runtimeConfig.public?.providerSelection;
 
-  return isObject(providerSelection) && isObject(providerSelection.selections)
+  return isObject(providerSelection) && Array.isArray(providerSelection.slots)
     ? (providerSelection as NuxtProviderSelectionRuntimeConfig)
     : undefined;
 }

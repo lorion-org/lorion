@@ -22,8 +22,8 @@ import type {
 import { describeComposition } from '@lorion-org/capability-composition';
 import {
   resolveDescriptorSelection,
-  selectDescriptors,
   selectDescriptorsWithProviders,
+  type ProviderSelectionResolution,
 } from '@lorion-org/descriptor-selection';
 import {
   createRuntimeConfigValidatorRegistry,
@@ -212,6 +212,7 @@ export function capabilityLoader(rawOptions: CapabilityLoaderOptions = {}): Vite
   const options = resolveBundleOptions(rawOptions);
   let config: ViteResolvedConfig;
   let capabilities: DiscoveredCapability[] = [];
+  let providerSelection: ProviderSelectionResolution = { slots: [], excludedProviderIds: [] };
   let runtimeConfig: ReactRuntimeConfig = { private: {}, public: {} };
 
   return {
@@ -219,10 +220,12 @@ export function capabilityLoader(rawOptions: CapabilityLoaderOptions = {}): Vite
     enforce: 'pre',
     configResolved(resolvedConfig) {
       config = resolvedConfig;
-      capabilities = discoverSelectedCapabilities(
+      const selection = resolveDiscoveredCapabilitySelection(
         resolveWorkspaceRoot(config.root, options),
         options,
       );
+      capabilities = selection.items;
+      providerSelection = selection.providerSelection;
       runtimeConfig = createReactRuntimeConfig(
         capabilities,
         resolveWorkspaceRoot(config.root, options),
@@ -250,7 +253,7 @@ export function capabilityLoader(rawOptions: CapabilityLoaderOptions = {}): Vite
       }
       if (id !== resolvedVirtualModuleId) return null;
 
-      return renderCapabilityModule(capabilities, resolveSelectionSeed(options));
+      return renderCapabilityModule(capabilities, resolveSelectionSeed(options), providerSelection);
     },
   };
 }
@@ -349,7 +352,7 @@ export function discoverCapabilities(
 }
 
 // One resolution described in the terms every host shares: what was asked for,
-// what won each contested capability, what this build activates and everything the
+// every active provider slot, what this build activates and everything the
 // workspace holds. Derived from the same call the loader makes, so a report cannot
 // describe a different composition than the bundle it belongs to.
 //
@@ -362,18 +365,10 @@ export function describeCapabilityComposition(
   const options = resolveBundleOptions(rawOptions);
   // Groupings included: a count that leaves them out claims the workspace holds
   // fewer descriptors than the selection can reach.
-  const discovered = [
-    ...discoverCapabilities(workspaceRoot, options),
-    ...toVirtualCapabilities(workspaceRoot, options),
-  ];
-  const { items, providerSelection } = selectDescriptorsWithProviders({
-    items: discovered,
-    getDescriptor: (capability) => capability.manifest,
-    withDescriptor: (capability, manifest) => ({ ...capability, manifest }),
-    seed: options,
-    ...(options.relationDescriptors ? { relationDescriptors: options.relationDescriptors } : {}),
-    ...(options.policy ? { policy: options.policy } : {}),
-  });
+  const { discovered, items, providerSelection } = resolveDiscoveredCapabilitySelection(
+    workspaceRoot,
+    options,
+  );
   // What the run asked for, resolved without the default so the two stay apart: a
   // report that calls the default an explicit request cannot be checked against it.
   const requested = resolveDescriptorSelection({
@@ -387,7 +382,7 @@ export function describeCapabilityComposition(
     ...(options.baseDescriptors ? { base: options.baseDescriptors } : {}),
     resolved: items.map((capability) => capability.id),
     discovered: discovered.map((capability) => capability.id),
-    providers: [...providerSelection.selections.values()],
+    providerSlots: providerSelection.slots,
   });
 }
 
@@ -396,11 +391,7 @@ export function discoverSelectedCapabilities(
   rawOptions: CapabilityLoaderOptions = {},
 ): DiscoveredCapability[] {
   const options = resolveBundleOptions(rawOptions);
-  const discovered = discoverCapabilities(workspaceRoot, options);
-  return selectCapabilities(
-    [...discovered, ...toVirtualCapabilities(workspaceRoot, options)],
-    options,
-  );
+  return resolveDiscoveredCapabilitySelection(workspaceRoot, options).items;
 }
 
 // A grouping descriptor as a graph-only capability: no package name and no
@@ -432,18 +423,28 @@ function toVirtualCapabilities(
   );
 }
 
-function selectCapabilities(
-  capabilities: readonly DiscoveredCapability[],
+function resolveDiscoveredCapabilitySelection(
+  workspaceRoot: string,
   options: CapabilityLoaderOptions = {},
-): DiscoveredCapability[] {
-  return selectDescriptors({
-    items: capabilities,
+): {
+  discovered: DiscoveredCapability[];
+  items: DiscoveredCapability[];
+  providerSelection: ProviderSelectionResolution;
+} {
+  const discovered = [
+    ...discoverCapabilities(workspaceRoot, options),
+    ...toVirtualCapabilities(workspaceRoot, options),
+  ];
+  const selection = selectDescriptorsWithProviders({
+    items: discovered,
     getDescriptor: (capability) => capability.manifest,
     withDescriptor: (capability, manifest) => ({ ...capability, manifest }),
     seed: options,
     ...(options.relationDescriptors ? { relationDescriptors: options.relationDescriptors } : {}),
     ...(options.policy ? { policy: options.policy } : {}),
   });
+
+  return { discovered, ...selection };
 }
 
 function resolveSelectionSeed(

@@ -19,6 +19,20 @@
         "shop-coffee": "^1.0.0",
         "shop-stationery": "^1.0.0"
       }
+    },
+    {
+      "id": "product-theme",
+      "version": "1.0.0"
+    },
+    {
+      "id": "theme-classic",
+      "version": "1.0.0",
+      "providesFor": "product-theme"
+    },
+    {
+      "id": "theme-contrast",
+      "version": "1.0.0",
+      "providesFor": "product-theme"
     }
   ]
 }

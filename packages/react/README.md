@@ -275,8 +275,10 @@ plugin.
 
 In Model B the host uses only the Vite capability loader and composes the
 resolved modules with its own runtime. The build resolves the descriptor graph
-(base, selected features, transitive dependencies, and exactly one provider per
-capability) and emits `capabilityModules` already ordered and filtered.
+(base, selected features, transitive dependencies, and active provider slots)
+and emits `capabilityModules` already ordered and filtered. The same virtual
+module exports `providerSelection`, including selected and unfilled slots, so a
+React host sees the same serializable result as a Nuxt host.
 
 ```ts
 // vite.config.ts
@@ -531,8 +533,8 @@ resolve through the graph: switch the payment provider with
 
 `describeCapabilityComposition(workspaceRoot, options)` resolves the same options the
 loader takes and returns a `CompositionReport`: what was requested, what the
-selection resolved to, the always-on base, the winner and mode of each contested
-capability, the activated set and everything discovery found, groupings included.
+selection resolved to, the always-on base, every selected or unfilled provider
+slot, the activated set and everything discovery found, groupings included.
 `formatCompositionReport` from
 [`@lorion-org/capability-composition`](../capability-composition) renders it, and a
 host colours it through the palette.

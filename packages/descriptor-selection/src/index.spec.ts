@@ -8,6 +8,7 @@ import {
   assertSingleSelectedProvider,
   resolveDescriptorSelection,
   selectDescriptors,
+  selectDescriptorsWithProviders,
 } from './index';
 
 function reference(): Descriptor[] {
@@ -78,6 +79,99 @@ describe('resolveDescriptorSelection', () => {
 });
 
 describe('selectDescriptors', () => {
+  it('keeps an active provider slot visible and unfilled without a consumer', () => {
+    const items: Descriptor[] = [
+      { id: 'platform', version: '1.0.0' },
+      { id: 'product', version: '1.0.0' },
+      { id: 'product-a', version: '1.0.0', providesFor: 'product' },
+      { id: 'product-b', version: '1.0.0', providesFor: 'product' },
+    ];
+
+    const result = selectDescriptorsWithProviders({
+      items,
+      getDescriptor: (descriptor) => descriptor,
+      withDescriptor: (_item, descriptor) => descriptor,
+      seed: { baseDescriptors: ['platform', 'product'] },
+    });
+
+    expect(result.items.map((descriptor) => descriptor.id)).toEqual(['platform', 'product']);
+    expect(result.providerSelection).toEqual({
+      slots: [
+        {
+          capabilityId: 'product',
+          state: 'unfilled',
+          required: false,
+          candidateProviderIds: ['product-a', 'product-b'],
+        },
+      ],
+      excludedProviderIds: ['product-a', 'product-b'],
+    });
+  });
+
+  it('requires a provider when an active descriptor depends on the capability', () => {
+    const items: Descriptor[] = [
+      { id: 'auth', version: '1.0.0' },
+      { id: 'auth-local', version: '1.0.0', providesFor: 'auth' },
+      { id: 'auth-oidc', version: '1.0.0', providesFor: 'auth' },
+      { id: 'web', version: '1.0.0', dependencies: { auth: '^1.0.0' } },
+    ];
+
+    expect(() => select(items, { selected: ['web'] })).toThrow(
+      /capability "auth".*no provider was selected/s,
+    );
+  });
+
+  it('lets a default fill an active slot without making it required', () => {
+    const items: Descriptor[] = [
+      { id: 'product', version: '1.0.0' },
+      {
+        id: 'product-a',
+        version: '1.0.0',
+        providesFor: 'product',
+        defaultFor: 'product',
+      },
+      { id: 'product-b', version: '1.0.0', providesFor: 'product' },
+    ];
+
+    const result = selectDescriptorsWithProviders({
+      items,
+      getDescriptor: (descriptor) => descriptor,
+      withDescriptor: (_item, descriptor) => descriptor,
+      seed: { baseDescriptors: ['product'] },
+    });
+
+    expect(result.items.map((descriptor) => descriptor.id)).toEqual(['product', 'product-a']);
+    expect(result.providerSelection.slots[0]).toMatchObject({
+      capabilityId: 'product',
+      state: 'selected',
+      required: false,
+      selectedProviderId: 'product-a',
+      mode: 'default',
+    });
+  });
+
+  it('does not let an unresolved consumer require a provider', () => {
+    const items: Descriptor[] = [
+      { id: 'auth', version: '1.0.0' },
+      { id: 'auth-local', version: '1.0.0', providesFor: 'auth' },
+      { id: 'web', version: '1.0.0', dependencies: { auth: '^1.0.0' } },
+      { id: 'platform', version: '1.0.0' },
+    ];
+
+    const result = selectDescriptorsWithProviders({
+      items,
+      getDescriptor: (descriptor) => descriptor,
+      withDescriptor: (_item, descriptor) => descriptor,
+      seed: { baseDescriptors: ['auth', 'platform'] },
+    });
+
+    expect(result.providerSelection.slots[0]).toMatchObject({
+      capabilityId: 'auth',
+      state: 'unfilled',
+      required: false,
+    });
+  });
+
   it('resolves base, selection, transitive dependencies, and the default provider', () => {
     expect(
       select(reference(), { baseDescriptors: ['platform', 'auth'], selected: ['dashboard'] }),
@@ -118,7 +212,7 @@ describe('selectDescriptors', () => {
     ]);
   });
 
-  it('returns every non-provider item and exactly one provider when nothing is selected or based', () => {
+  it('applies provider defaults when every non-provider item participates', () => {
     expect(select(reference(), { selectionSeed: false })).toEqual([
       'auth',
       'auth-session',

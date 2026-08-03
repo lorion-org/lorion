@@ -1,4 +1,5 @@
 import type { DescriptorId } from '@lorion-org/composition-graph';
+import type { ProviderSelectionResolution } from '@lorion-org/descriptor-selection';
 import type { DiscoveredCapability, ReactRuntimeConfig } from './vite';
 
 // The source of the virtual modules the loader emits. Internal: what a build writes
@@ -8,6 +9,7 @@ import type { DiscoveredCapability, ReactRuntimeConfig } from './vite';
 export function renderCapabilityModule(
   capabilities: readonly DiscoveredCapability[],
   selected: readonly DescriptorId[] = [],
+  providerSelection: ProviderSelectionResolution = { slots: [], excludedProviderIds: [] },
 ): string {
   // Only capabilities with a resolved activation entry are imported and
   // registered. Graph-only capabilities take part in dependency resolution and
@@ -29,6 +31,8 @@ export function renderCapabilityModule(
 export const selectedCapabilityIds = ${JSON.stringify([...selected])}
 
 export const resolvedCapabilityIds = ${JSON.stringify(capabilityIds)}
+
+export const providerSelection = ${JSON.stringify(providerSelection)}
 
 export const capabilityModules = [
 ${variables}
