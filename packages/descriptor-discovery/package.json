@@ -72,7 +72,7 @@
     "lint": "eslint src --ext .ts",
     "prepack": "pnpm build",
     "package:check": "pnpm build && pnpm pack --dry-run && publint",
-    "test": "vitest run --root ../.. --config vitest.config.mts packages/descriptor-discovery/src/index.spec.ts",
+    "test": "vitest run --root ../.. --config vitest.config.mts packages/descriptor-discovery/src",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "peerDependencies": {

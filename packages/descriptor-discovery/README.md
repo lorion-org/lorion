@@ -18,6 +18,8 @@ pnpm add @lorion-org/descriptor-discovery @lorion-org/composition-graph @lorion-
 - a Node-side descriptor file discovery helper
 - a normalization layer for descriptor ids and versions
 - a small flattening helper for one level of nested descriptor authoring
+- the package set of a workspace: which packages exist, where they lie, what they
+  are called, and which of them carry a descriptor
 - a bridge from files on disk to `@lorion-org/composition-graph`
 
 ## What it is not
@@ -27,6 +29,42 @@ pnpm add @lorion-org/descriptor-discovery @lorion-org/composition-graph @lorion-
 - not a framework adapter
 - not a recursive schema language
 - not a watcher or live reload system
+
+## The package set of a workspace
+
+A capability lives on disk as a package: its descriptor beside its manifest. A host
+that composes a workspace needs both halves, so `resolvePackageSources` reads them
+together and reports one snapshot.
+
+```ts
+import { resolvePackageSources } from '@lorion-org/descriptor-discovery';
+
+const { workspaceRoot, packageSources, descriptorPaths } = resolvePackageSources({
+  from: import.meta.url,
+});
+```
+
+- The workspace root is the nearest directory at or above `from` whose manifest
+  declares workspace patterns, in either spelling (`workspaces` as a list, or as an
+  object carrying `packages`). `root` names it directly, `patterns` replaces the
+  declared patterns.
+- `descriptorPaths` is relative to the workspace root and goes straight into
+  `discoverDescriptors({ cwd, descriptorPaths })`.
+- `additionalRoots` joins further checkouts into one snapshot, which is what a
+  product does when it composes its own packages with those of a core it consumes.
+  The asking workspace wins a package-name collision, because it is the one being
+  asked; two packages claiming one descriptor id abort with both paths.
+- A pattern whose literal prefix leaves its root names another checkout, and a
+  missing one aborts here rather than as a composition that is quietly incomplete.
+- `cache` is a map a host passes to read one snapshot per root within a run. Without
+  it every call reads the workspace again.
+
+`resolvePackageExport(exports, subpath)` resolves one `exports` subpath the way a
+loader does (`import` before `require` before `default`, conditions-only shorthand
+included), and `resolvePackageEntries(packageSources, subpaths)` projects a package
+set onto the public entries it declares: the specifier that reaches each one and the
+file it resolves to. A build-time host aliases from that instead of walking
+directories.
 
 ## Directory shape
 

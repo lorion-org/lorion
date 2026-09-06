@@ -33,6 +33,8 @@ export type DescriptorField =
   | 'providesFor'
   | 'defaultFor'
   | 'capabilities'
+  | 'contributesTo'
+  | 'contributionPoints'
   | 'dependencies'
   | 'disabled'
   | 'location'

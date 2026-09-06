@@ -4,11 +4,27 @@ import { basename, dirname, join, resolve as resolvePath } from 'node:path';
 import Ajv, { type ErrorObject, type Options as AjvOptions } from 'ajv';
 import type { Descriptor } from '@lorion-org/composition-graph';
 
+import { expandPathPattern } from './paths';
+
 import type { SchemaDescriptor } from './descriptor';
 import { bundleManifestSchema, descriptorSchema, type JsonSchemaObject } from './schema';
 
 export { bundleManifestSchema, descriptorSchema, type JsonSchemaObject };
 export type { DescriptorField, SchemaDescriptor } from './descriptor';
+export {
+  findWorkspaceRoot,
+  readWorkspacePatterns,
+  resolvePackageEntries,
+  resolvePackageExport,
+  resolvePackageSources,
+} from './workspace';
+export type {
+  AdditionalPackageRoot,
+  PackageEntry,
+  PackageSource,
+  PackageSourceSnapshot,
+  PackageSourcesInput,
+} from './workspace';
 
 // A virtual descriptor is a grouping descriptor a host feeds to the graph without a
 // filesystem package (see `loadBundleManifest`). It is addressed at a synthetic
@@ -281,62 +297,9 @@ export function expandNestedDescriptors(input: ExpandNestedDescriptorsInput): De
   return descriptors;
 }
 
-function escapeRegex(value: string): string {
-  return value.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function createGlobSegmentRegex(segment: string): RegExp {
-  return new RegExp(`^${segment.split('*').map(escapeRegex).join('[^/\\\\]*')}$`);
-}
-
-function splitPattern(pattern: string): string[] {
-  return pattern.split(/[\\/]+/).filter(Boolean);
-}
-
-function expandDescriptorPathPattern(input: { cwd: string; pattern: string }): string[] {
-  const segments = splitPattern(input.pattern);
-  const visit = (currentDir: string, index: number): string[] => {
-    const segment = segments[index];
-    if (!segment) return [];
-
-    const isLast = index === segments.length - 1;
-
-    if (!segment.includes('*')) {
-      const nextPath = join(currentDir, segment);
-
-      if (isLast) return existsSync(nextPath) ? [nextPath] : [];
-      if (!existsSync(nextPath)) return [];
-
-      return visit(nextPath, index + 1);
-    }
-
-    if (!existsSync(currentDir)) return [];
-
-    const matcher = createGlobSegmentRegex(segment);
-
-    return readdirSync(currentDir, { withFileTypes: true })
-      .filter((entry) => entry.name !== 'node_modules' && matcher.test(entry.name))
-      .flatMap((entry) => {
-        const nextPath = join(currentDir, entry.name);
-
-        if (isLast) return entry.isFile() ? [nextPath] : [];
-        return entry.isDirectory() ? visit(nextPath, index + 1) : [];
-      });
-  };
-
-  return visit(resolvePath(input.cwd), 0);
-}
-
 function discoverDescriptorFiles(input: { cwd: string; descriptorPaths: string[] }): string[] {
   return [
-    ...new Set(
-      input.descriptorPaths.flatMap((pattern) =>
-        expandDescriptorPathPattern({
-          cwd: input.cwd,
-          pattern,
-        }),
-      ),
-    ),
+    ...new Set(input.descriptorPaths.flatMap((pattern) => expandPathPattern(input.cwd, pattern))),
   ].sort();
 }
 
