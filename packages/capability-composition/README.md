@@ -107,6 +107,51 @@ package is already Node-bound via `readPackageName`, has no env-agnostic core to
 protect, and `sideEffects: false` lets a bundler drop these helpers when a host
 supplies its own `load`.
 
+### The package set a composition addresses
+
+`resolvePackageSources` from
+[`@lorion-org/descriptor-discovery`](../descriptor-discovery) reads which packages a
+workspace holds; it is re-exported here so a host has one import. What a composition
+does with that set lives here:
+
+- `createPackageSourceLoad(packageSources)` is the `load` callback over a resolved
+  package set rather than one packages directory: a capability is addressed by the
+  package name its manifest declares, so packages of several roots and several
+  directory layouts load through one callback.
+- `resolveSurfaceEntries({ capabilities, surface, activation, packageSources })`
+  projects one surface onto the files it lives in. A build-time host emitting static
+  imports gets the addressing from `resolveSurfaceModules` and the file from the
+  package manifest, so it repeats neither the activation convention nor a directory
+  layout of its own. A capability whose package is missing, declares no such export,
+  or exports a file that is not there aborts by name.
+
+### One run
+
+```ts
+import { createCompositionRun } from '@lorion-org/capability-composition';
+
+const run = createCompositionRun({ workspaceRoot, descriptorPaths, packageSources, seed });
+
+run.report();
+run.origins();
+run.surfaceEntries('web', activation);
+await run.compose({ surface: 'server', activation, register });
+```
+
+A host that resolves per entry point states its run twice, and the second statement
+is free to differ: a build then emits one selection while the server start reports
+another, and nothing in either says so. A run resolves on first use and every
+projection reads that one resolution. Without `packageSources` a run still resolves
+and reports; the entry points that address packages say what they are missing.
+
+### Why a descriptor is in the composition
+
+`describeCompositionOrigins` sorts one resolution into the rows a reader asks for:
+what the run named, the floor it stands on, the groupings it runs, the slots it
+fills and with what, what the groupings brought, and what a named descriptor needed.
+`formatCompositionOrigins` renders them, leaving out the rows a run has no use for.
+`run.origins()` is the same projection over the run's own resolution.
+
 ## What It Is Not
 
 - not a framework runtime or plugin registry

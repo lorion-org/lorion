@@ -47,8 +47,8 @@
     "clean": "rimraf coverage dist tsconfig.tsbuildinfo",
     "lint": "eslint src --ext .ts",
     "prepack": "pnpm build",
-    "test": "vitest run --root ../.. --config vitest.config.mts packages/capability-composition/src/index.spec.ts",
-    "coverage": "node -e \"require('node:fs').mkdirSync('../../coverage/.tmp', { recursive: true })\" && vitest run --coverage --coverage.include=packages/capability-composition/src/**/*.ts --root ../.. --config vitest.config.mts packages/capability-composition/src/index.spec.ts",
+    "test": "vitest run --root ../.. --config vitest.config.mts packages/capability-composition/src",
+    "coverage": "node -e \"require('node:fs').mkdirSync('../../coverage/.tmp', { recursive: true })\" && vitest run --coverage --coverage.include=packages/capability-composition/src/**/*.ts --root ../.. --config vitest.config.mts packages/capability-composition/src",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "package:check": "pnpm build && pnpm pack --dry-run && publint"
   },

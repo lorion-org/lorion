@@ -1,1 +1,5 @@
-{ "id": "dashboard", "version": "1.0.0" }
+{
+  "id": "dashboard",
+  "version": "1.0.0",
+  "contributionPoints": ["panel"]
+}

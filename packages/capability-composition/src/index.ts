@@ -13,12 +13,16 @@ import {
   NESTED_DESCRIPTOR_FIELD,
   findUp,
   loadBundleManifest,
+  type PackageSource,
   requirePackageName,
+  resolvePackageExport,
   virtualDescriptorDirectory,
 } from '@lorion-org/descriptor-discovery';
 import {
   type DescriptorSelectionSeed,
   type ProviderSelectionResolution,
+  resolveDescriptorSelection,
+  resolveRequestedSelection,
   selectDescriptorsWithProviders,
 } from '@lorion-org/descriptor-selection';
 import {
@@ -26,6 +30,8 @@ import {
   resolveSurfaceModules,
   type SurfaceCapability,
 } from '@lorion-org/surface-activation';
+import { describeComposition, describeCompositionOrigins } from './report';
+import type { CompositionOrigins, CompositionReport } from './report';
 
 // Capability composition: descriptor-defined capabilities that live as filesystem
 // packages, composed into a host. This package owns disk discovery and the
@@ -51,8 +57,13 @@ export type {
 export { loadBundleManifest } from '@lorion-org/descriptor-discovery';
 export {
   describeComposition,
+  describeCompositionOrigins,
   formatCompositionReport,
+  formatCompositionOrigins,
   notResolved,
+  type CompositionOrigins,
+  type CompositionOriginSlot,
+  type DescribeOriginsInput,
   type CompositionReport,
   type CompositionProviderSlot,
   type DescribeCompositionInput,
@@ -146,12 +157,22 @@ export type CapabilitySelectionOption = (typeof CAPABILITY_SELECTION_OPTIONS)[nu
 // slot, plus every descriptor id the workspace holds. A host that reports on a
 // composition, names an artifact after a selected provider or checks the outcome
 // reads it here instead of re-deriving it from the resolved set.
+export interface DiscoveredCapabilityDescriptor {
+  descriptor: Descriptor;
+  // True for a grouping: a descriptor that names others and owns no package.
+  virtual: boolean;
+}
+
 export function resolveCapabilitySelection(options: CapabilitySelectionInput): {
   capabilities: ResolvedCapability[];
   providerSelection: ProviderSelectionResolution;
   // Everything discovery knew about, selected or not: files, nested descriptors
   // and manifest groupings alike. Counting directories instead misses the last two.
   discovered: DescriptorId[];
+  // The same set as descriptors. A report that says why a descriptor is in this
+  // composition needs the ones that are not, above all the providers that lost a
+  // slot, and reading the workspace a second time would answer for a different one.
+  discoveredDescriptors: DiscoveredCapabilityDescriptor[];
 } {
   const capabilitiesDir = options.capabilitiesDir ?? 'capabilities';
   const descriptorPaths = options.descriptorPaths ?? [`${capabilitiesDir}/*/capability.json`];
@@ -213,6 +234,10 @@ export function resolveCapabilitySelection(options: CapabilitySelectionInput): {
     capabilities,
     providerSelection,
     discovered: [...discovered, ...virtual].map((item) => item.id),
+    discoveredDescriptors: [...discovered, ...virtual].map((item) => ({
+      descriptor: item.descriptor,
+      virtual: item.virtual,
+    })),
   };
 }
 
@@ -235,28 +260,41 @@ export interface CapabilityCompositionInput extends CapabilitySelectionInput {
   register: (exportValue: unknown, capability: ResolvedCapability) => void | Promise<void>;
 }
 
+// Loads one surface of an already resolved set and registers what it exports. The one
+// composition loop: `composeCapabilities` resolves the set first, a composition run
+// hands over the set it resolved once, and neither can activate differently than the
+// other.
+async function activateSurface(input: {
+  active: readonly ResolvedCapability[];
+  surface: string;
+  activation: ActivationResolver;
+  load: (specifier: string) => Promise<Record<string, unknown>>;
+  register: (exportValue: unknown, capability: ResolvedCapability) => void | Promise<void>;
+}): Promise<ResolvedCapability[]> {
+  const activated: ResolvedCapability[] = [];
+
+  for (const { capability, specifier, exportName } of resolveSurfaceModules(
+    input.active,
+    input.surface,
+    input.activation,
+  )) {
+    const module = await input.load(specifier);
+    const exportValue = module[exportName];
+    if (exportValue === undefined) continue;
+    await input.register(exportValue, capability);
+    activated.push(capability);
+  }
+
+  return activated;
+}
+
 export async function composeCapabilities(
   options: CapabilityCompositionInput,
 ): Promise<ResolvedCapability[]> {
   // The selection input is forwarded whole. Restating its fields here would let a
   // runtime composition silently resolve a different set than the build-time one
   // the moment the selection contract grows.
-  const active = resolveSelectedCapabilities(options);
-  const activated: ResolvedCapability[] = [];
-
-  for (const { capability, specifier, exportName } of resolveSurfaceModules(
-    active,
-    options.surface,
-    options.activation,
-  )) {
-    const module = await options.load(specifier);
-    const exportValue = module[exportName];
-    if (exportValue === undefined) continue;
-    await options.register(exportValue, capability);
-    activated.push(capability);
-  }
-
-  return activated;
+  return activateSurface({ ...options, active: resolveSelectedCapabilities(options) });
 }
 
 // --- Workspace host loader --------------------------------------------------
@@ -330,48 +368,18 @@ function assertInside(parent: string, child: string, label: string): void {
   }
 }
 
-// Resolves an `exports` entry for `subpath` to a relative target file. Supports a
-// string target and a conditional object, resolved in `import` > `require` >
-// `default` order (nested condition objects are followed the same way) — the loader
-// imports the target via `import()`, which loads ESM and CJS alike, so `import` and
-// `require` are both runtime-valid; `types` is a declaration-file condition and is
-// deliberately never followed. It is a small subset of node resolution — no subpath
-// patterns (`./*`), no `node` condition — enough for workspace packages that declare
-// plain export targets, including the conditions-only `.` sugar.
-function resolveExportTarget(exports: unknown, subpath: string, packageJsonPath: string): string {
-  const resolveConditions = (entry: unknown): string | undefined => {
-    if (typeof entry === 'string') return entry;
-    if (!entry || typeof entry !== 'object') return undefined;
-    const conditions = entry as Record<string, unknown>;
-    for (const key of ['import', 'require', 'default']) {
-      if (key in conditions) {
-        const resolved = resolveConditions(conditions[key]);
-        if (resolved !== undefined) return resolved;
-      }
-    }
-    return undefined;
-  };
-
-  const missing = (): Error =>
-    new Error(`No "${subpath}" export resolves to a file in ${packageJsonPath}.`);
-
-  if (typeof exports === 'string') {
-    if (subpath === '.') return exports;
-    throw missing();
-  }
-  if (!exports || typeof exports !== 'object') {
+// The `exports` target for `subpath`, with the messages this loader owes its caller.
+// The resolution itself is `resolvePackageExport` in
+// [`@lorion-org/descriptor-discovery`](../descriptor-discovery), which owns reading a
+// package manifest; a second copy here is how the two came to disagree.
+function requireExportTarget(exports: unknown, subpath: string, packageJsonPath: string): string {
+  if (exports === undefined || exports === null || typeof exports === 'number') {
     throw new Error(`Package ${packageJsonPath} declares no "exports" to resolve "${subpath}".`);
   }
-
-  // An `exports` object with no subpath keys is node's sugar for the `.` export
-  // expressed directly as conditions (e.g. `{ import, require }`).
-  const record = exports as Record<string, unknown>;
-  const isSubpathMap = Object.keys(record).some((key) => key.startsWith('.'));
-  const entry = isSubpathMap ? record[subpath] : subpath === '.' ? record : undefined;
-  if (entry === undefined) throw missing();
-
-  const target = resolveConditions(entry);
-  if (target === undefined) throw missing();
+  const target = resolvePackageExport(exports, subpath);
+  if (target === undefined) {
+    throw new Error(`No "${subpath}" export resolves to a file in ${packageJsonPath}.`);
+  }
   return target;
 }
 
@@ -390,9 +398,228 @@ export function createWorkspaceLoad(options: {
     assertInside(packagesRoot, packageDirectory, 'workspace package');
     const packageJsonPath = resolve(packageDirectory, 'package.json');
     const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as { exports?: unknown };
-    const relativeTarget = resolveExportTarget(packageJson.exports, subpath, packageJsonPath);
+    const relativeTarget = requireExportTarget(packageJson.exports, subpath, packageJsonPath);
     const target = resolve(packageDirectory, relativeTarget);
     assertInside(packageDirectory, target, 'export target');
     return (await import(pathToFileURL(target).href)) as Record<string, unknown>;
+  };
+}
+
+// --- Package sources --------------------------------------------------------
+//
+// The package set a workspace holds is resolved by
+// [`@lorion-org/descriptor-discovery`](../descriptor-discovery). What a composition
+// does with it lives here: it loads from it, projects surfaces onto its files, and
+// hands the same resolution to every entry point of a run.
+
+export type {
+  PackageEntry,
+  PackageSource,
+  PackageSourceSnapshot,
+} from '@lorion-org/descriptor-discovery';
+export {
+  findWorkspaceRoot,
+  resolvePackageEntries,
+  resolvePackageExport,
+  resolvePackageSources,
+} from '@lorion-org/descriptor-discovery';
+
+function findPackageSource(
+  packageSources: readonly PackageSource[],
+  specifier: string,
+): { source: PackageSource; subpath: string } {
+  const source = packageSources.find(
+    (candidate) => specifier === candidate.name || specifier.startsWith(`${candidate.name}/`),
+  );
+  if (!source) throw new Error(`No package source found for "${specifier}".`);
+  const rest = specifier.slice(source.name.length);
+  return { source, subpath: rest.length ? `.${rest}` : '.' };
+}
+
+// The `load` callback `composeCapabilities` needs, over a resolved package set rather
+// than one packages directory: a capability is addressed by the package name its
+// manifest declares, so packages of several roots and of several directory layouts
+// load through one callback.
+export function createPackageSourceLoad(
+  packageSources: readonly PackageSource[],
+): (specifier: string) => Promise<Record<string, unknown>> {
+  return async (specifier) => {
+    const { source, subpath } = findPackageSource(packageSources, specifier);
+    const target = requireExportTarget(source.manifest.exports, subpath, source.manifestPath);
+    const entryPath = resolve(source.root, target);
+    assertInside(source.root, entryPath, 'export target');
+    return (await import(pathToFileURL(entryPath).href)) as Record<string, unknown>;
+  };
+}
+
+export interface SurfaceEntry {
+  capabilityId: DescriptorId;
+  packageName: string;
+  // The public specifier that reaches the surface module.
+  specifier: string;
+  exportName: string;
+  // The file that specifier resolves to through the package's `exports`.
+  entryPath: string;
+}
+
+// One surface of a resolved composition, projected onto the files it lives in. A
+// build-time host that emits static imports gets the addressing from
+// `resolveSurfaceModules` and the file from the package manifest, so it repeats
+// neither the activation convention nor a directory layout of its own.
+//
+// A capability whose package is missing from the set, declares no such export, or
+// exports a file that is not there aborts by name: a build would otherwise emit an
+// import that fails much later with a specifier nobody declared.
+export function resolveSurfaceEntries(input: {
+  capabilities: readonly ResolvedCapability[];
+  surface: string;
+  activation: ActivationResolver;
+  packageSources: readonly PackageSource[];
+}): SurfaceEntry[] {
+  const sources = new Map(input.packageSources.map((source) => [source.name, source]));
+
+  return resolveSurfaceModules(input.capabilities, input.surface, input.activation)
+    .map(({ capability, specifier, exportName }) => {
+      const source = sources.get(capability.packageName);
+      const context = `Cannot project the "${input.surface}" surface of capability "${capability.id}"`;
+      if (!source) {
+        throw new Error(
+          `${context}: package "${capability.packageName}" is missing from the package sources.`,
+        );
+      }
+      const subpath = `.${specifier.slice(capability.packageName.length)}`;
+      const target = resolvePackageExport(source.manifest.exports, subpath);
+      if (!target) {
+        throw new Error(
+          `${context}: package "${capability.packageName}" does not export "${subpath}".`,
+        );
+      }
+      const entryPath = resolve(source.root, target);
+      if (!existsSync(entryPath)) {
+        throw new Error(
+          `${context}: package "${capability.packageName}" exports "${subpath}" to the missing file "${entryPath}".`,
+        );
+      }
+      return {
+        capabilityId: capability.id,
+        packageName: capability.packageName,
+        specifier,
+        exportName,
+        entryPath,
+      };
+    })
+    .sort(
+      (left, right) =>
+        left.capabilityId.localeCompare(right.capabilityId) ||
+        left.packageName.localeCompare(right.packageName),
+    );
+}
+
+// --- One run ----------------------------------------------------------------
+
+export interface CompositionRunInput extends CapabilitySelectionInput {
+  // The package set the composition addresses. Given here, a run loads and projects
+  // surfaces without a host mapping package names to directories again.
+  packageSources?: readonly PackageSource[];
+}
+
+// One resolution, shared by everything that acts on it or reports about it. A host
+// that resolves per entry point states its run twice, and the second statement is
+// free to differ: a build then emits one selection while the server start reports
+// another, and nothing in either says so. A run is resolved on first use and reused.
+export interface CompositionRun {
+  capabilities: () => ResolvedCapability[];
+  providerSelection: () => ProviderSelectionResolution;
+  // Every descriptor the run knew about, selected or not, groupings marked. A check
+  // over declared names and a reader of a declared relation take them from here, so
+  // both read what this run resolved rather than a second reading of the workspace.
+  // The ids alone are in `report().discovered`.
+  descriptors: () => DiscoveredCapabilityDescriptor[];
+  report: () => CompositionReport;
+  origins: () => CompositionOrigins;
+  // The package sources of the capabilities this run resolved, in name order.
+  selectedPackageSources: () => PackageSource[];
+  surfaceEntries: (surface: string, activation: ActivationResolver) => SurfaceEntry[];
+  compose: (input: {
+    surface: string;
+    activation: ActivationResolver;
+    register: (exportValue: unknown, capability: ResolvedCapability) => void | Promise<void>;
+    // Defaults to a loader over the run's package sources.
+    load?: (specifier: string) => Promise<Record<string, unknown>>;
+  }) => Promise<ResolvedCapability[]>;
+}
+
+export function createCompositionRun(input: CompositionRunInput): CompositionRun {
+  let resolution: ReturnType<typeof resolveCapabilitySelection> | undefined;
+  const resolveOnce = (): ReturnType<typeof resolveCapabilitySelection> => {
+    resolution ??= resolveCapabilitySelection(input);
+    return resolution;
+  };
+
+  const packageSources = (): readonly PackageSource[] => {
+    if (!input.packageSources) {
+      throw new Error(
+        'This composition run was created without `packageSources`. Pass the package set the composition addresses.',
+      );
+    }
+    return input.packageSources;
+  };
+
+  return {
+    capabilities: () => resolveOnce().capabilities,
+    providerSelection: () => resolveOnce().providerSelection,
+    descriptors: () => resolveOnce().discoveredDescriptors,
+    report: () => {
+      const { capabilities, providerSelection, discovered } = resolveOnce();
+      return describeComposition({
+        requested: resolveRequestedSelection(input.seed),
+        selected: resolveDescriptorSelection(input.seed),
+        base: input.seed.baseDescriptors ?? [],
+        resolved: capabilities.map((capability) => capability.id),
+        discovered,
+        providerSlots: providerSelection.slots,
+      });
+    },
+    origins: () => {
+      const { capabilities, discoveredDescriptors, providerSelection } = resolveOnce();
+      return describeCompositionOrigins({
+        selected: resolveDescriptorSelection(input.seed),
+        base: input.seed.baseDescriptors ?? [],
+        resolved: capabilities.map((capability) => capability.id),
+        descriptors: discoveredDescriptors.map((entry) => entry.descriptor),
+        groupings: discoveredDescriptors
+          .filter((entry) => entry.virtual)
+          .map((entry) => entry.descriptor.id),
+        providerSlots: providerSelection.slots,
+      });
+    },
+    selectedPackageSources: () => {
+      const byName = new Map(packageSources().map((source) => [source.name, source]));
+      const selected = new Map<string, PackageSource>();
+      for (const capability of resolveOnce().capabilities) {
+        if (!capability.packageName) continue;
+        const source = byName.get(capability.packageName);
+        if (!source) {
+          throw new Error(
+            `Selected package "${capability.packageName}" is missing from the package sources.`,
+          );
+        }
+        selected.set(source.name, source);
+      }
+      return [...selected.values()].sort((left, right) => left.name.localeCompare(right.name));
+    },
+    surfaceEntries: (surface, activation) =>
+      resolveSurfaceEntries({
+        capabilities: resolveOnce().capabilities,
+        surface,
+        activation,
+        packageSources: packageSources(),
+      }),
+    compose: (composition) =>
+      activateSurface({
+        ...composition,
+        active: resolveOnce().capabilities,
+        load: composition.load ?? createPackageSourceLoad(packageSources()),
+      }),
   };
 }

@@ -1,6 +1,9 @@
 {
-  "id": "reports",
+  "id": "audit-log",
   "version": "1.0.0",
+  "dependencies": {
+    "dashboard": "^1.0.0"
+  },
   "contributesTo": {
     "dashboard": "panel"
   }
