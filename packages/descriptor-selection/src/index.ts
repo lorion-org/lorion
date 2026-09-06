@@ -1,6 +1,7 @@
 import {
   createCompositionSelection,
   createDescriptorCatalog,
+  extendCompositionPolicy,
   resolveDescriptorSelectionSeed,
   type CompositionPolicy,
   type Descriptor,
@@ -33,7 +34,15 @@ import {
 // target provider descriptors are interpreted as provider choices before graph
 // resolution and only the winning edge is retained.
 export const providerRelationDescriptors: RelationDescriptor[] = [
-  { direction: 'incoming', field: 'defaultFor', id: 'defaultProviders' },
+  {
+    direction: 'incoming',
+    field: 'defaultFor',
+    id: 'defaultProviders',
+    // Carried on the relation so a host policy extends it instead of replacing it: a
+    // policy that names `resolutionRelationIds` to add an edge of its own would
+    // otherwise drop this one, and every default provider would lose its slot.
+    roles: ['resolution', 'provenance', 'inspection'],
+  },
 ];
 
 // The relations walked when resolving, inspecting, and tracing provenance.
@@ -99,18 +108,17 @@ function toDescriptorIds(
   return [...new Set(ids)].sort();
 }
 
-// The active selection ids from a seed: explicit `selected` wins; otherwise the
-// CLI/env seed is parsed, falling back to `defaultSelection`. Base descriptors are
-// resolved separately by the graph and are not part of this list.
-export function resolveDescriptorSelection(seed: DescriptorSelectionSeed): DescriptorId[] {
+// The ids a run named, or null when it named none: explicit `selected` wins, otherwise
+// the CLI/env seed is parsed. The host's `defaultSelection` is not among them, because
+// a run that named nothing and a run that named what the host defaults to are
+// different statements, and a report that says what was asked for shows the difference.
+export function resolveRequestedSelection(seed: DescriptorSelectionSeed): DescriptorId[] | null {
   const selectedIds = toDescriptorIds(seed.selected, 'selected');
-  const defaultIds = toDescriptorIds(seed.defaultSelection, 'defaultSelection');
-
   if (selectedIds.length) return selectedIds;
-  if (seed.selectionSeed === false) return defaultIds;
+  if (seed.selectionSeed === false) return null;
 
   const options = seed.selectionSeed ?? {};
-  const selected = resolveDescriptorSelectionSeed({
+  const named = resolveDescriptorSelectionSeed({
     argv: options.argv ?? process.argv,
     env: options.env ?? process.env,
     key: options.key ?? 'capability',
@@ -118,7 +126,15 @@ export function resolveDescriptorSelection(seed: DescriptorSelectionSeed): Descr
     ...(options.envKeys ? { envKeys: options.envKeys } : {}),
   });
 
-  return selected.length ? selected : defaultIds;
+  return named.length ? named : null;
+}
+
+// The active selection ids from a seed: what the run named, falling back to
+// `defaultSelection`. Base descriptors are resolved separately by the graph and are
+// not part of this list.
+export function resolveDescriptorSelection(seed: DescriptorSelectionSeed): DescriptorId[] {
+  const defaultIds = toDescriptorIds(seed.defaultSelection, 'defaultSelection');
+  return resolveRequestedSelection(seed) ?? defaultIds;
 }
 
 // A capability a descriptor provides for must be declared: some descriptor in the
@@ -429,9 +445,21 @@ export function selectDescriptorsWithProviders<T>(input: DescriptorSelectionInpu
   const strippedItems = enabled.map((item) =>
     withDescriptor(item, stripProviderActivationRelations(getDescriptor(item), providerIds)),
   );
+  const relationDescriptors = [
+    ...providerRelationDescriptors,
+    ...(input.relationDescriptors ?? []),
+  ];
+  // The relations a host registers take part in the roles they declare, on top of the
+  // provider relations this package resolves through. Without this a host that adds a
+  // relation would have to restate the provider relations in its own policy, and
+  // forgetting one stops providers from resolving at all.
+  const policy = extendCompositionPolicy(
+    descriptorSelectionPolicy(input.policy),
+    relationDescriptors,
+  );
   const strippedCatalog = createDescriptorCatalog({
     descriptors: strippedItems.map(getDescriptor),
-    relationDescriptors: [...providerRelationDescriptors, ...(input.relationDescriptors ?? [])],
+    relationDescriptors,
   });
   const providerRoots = new Set(explicitRequests.map((request) => request.providerId));
   let providerSelection: ProviderSelectionResolution = {
@@ -445,7 +473,7 @@ export function selectDescriptorsWithProviders<T>(input: DescriptorSelectionInpu
       catalog: strippedCatalog,
       selected: [...selected, ...implicitSelected, ...providerRoots],
       baseDescriptors: [...baseDescriptors],
-      policy: descriptorSelectionPolicy(input.policy),
+      policy,
     });
     const nextResolvedIds = new Set(closure.getResolved());
     const dependencyRequests = createDependencyProviderRequests({
@@ -497,13 +525,13 @@ export function selectDescriptorsWithProviders<T>(input: DescriptorSelectionInpu
   );
   const catalog = createDescriptorCatalog({
     descriptors: selectionItems.map(getDescriptor),
-    relationDescriptors: [...providerRelationDescriptors, ...(input.relationDescriptors ?? [])],
+    relationDescriptors,
   });
   const selection = createCompositionSelection({
     catalog,
     selected: [...selected, ...implicitSelected],
     baseDescriptors: [...baseDescriptors],
-    policy: descriptorSelectionPolicy(input.policy),
+    policy,
   });
   // Ordered by id, which is what `getResolved` returns. It is stable for a given
   // input and independent of discovery order, so two hosts reading the same

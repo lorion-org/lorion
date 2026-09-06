@@ -30,6 +30,9 @@ pnpm add @lorion-org/descriptor-selection
   and the `catalog` it resolved against. `selectDescriptors` wraps it for hosts that
   need only the items.
 - `resolveDescriptorSelection(seed)` resolves just the selection ids from a seed.
+- `resolveRequestedSelection(seed)` returns the ids the run named, or `null` when it
+  named none. `resolveDescriptorSelection` falls back to `defaultSelection` on top of
+  it, so a host that reports what was asked for can tell the two apart.
 - `assertKnownProviderCapabilities({ declared, providers })` throws when a descriptor
   provides for a capability no descriptor declares. A `providesFor` naming a
   capability that does not exist can never be selected, so the run says so at
@@ -40,7 +43,11 @@ pnpm add @lorion-org/descriptor-selection
   more than one provider of the same capability, which would serve it twice.
 - `providerRelationDescriptors`, `defaultResolutionRelations`, and
   `descriptorSelectionPolicy(policy?)` expose the provider relations and the
-  default resolution policy.
+  default resolution policy. A relation a host passes as `relationDescriptors` is
+  walked in the roles it declares, on top of the provider relations this package
+  resolves through: naming one policy list replaces that list, and a host that only
+  wanted to add an edge of its own would otherwise stop every provider from
+  resolving.
 
 ## Provider contract
 
