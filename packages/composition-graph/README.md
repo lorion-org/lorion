@@ -16,6 +16,8 @@ pnpm add @lorion-org/composition-graph
 - a graph builder for declared relations
 - a catalog for querying profiles and relation paths
 - a selection layer for resolving selected and base descriptors into a final set
+- a policy that a registered relation extends instead of replacing
+- the declared contribution relation, and a check over every name a relation carries
 
 ## What it is not
 
@@ -23,6 +25,57 @@ pnpm add @lorion-org/composition-graph
 - not a filesystem discovery tool
 - not a framework adapter
 - not a runtime-config loader
+
+## Relations a host registers
+
+A relation descriptor carries the roles it is walked for, and
+`extendCompositionPolicy` appends each registered relation to the lists its roles
+name. A host adds an edge without restating the lists a composition already walks:
+
+```ts
+import {
+  contributionRelationDescriptor,
+  createDescriptorCatalog,
+  extendCompositionPolicy,
+} from '@lorion-org/composition-graph';
+
+const relationDescriptors = [contributionRelationDescriptor()];
+const catalog = createDescriptorCatalog({ descriptors, relationDescriptors });
+const selection = catalog.resolveSelection({
+  selected: ['storefront'],
+  policy: extendCompositionPolicy(undefined, relationDescriptors),
+});
+```
+
+A relation without roles is registered and walked by nothing: its edges are
+readable, and the composition resolves exactly as it did before.
+
+## The contribution relation
+
+A descriptor offers named points through `contributionPoints`, and other descriptors
+declare which of them they fill through `contributesTo`. It is the non-exclusive
+counterpart to `providesFor`: several descriptors may fill one point, and filling it
+replaces nothing.
+
+```ts
+import { resolveContributions } from '@lorion-org/composition-graph';
+
+const contributions = resolveContributions(descriptors);
+contributions.receives('checkout');
+// [{ from: 'payment-provider-invoice', to: 'checkout', point: 'payment-method' }]
+```
+
+A contribution to an unknown descriptor, to a point its owner does not declare, or to
+the contributor itself aborts while the declaring descriptor can still be named.
+Resolution does not walk the relation: a contribution says where a descriptor's output
+lands, not what has to be present for it to work.
+
+## Names that resolve to nothing
+
+A relation resolves only for a target the descriptor map holds; every other name is
+skipped, and the composition quietly becomes smaller than it reads.
+`assertKnownReferences({ descriptors, relationDescriptors })` reports such a name
+together with the descriptor that declared it and the relation it declared it under.
 
 ## Basic example
 

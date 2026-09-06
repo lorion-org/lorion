@@ -43,7 +43,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function getRelationTargets(
+// The ids one descriptor names under one relation, as the graph reads them: the keys
+// of a map, its values, or a string or list carried directly. Exported so a check
+// over declared names reads exactly what the graph walks.
+export function readRelationTargets(
   descriptor: Descriptor,
   relationDescriptor: RelationDescriptor,
 ): DescriptorId[] {
@@ -97,7 +100,7 @@ export function buildDescriptorGraph(input: {
     left.id.localeCompare(right.id),
   )) {
     for (const relationDescriptor of descriptorRegistry.values()) {
-      for (const target of getRelationTargets(descriptor, relationDescriptor)) {
+      for (const target of readRelationTargets(descriptor, relationDescriptor)) {
         if (!input.descriptorMap.has(target)) continue;
 
         const isIncoming = relationDescriptor.direction === 'incoming';

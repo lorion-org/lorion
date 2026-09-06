@@ -12,6 +12,11 @@ export type Descriptor = {
   providesFor?: DescriptorId | DescriptorId[];
   defaultFor?: DescriptorId | DescriptorId[];
   capabilities?: string[];
+  // The points this descriptor offers for others to fill.
+  contributionPoints?: string[];
+  // The points this descriptor fills elsewhere, keyed by the descriptor that owns
+  // them. The non-exclusive counterpart to `providesFor`.
+  contributesTo?: Record<DescriptorId, string | string[]>;
   dependencies?: VersionConstraintMap;
   disabled?: boolean;
   location?: string;
@@ -23,11 +28,19 @@ export type Descriptor = {
 
 export type DescriptorMap = Map<DescriptorId, Descriptor>;
 
+// What a registered relation is walked for. A relation carries its roles with it,
+// so a host that adds one keeps the roles the composition already walks instead of
+// restating them in a policy: `extendCompositionPolicy` appends by role.
+export type RelationRole = 'resolution' | 'provenance' | 'inspection';
+
 export type RelationDescriptor = {
   direction?: 'outgoing' | 'incoming';
   id: RelationId;
   field?: string;
   targetMode?: 'keys' | 'values';
+  // Omitted means the relation is registered in the graph and walked by nothing:
+  // its edges are readable, and the composition resolves exactly as before.
+  roles?: readonly RelationRole[];
 };
 
 export type DescriptorEdge = {

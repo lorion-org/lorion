@@ -48,8 +48,8 @@
     "example:composition": "node ./snippets/deployment-composition.js",
     "lint": "eslint src --ext .ts",
     "prepack": "pnpm build",
-    "test": "vitest run --root ../.. --config vitest.config.mts packages/composition-graph/src/index.spec.ts",
-    "coverage": "node -e \"require('node:fs').mkdirSync('../../coverage/.tmp', { recursive: true })\" && vitest run --coverage --coverage.include=packages/composition-graph/src/**/*.ts --root ../.. --config vitest.config.mts packages/composition-graph/src/index.spec.ts",
+    "test": "vitest run --root ../.. --config vitest.config.mts packages/composition-graph/src",
+    "coverage": "node -e \"require('node:fs').mkdirSync('../../coverage/.tmp', { recursive: true })\" && vitest run --coverage --coverage.include=packages/composition-graph/src/**/*.ts --root ../.. --config vitest.config.mts packages/composition-graph/src",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "package:check": "pnpm build && pnpm pack --dry-run && publint"
   },

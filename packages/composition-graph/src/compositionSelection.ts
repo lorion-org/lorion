@@ -7,6 +7,8 @@ import type {
   Descriptor,
   DescriptorCatalog,
   DescriptorId,
+  RelationDescriptor,
+  RelationRole,
 } from './types';
 
 export const defaultCompositionPolicy: CompositionPolicy = {
@@ -14,6 +16,35 @@ export const defaultCompositionPolicy: CompositionPolicy = {
   provenanceRelationIds: ['dependencies'],
   inspectionRelationIds: ['dependencies'],
 };
+
+const POLICY_FIELD: Record<RelationRole, keyof CompositionPolicy> = {
+  resolution: 'resolutionRelationIds',
+  provenance: 'provenanceRelationIds',
+  inspection: 'inspectionRelationIds',
+};
+
+// The policy that walks `relationDescriptors` in the roles they declare, on top of
+// the lists `policy` already names (the defaults where it names none). A host adds a
+// relation by registering it, and the relations the composition already resolves stay
+// resolved: naming one list in a policy replaces that list, and a host that only
+// wanted to add an inspection edge would otherwise drop the relations providers
+// resolve through.
+export function extendCompositionPolicy(
+  policy: Partial<CompositionPolicy> | undefined,
+  relationDescriptors: readonly RelationDescriptor[] | undefined,
+): Partial<CompositionPolicy> {
+  const extended: Partial<CompositionPolicy> = { ...policy };
+
+  for (const relationDescriptor of relationDescriptors ?? []) {
+    for (const role of relationDescriptor.roles ?? []) {
+      const field = POLICY_FIELD[role];
+      const current = extended[field] ?? policy?.[field] ?? defaultCompositionPolicy[field];
+      extended[field] = [...new Set([...current, relationDescriptor.id])];
+    }
+  }
+
+  return extended;
+}
 
 function resolvePolicy(policy?: Partial<CompositionPolicy>): CompositionPolicy {
   return {

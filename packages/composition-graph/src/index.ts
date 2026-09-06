@@ -15,7 +15,23 @@ export {
   getTransitiveTargets,
 } from './descriptorGraph';
 export { createDescriptorCatalog } from './descriptorCatalog';
-export { createCompositionSelection, defaultCompositionPolicy } from './compositionSelection';
+export {
+  createCompositionSelection,
+  defaultCompositionPolicy,
+  extendCompositionPolicy,
+} from './compositionSelection';
+export { assertKnownReferences } from './references';
+export {
+  CONTRIBUTION_FIELD,
+  CONTRIBUTION_POINT_FIELD,
+  contributionRelationDescriptor,
+  resolveContributions,
+} from './contributions';
+export type {
+  ContributionEdge,
+  ContributionRelationOptions,
+  ContributionRelations,
+} from './contributions';
 export type {
   CompositionOriginType,
   CompositionPolicy,
@@ -32,6 +48,7 @@ export type {
   DescriptorProfile,
   RelationDescriptor,
   RelationId,
+  RelationRole,
   ResolutionStep,
   VersionConstraintMap,
 } from './types';
