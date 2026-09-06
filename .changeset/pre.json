@@ -29,6 +29,7 @@
     "composition-report",
     "declared-provider-capabilities",
     "descriptor-discovery-runtime-config-peer",
+    "descriptor-paths-name-files",
     "descriptor-selection-seeds",
     "descriptor-selection",
     "descriptor-validation-errors",
@@ -41,6 +42,7 @@
     "nested-descriptors-are-virtual",
     "nested-descriptors-react",
     "nuxt-runtime-safe-extensions",
+    "one-composition-run",
     "one-descriptor-definition",
     "one-selection-brain",
     "provider-dependency-selection",
@@ -50,6 +52,7 @@
     "react-provider-relations",
     "react-readme-index-route-note",
     "react-runtime-config",
+    "relations-extend-the-policy",
     "removed-react-seed-alias",
     "require-package-name",
     "runtime-config-explicit-imports",
@@ -61,6 +64,7 @@
     "unified-versioning",
     "unique-descriptor-ids",
     "virtual-descriptors-and-base-seed",
-    "workspace-host-loader"
+    "workspace-host-loader",
+    "workspace-package-sources"
   ]
 }

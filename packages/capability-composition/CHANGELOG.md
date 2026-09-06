@@ -1,5 +1,68 @@
 # @lorion-org/capability-composition
 
+## 1.0.0-beta.9
+
+### Minor Changes
+
+- b8c954e: State a composition run once, and let every projection read that one resolution.
+  - `createCompositionRun(input)` resolves on first use and reuses the result for the
+    report, the origins, the package sources it selected, the surface projection and
+    the runtime composition. A host that resolves per entry point states its run twice,
+    and the second statement is free to differ: a build then emits one selection while
+    the server start reports another, and nothing in either says so.
+  - `resolveCapabilitySelection` additionally returns `discoveredDescriptors`, the
+    descriptors behind the ids it already reported. A report that says why a descriptor
+    is in a composition needs the ones that are not, above all the providers that lost
+    a slot, and reading the workspace a second time would answer for a different one.
+  - `resolveRequestedSelection(seed)` in `@lorion-org/descriptor-selection` returns the ids a
+    run named, or null when it named none, and `resolveDescriptorSelection` now falls back
+    to `defaultSelection` on top of it. A report says what was asked for, and a run that
+    named nothing is a different statement than one that named what its host defaults to.
+  - `describeCompositionOrigins(input)` and `formatCompositionOrigins(origins)` sort one
+    resolution into where each descriptor came from: named by the run, from the base,
+    from a grouping it runs, a slot filling with the candidates it beat, brought by a
+    grouping, or pulled in behind something named.
+
+- b8c954e: Read the package set of a workspace once, and compose from it.
+  - `resolvePackageSources({ from | root, patterns?, additionalRoots?, descriptorFileName?, cache? })`
+    in `@lorion-org/descriptor-discovery`: the packages a workspace holds, each with its
+    name, root, manifest and the descriptor beside it, plus the `descriptorPaths`
+    `discoverDescriptors` takes. Workspace patterns are read in both spellings (a list,
+    or an object carrying `packages`), `additionalRoots` joins further checkouts into
+    one snapshot with the asking workspace winning a name collision, two packages
+    claiming one descriptor id abort with both paths, a descriptor with no manifest
+    beside it is named rather than dropped, and a pattern whose prefix names a checkout
+    that is not there aborts instead of resolving a composition that is quietly
+    incomplete. `findWorkspaceRoot(from)` and `readWorkspacePatterns(manifest)`
+    are the pieces it is built from.
+  - `resolvePackageExport(exports, subpath)` and `resolvePackageEntries(packageSources, subpaths)`
+    in `@lorion-org/descriptor-discovery`: one `exports` resolution (`import` before
+    `require` before `default`, conditions-only shorthand included, `types` never
+    followed), and the public entries of a package set projected onto the files they
+    resolve to. `createWorkspaceLoad` now uses that resolution instead of a second copy
+    of it.
+  - `createPackageSourceLoad(packageSources)` in `@lorion-org/capability-composition`:
+    the `load` callback over a resolved package set rather than one packages directory,
+    so packages of several roots and several directory layouts load through one
+    callback.
+  - `resolveSurfaceEntries({ capabilities, surface, activation, packageSources })` in
+    `@lorion-org/capability-composition`: one surface projected onto the files its
+    packages declare, for a build-time host that emits static imports. A capability
+    whose package is missing from the set, declares no such export, or exports a file
+    that is not there aborts by name.
+
+### Patch Changes
+
+- Updated dependencies [e59fc86]
+- Updated dependencies [b8c954e]
+- Updated dependencies [5788936]
+- Updated dependencies [b8c954e]
+  - @lorion-org/descriptor-discovery@1.0.0-beta.9
+  - @lorion-org/descriptor-selection@1.0.0-beta.9
+  - @lorion-org/composition-graph@1.0.0-beta.9
+  - @lorion-org/runtime-config@1.0.0-beta.9
+  - @lorion-org/surface-activation@1.0.0-beta.9
+
 ## 1.0.0-beta.8
 
 ### Major Changes

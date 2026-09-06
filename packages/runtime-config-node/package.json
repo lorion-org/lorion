@@ -1,6 +1,6 @@
 {
   "name": "@lorion-org/runtime-config-node",
-  "version": "1.0.0-beta.8",
+  "version": "1.0.0-beta.9",
   "description": "Node file-system helpers for runtime-config directories and files.",
   "license": "MIT",
   "repository": {
