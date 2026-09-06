@@ -1,5 +1,55 @@
 # @lorion-org/descriptor-selection
 
+## 1.0.0-beta.9
+
+### Minor Changes
+
+- b8c954e: State a composition run once, and let every projection read that one resolution.
+  - `createCompositionRun(input)` resolves on first use and reuses the result for the
+    report, the origins, the package sources it selected, the surface projection and
+    the runtime composition. A host that resolves per entry point states its run twice,
+    and the second statement is free to differ: a build then emits one selection while
+    the server start reports another, and nothing in either says so.
+  - `resolveCapabilitySelection` additionally returns `discoveredDescriptors`, the
+    descriptors behind the ids it already reported. A report that says why a descriptor
+    is in a composition needs the ones that are not, above all the providers that lost
+    a slot, and reading the workspace a second time would answer for a different one.
+  - `resolveRequestedSelection(seed)` in `@lorion-org/descriptor-selection` returns the ids a
+    run named, or null when it named none, and `resolveDescriptorSelection` now falls back
+    to `defaultSelection` on top of it. A report says what was asked for, and a run that
+    named nothing is a different statement than one that named what its host defaults to.
+  - `describeCompositionOrigins(input)` and `formatCompositionOrigins(origins)` sort one
+    resolution into where each descriptor came from: named by the run, from the base,
+    from a grouping it runs, a slot filling with the candidates it beat, brought by a
+    grouping, or pulled in behind something named.
+
+- 5788936: Let a host register a relation without replacing the ones a composition already
+  walks, and read the declared contribution relation.
+  - `RelationDescriptor` carries optional `roles` (`resolution`, `provenance`,
+    `inspection`), and `extendCompositionPolicy(policy, relationDescriptors)` appends
+    each registered relation to the lists its roles name. A relation without roles is
+    registered and walked by nothing, which is what happened before.
+  - `providerRelationDescriptors` declares those roles, and
+    `selectDescriptorsWithProviders` extends the policy with the relations it carries.
+    A policy that named `resolutionRelationIds` to add an edge of its own used to drop
+    the provider relation with it, and every default provider lost its slot.
+  - `resolveContributions(descriptors, options?)`, `contributionRelationDescriptor()`
+    and the descriptor fields `contributionPoints` / `contributesTo`: a descriptor
+    offers named points, others declare which of them they fill. A contribution to an
+    unknown descriptor, to a point its owner does not declare, or to the contributor
+    itself aborts while the declaring descriptor can still be named. Resolution does
+    not walk the relation.
+  - `assertKnownReferences({ descriptors, relationDescriptors? })` reports a name no
+    descriptor declares together with the descriptor that declared it and the relation
+    it declared it under. A relation resolves only for a target the descriptor map
+    holds, so such a name otherwise shrinks the composition in silence.
+
+### Patch Changes
+
+- Updated dependencies [5788936]
+  - @lorion-org/composition-graph@1.0.0-beta.9
+  - @lorion-org/provider-selection@1.0.0-beta.9
+
 ## 1.0.0-beta.8
 
 ### Major Changes

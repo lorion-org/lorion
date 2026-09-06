@@ -1,5 +1,22 @@
 # @lorion-org/react
 
+## 1.0.0-beta.9
+
+### Patch Changes
+
+- Updated dependencies [e59fc86]
+- Updated dependencies [b8c954e]
+- Updated dependencies [5788936]
+- Updated dependencies [b8c954e]
+  - @lorion-org/descriptor-discovery@1.0.0-beta.9
+  - @lorion-org/capability-composition@1.0.0-beta.9
+  - @lorion-org/descriptor-selection@1.0.0-beta.9
+  - @lorion-org/composition-graph@1.0.0-beta.9
+  - @lorion-org/provider-selection@1.0.0-beta.9
+  - @lorion-org/runtime-config@1.0.0-beta.9
+  - @lorion-org/runtime-config-node@1.0.0-beta.9
+  - @lorion-org/surface-activation@1.0.0-beta.9
+
 ## 1.0.0-beta.8
 
 ### Major Changes

@@ -1,5 +1,71 @@
 # @lorion-org/descriptor-discovery
 
+## 1.0.0-beta.9
+
+### Minor Changes
+
+- 5788936: Let a host register a relation without replacing the ones a composition already
+  walks, and read the declared contribution relation.
+  - `RelationDescriptor` carries optional `roles` (`resolution`, `provenance`,
+    `inspection`), and `extendCompositionPolicy(policy, relationDescriptors)` appends
+    each registered relation to the lists its roles name. A relation without roles is
+    registered and walked by nothing, which is what happened before.
+  - `providerRelationDescriptors` declares those roles, and
+    `selectDescriptorsWithProviders` extends the policy with the relations it carries.
+    A policy that named `resolutionRelationIds` to add an edge of its own used to drop
+    the provider relation with it, and every default provider lost its slot.
+  - `resolveContributions(descriptors, options?)`, `contributionRelationDescriptor()`
+    and the descriptor fields `contributionPoints` / `contributesTo`: a descriptor
+    offers named points, others declare which of them they fill. A contribution to an
+    unknown descriptor, to a point its owner does not declare, or to the contributor
+    itself aborts while the declaring descriptor can still be named. Resolution does
+    not walk the relation.
+  - `assertKnownReferences({ descriptors, relationDescriptors? })` reports a name no
+    descriptor declares together with the descriptor that declared it and the relation
+    it declared it under. A relation resolves only for a target the descriptor map
+    holds, so such a name otherwise shrinks the composition in silence.
+
+- b8c954e: Read the package set of a workspace once, and compose from it.
+  - `resolvePackageSources({ from | root, patterns?, additionalRoots?, descriptorFileName?, cache? })`
+    in `@lorion-org/descriptor-discovery`: the packages a workspace holds, each with its
+    name, root, manifest and the descriptor beside it, plus the `descriptorPaths`
+    `discoverDescriptors` takes. Workspace patterns are read in both spellings (a list,
+    or an object carrying `packages`), `additionalRoots` joins further checkouts into
+    one snapshot with the asking workspace winning a name collision, two packages
+    claiming one descriptor id abort with both paths, a descriptor with no manifest
+    beside it is named rather than dropped, and a pattern whose prefix names a checkout
+    that is not there aborts instead of resolving a composition that is quietly
+    incomplete. `findWorkspaceRoot(from)` and `readWorkspacePatterns(manifest)`
+    are the pieces it is built from.
+  - `resolvePackageExport(exports, subpath)` and `resolvePackageEntries(packageSources, subpaths)`
+    in `@lorion-org/descriptor-discovery`: one `exports` resolution (`import` before
+    `require` before `default`, conditions-only shorthand included, `types` never
+    followed), and the public entries of a package set projected onto the files they
+    resolve to. `createWorkspaceLoad` now uses that resolution instead of a second copy
+    of it.
+  - `createPackageSourceLoad(packageSources)` in `@lorion-org/capability-composition`:
+    the `load` callback over a resolved package set rather than one packages directory,
+    so packages of several roots and several directory layouts load through one
+    callback.
+  - `resolveSurfaceEntries({ capabilities, surface, activation, packageSources })` in
+    `@lorion-org/capability-composition`: one surface projected onto the files its
+    packages declare, for a build-time host that emits static imports. A capability
+    whose package is missing from the set, declares no such export, or exports a file
+    that is not there aborts by name.
+
+### Patch Changes
+
+- e59fc86: Match a file at the end of a descriptor path pattern, whatever the last segment is.
+
+  A pattern ending in a wildcard already matched files only. A pattern ending in a
+  literal segment asked whether the path exists, so a directory carrying the name of
+  the descriptor file counted as a match and the read that followed failed with
+  `EISDIR` instead of saying what was wrong. Both branches now name a file.
+
+- Updated dependencies [5788936]
+  - @lorion-org/composition-graph@1.0.0-beta.9
+  - @lorion-org/runtime-config@1.0.0-beta.9
+
 ## 1.0.0-beta.8
 
 ### Major Changes
