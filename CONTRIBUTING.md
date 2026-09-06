@@ -34,6 +34,12 @@ Run commands from the LORION repository root:
 - `pnpm examples:verify` type-checks and builds the runnable example apps (`examples/`)
 - `pnpm package:check` validates package contents and publish shape
 - `pnpm attw` verifies published types resolve across module resolvers
+- `pnpm mutants <source.ts>` measures test effectiveness for one source file: it
+  mutates that file and reports every mutant no test noticed. A survivor is a finding
+  to answer, not a gate, so the command reports and does not fail on one. It pairs a
+  file with its colocated spec, or with the package's entry spec when there is none;
+  `--tests <spec.ts>` names one instead. One file and one spec per run, because the
+  Vitest runner yields the result of a single spec when several are named.
 - `pnpm changeset` records a release note for a package change
 - `pnpm check` runs the full local gate used by CI
 
