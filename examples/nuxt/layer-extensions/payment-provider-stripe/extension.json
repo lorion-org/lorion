@@ -5,5 +5,8 @@
   "defaultFor": "checkout",
   "dependencies": {
     "payments": "^1.0.0"
+  },
+  "contributesTo": {
+    "payments": "payment-method"
   }
 }

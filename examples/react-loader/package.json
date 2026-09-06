@@ -10,6 +10,9 @@
     "lint": "eslint . --ext .ts,.tsx"
   },
   "dependencies": {
+    "@lorion-org/capability-composition": "workspace:*",
+    "@lorion-org/composition-graph": "workspace:*",
+    "@lorion-org/descriptor-discovery": "workspace:*",
     "@lorion-org/react": "workspace:*",
     "@lorion-org/surface-activation": "workspace:*"
   },

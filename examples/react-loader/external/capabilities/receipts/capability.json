@@ -1,10 +1,10 @@
 {
-  "id": "shop-stationery",
+  "id": "receipts",
   "version": "1.0.0",
   "dependencies": {
-    "shops": "^1.0.0"
+    "payments": "^1.0.0"
   },
   "contributesTo": {
-    "shops": "shop"
+    "payments": "receipt-note"
   }
 }

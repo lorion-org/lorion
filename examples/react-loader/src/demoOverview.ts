@@ -17,6 +17,7 @@ export const discoveredCapabilityIds = [
   'payment-provider-invoice',
   'payment-provider-stripe',
   'payments',
+  'receipts',
   'shop-coffee',
   'shop-stationery',
   'shops',

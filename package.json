@@ -26,7 +26,7 @@
     "tests": "pnpm run test",
     "tsc": "pnpm run typecheck",
     "typecheck": "turbo run typecheck --filter=./packages/*",
-    "check": "pnpm format:check && pnpm build && pnpm lint && pnpm test && pnpm typecheck && pnpm snippets:check && pnpm examples:verify && pnpm package:check && pnpm attw && pnpm declarations:check && pnpm manifests:check",
+    "check": "pnpm format:check && pnpm build && pnpm lint && pnpm test && pnpm typecheck && pnpm snippets:check && pnpm examples:verify && pnpm package:check && pnpm attw && pnpm declarations:check && pnpm manifests:check && pnpm vocabulary:check",
     "snippets:check": "tsc -p tsconfig.snippets.json",
     "examples:verify": "turbo run typecheck build lint --filter=./examples/*",
     "package:check": "turbo run package:check --filter=./packages/*",
@@ -38,6 +38,7 @@
     "release": "changeset publish",
     "release:beta": "changeset publish --tag beta",
     "declarations:check": "node tools/check-declarations.mjs",
+    "vocabulary:check": "node tools/check-vocabulary.mjs",
     "manifests:check": "node tools/check-bundle-manifests.mjs",
     "changeset:check": "changeset status --since=origin/main"
   },

@@ -65,6 +65,15 @@ importers:
 
   examples/nuxt:
     dependencies:
+      '@lorion-org/capability-composition':
+        specifier: workspace:*
+        version: link:../../packages/capability-composition
+      '@lorion-org/composition-graph':
+        specifier: workspace:*
+        version: link:../../packages/composition-graph
+      '@lorion-org/descriptor-discovery':
+        specifier: workspace:*
+        version: link:../../packages/descriptor-discovery
       '@lorion-org/nuxt':
         specifier: workspace:*
         version: link:../../packages/nuxt
@@ -78,6 +87,15 @@ importers:
 
   examples/react-loader:
     dependencies:
+      '@lorion-org/capability-composition':
+        specifier: workspace:*
+        version: link:../../packages/capability-composition
+      '@lorion-org/composition-graph':
+        specifier: workspace:*
+        version: link:../../packages/composition-graph
+      '@lorion-org/descriptor-discovery':
+        specifier: workspace:*
+        version: link:../../packages/descriptor-discovery
       '@lorion-org/react':
         specifier: workspace:*
         version: link:../../packages/react

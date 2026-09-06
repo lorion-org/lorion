@@ -9,6 +9,9 @@
     "typecheck": "node ../../tools/run-source-condition.mjs nuxi typecheck ."
   },
   "dependencies": {
+    "@lorion-org/capability-composition": "workspace:*",
+    "@lorion-org/composition-graph": "workspace:*",
+    "@lorion-org/descriptor-discovery": "workspace:*",
     "@lorion-org/nuxt": "workspace:*",
     "@lorion-org/registry-hub": "workspace:*"
   },

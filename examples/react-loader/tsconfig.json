@@ -9,10 +9,15 @@
     "noEmit": true,
     "rootDir": "../..",
     "paths": {
+      "@lorion-org/capability-composition": ["../../packages/capability-composition/src/index.ts"],
+      "@lorion-org/composition-graph": ["../../packages/composition-graph/src/index.ts"],
+      "@lorion-org/descriptor-discovery": ["../../packages/descriptor-discovery/src/index.ts"],
       "@lorion-org/react": ["../../packages/react/src/index.ts"],
       "@lorion-org/surface-activation": ["../../packages/surface-activation/src/index.ts"],
       "@acme/plugin": ["./src/plugin.ts"],
-      "@acme/*/web": ["./capabilities/*/src/web.ts"]
+      "@acme/payments": ["./capabilities/payments/src/index.ts"],
+      "@acme/shops": ["./capabilities/shops/src/index.ts"],
+      "@acme/*/web": ["./capabilities/*/src/web.ts", "./external/capabilities/*/src/web.ts"]
     }
   },
   "include": [
@@ -20,6 +25,8 @@
     "src/**/*.tsx",
     "vite.config.ts",
     "capabilities/**/*.ts",
-    "capabilities/**/*.tsx"
+    "capabilities/**/*.tsx",
+    "external/**/*.ts",
+    "external/**/*.tsx"
   ]
 }
