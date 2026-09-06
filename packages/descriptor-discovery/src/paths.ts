@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve as resolvePath } from 'node:path';
 
 // Segment-wise expansion of a path pattern, the one glob this package needs.
@@ -19,9 +19,19 @@ export function splitPattern(pattern: string): string[] {
   return pattern.split(/[\\/]+/).filter(Boolean);
 }
 
+// What a pattern matches is a file. The wildcard branch reads that off the directory
+// entry it already holds; a literal segment has none, so it asks.
+function isFile(path: string): boolean {
+  try {
+    return statSync(path).isFile();
+  } catch {
+    return false;
+  }
+}
+
 // Absolute paths of the files the pattern matches below `cwd`, sorted by the caller.
-// A pattern whose last segment carries no wildcard matches a file only when it
-// exists, so a caller can pass a literal path through unchanged.
+// A pattern whose last segment carries no wildcard matches that one file when it is
+// there, so a caller can pass a literal path through unchanged.
 export function expandPathPattern(cwd: string, pattern: string): string[] {
   const segments = splitPattern(pattern);
   const visit = (currentDir: string, index: number): string[] => {
@@ -33,7 +43,7 @@ export function expandPathPattern(cwd: string, pattern: string): string[] {
     if (!segment.includes('*')) {
       const nextPath = join(currentDir, segment);
 
-      if (isLast) return existsSync(nextPath) ? [nextPath] : [];
+      if (isLast) return isFile(nextPath) ? [nextPath] : [];
       if (!existsSync(nextPath)) return [];
 
       return visit(nextPath, index + 1);
