@@ -43,12 +43,15 @@ describe('assertKnownReferences', () => {
   });
 
   it('reports every unknown name at once, in a stable order', () => {
+    // Declared the other way round in both directions, so the reported order is the
+    // one this check decides and not the one the descriptors happen to carry.
     const shop = descriptor('shop-coffee', {
-      dependencies: { chekout: '^1.0.0', paymets: '^1.0.0' },
+      dependencies: { paymets: '^1.0.0', chekout: '^1.0.0' },
     });
+    const admin = descriptor('admin', { dependencies: { shrops: '^1.0.0' } });
 
-    expect(() => assertKnownReferences({ descriptors: [shop] })).toThrow(
-      'Descriptors name targets that no descriptor of this composition declares: "shop-coffee" names "chekout" under "dependencies"; "shop-coffee" names "paymets" under "dependencies".',
+    expect(() => assertKnownReferences({ descriptors: [shop, admin] })).toThrow(
+      'Descriptors name targets that no descriptor of this composition declares: "admin" names "shrops" under "dependencies"; "shop-coffee" names "chekout" under "dependencies"; "shop-coffee" names "paymets" under "dependencies".',
     );
   });
 

@@ -154,6 +154,70 @@ describe('resolvePackageSources', () => {
     );
   });
 
+  it('reads a descriptor that declares no id as a package without one', () => {
+    writeShopWorkspace();
+    writePackage('packages/loyalty', { name: '@acme/loyalty' }, { version: '1.0.0' });
+
+    const source = resolvePackageSources({ root }).packageSources.find(
+      (entry) => entry.name === '@acme/loyalty',
+    );
+
+    expect(source?.descriptorPath).toBeDefined();
+    expect(source?.descriptorId).toBeUndefined();
+  });
+
+  it('ignores workspace patterns that name nothing', () => {
+    writeShopWorkspace();
+    write('package.json', {
+      name: '@acme/shop',
+      private: true,
+      workspaces: ['packages/*', '', 42, null],
+    });
+
+    expect(resolvePackageSources({ root }).packageSources).toHaveLength(3);
+  });
+
+  it('rejects a manifest or a descriptor that is not a JSON object', () => {
+    writeShopWorkspace();
+    for (const content of [['@acme/checkout'], 'a name', 42, null]) {
+      write('packages/checkout/package.json', content);
+      expect(() => resolvePackageSources({ root })).toThrow(/expected a JSON object/);
+    }
+
+    write('packages/checkout/package.json', { name: '@acme/checkout' });
+    write('packages/checkout/capability.json', ['checkout']);
+    expect(() => resolvePackageSources({ root })).toThrow(/expected a JSON object/);
+  });
+
+  it('rejects a descriptor id that is not a name', () => {
+    writeShopWorkspace();
+    for (const id of ['', 42, null, {}]) {
+      write('packages/checkout/capability.json', { id, version: '1.0.0' });
+      expect(() => resolvePackageSources({ root })).toThrow(/"id" must be a non-empty string/);
+    }
+  });
+
+  it('starts the upward walk at a directory, and at the parent of anything else', () => {
+    writeShopWorkspace();
+    write('packages/checkout/src/web.ts', 'export const web = 1;');
+
+    // A directory is where the walk starts; a file, and a path that is not there at all,
+    // start at the directory holding it.
+    expect(findWorkspaceRoot(join(root, 'packages/checkout'))).toBe(root);
+    expect(findWorkspaceRoot(join(root, 'packages/checkout/src/web.ts'))).toBe(root);
+    expect(findWorkspaceRoot(join(root, 'packages/checkout/src/does-not-exist.ts'))).toBe(root);
+  });
+
+  it('says when no manifest above a path declares a workspace', () => {
+    const alone = mkdtempSync(join(tmpdir(), 'lorion-alone-'));
+
+    try {
+      expect(() => findWorkspaceRoot(alone)).toThrow(/No workspace root found/);
+    } finally {
+      rmSync(alone, { force: true, recursive: true });
+    }
+  });
+
   it('states which root declares no patterns at all', () => {
     write('package.json', { name: '@acme/shop', private: true });
 
@@ -256,6 +320,33 @@ describe('a second root joined into the snapshot', () => {
     expect(snapshot.packageSources.map((source) => source.name)).not.toContain('@acme/receipts');
   });
 
+  it('accepts a pattern that leaves the root when that checkout is there', () => {
+    // Reached as one root, so the two patterns are one vocabulary and a name may not
+    // appear twice. That is what tells this apart from a joined root, where the asking
+    // workspace keeps a name it already carries.
+    writePackage('../reachable/packages/loyalty', { name: '@acme/loyalty' });
+    write('package.json', {
+      name: '@acme/shop',
+      private: true,
+      workspaces: ['packages/*', '../reachable/packages/*'],
+    });
+
+    expect(resolvePackageSources({ root }).packageSources.map((source) => source.name)).toContain(
+      '@acme/loyalty',
+    );
+  });
+
+  it('leaves a pattern inside the root unchecked, whether or not it names anything yet', () => {
+    writeShopWorkspace();
+    write('package.json', {
+      name: '@acme/shop',
+      private: true,
+      workspaces: ['packages/*', 'not-created-yet/*'],
+    });
+
+    expect(() => resolvePackageSources({ root })).not.toThrow();
+  });
+
   it('names a pattern that points at a checkout which is not there', () => {
     write('package.json', {
       name: '@acme/shop',
@@ -279,6 +370,50 @@ describe('snapshot reuse', () => {
 
     expect(resolvePackageSources({ root, cache })).toBe(first);
     expect(resolvePackageSources({ root }).packageSources).toHaveLength(4);
+  });
+
+  it('tells one snapshot from another by the roots it joins', () => {
+    writeShopWorkspace();
+    write('../core/package.json', {
+      name: '@acme/core',
+      private: true,
+      workspaces: ['packages/*'],
+    });
+    writePackage('../core/packages/receipts', { name: '@acme/receipts' });
+    const cache = new Map<string, PackageSourceSnapshot>();
+
+    const own = resolvePackageSources({ root, cache });
+    const joined = resolvePackageSources({ root, additionalRoots: ['../core'], cache });
+
+    expect(own.packageSources.map((source) => source.name)).not.toContain('@acme/receipts');
+    expect(joined.packageSources.map((source) => source.name)).toContain('@acme/receipts');
+  });
+
+  it('tells one joined root from the same root read through other patterns', () => {
+    writeShopWorkspace();
+    write('../core/package.json', {
+      name: '@acme/core',
+      private: true,
+      workspaces: ['packages/*'],
+    });
+    writePackage('../core/packages/receipts', { name: '@acme/receipts' });
+    writePackage('../core/plugins/loyalty', { name: '@acme/loyalty' });
+    const cache = new Map<string, PackageSourceSnapshot>();
+
+    const packages = resolvePackageSources({
+      root,
+      additionalRoots: [{ root: '../core', patterns: ['packages/*'] }],
+      cache,
+    });
+    const plugins = resolvePackageSources({
+      root,
+      additionalRoots: [{ root: '../core', patterns: ['plugins/*'] }],
+      cache,
+    });
+
+    expect(packages.packageSources.map((source) => source.name)).toContain('@acme/receipts');
+    expect(plugins.packageSources.map((source) => source.name)).toContain('@acme/loyalty');
+    expect(plugins.packageSources.map((source) => source.name)).not.toContain('@acme/receipts');
   });
 
   it('answers the question that was asked, not the one the root was asked before', () => {
@@ -306,9 +441,38 @@ describe('resolvePackageExport', () => {
         './web',
       ),
     ).toBe('./dist/web.cjs');
+    // The order is the contract: import before require before default, and a nested
+    // condition object is followed the same way.
+    expect(
+      resolvePackageExport(
+        {
+          './web': { require: './dist/web.cjs', import: './src/web.ts', default: './fallback.ts' },
+        },
+        './web',
+      ),
+    ).toBe('./src/web.ts');
+    expect(
+      resolvePackageExport({ './web': { import: { default: './src/web.ts' } } }, './web'),
+    ).toBe('./src/web.ts');
+    // A condition the resolution does not know is skipped rather than followed.
+    expect(
+      resolvePackageExport(
+        { './web': { browser: './browser.ts', default: './src/web.ts' } },
+        './web',
+      ),
+    ).toBe('./src/web.ts');
     // Conditions written directly are node's sugar for the `.` export.
     expect(resolvePackageExport({ import: './src/index.ts' }, '.')).toBe('./src/index.ts');
     expect(resolvePackageExport('./src/index.ts', '.')).toBe('./src/index.ts');
+  });
+
+  it('falls through a condition whose value carries no target', () => {
+    // A condition that is present but resolves to nothing is not an answer: the next one
+    // in the order decides, and only an exhausted list means "no target".
+    expect(
+      resolvePackageExport({ './web': { import: {}, default: './src/web.ts' } }, './web'),
+    ).toBe('./src/web.ts');
+    expect(resolvePackageExport({ './web': { import: {}, require: {} } }, './web')).toBeUndefined();
   });
 
   it('resolves nothing for a subpath or a shape that carries no target', () => {
@@ -319,6 +483,12 @@ describe('resolvePackageExport', () => {
     expect(
       resolvePackageExport({ './web': { types: './dist/web.d.ts' } }, './web'),
     ).toBeUndefined();
+    // A subpath map answers for the subpaths it declares and for no other, and a shape
+    // that is neither a target nor a map answers for nothing at all.
+    expect(resolvePackageExport({ './web': './src/web.ts' }, '.')).toBeUndefined();
+    expect(resolvePackageExport({ './web': ['./src/web.ts'] }, './web')).toBeUndefined();
+    expect(resolvePackageExport(42, '.')).toBeUndefined();
+    expect(resolvePackageExport(null, '.')).toBeUndefined();
   });
 });
 

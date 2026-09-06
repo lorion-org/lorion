@@ -689,6 +689,46 @@ describe('composition report', () => {
     ]);
   });
 
+  it('keeps every rendered line within the width it was given', () => {
+    // The reason the wrapping exists: a line wider than the terminal is soft-wrapped by
+    // the terminal itself, which breaks a runner's line prefix. One fixture of three ids
+    // cannot show that an off-by-two in the packing eventually overflows; a list of many
+    // lengths can.
+    const ids = Array.from(
+      { length: 24 },
+      (_, index) => `capability-${'x'.repeat((index % 7) + 1)}-${index}`,
+    );
+    const report = describeComposition({ resolved: ids, discovered: ids });
+
+    for (const width of [40, 50, 78]) {
+      for (const line of formatCompositionReport(report, { width })) {
+        expect(line.length).toBeLessThanOrEqual(width);
+      }
+    }
+  });
+
+  it('tells a provider the run chose from the one a declaration defaulted to', () => {
+    const report = describeComposition({
+      resolved: ['auth', 'auth-oidc'],
+      discovered: ['auth', 'auth-oidc', 'auth-local'],
+      providerSlots: [
+        {
+          capabilityId: 'auth',
+          state: 'selected',
+          required: true,
+          selectedProviderId: 'auth-oidc',
+          candidateProviderIds: ['auth-local', 'auth-oidc'],
+          mode: 'explicit',
+          overriddenProviderIds: ['auth-local'],
+        },
+      ],
+    });
+
+    expect(formatCompositionReport(report)).toContain(
+      '  auth      auth-oidc (overrides auth-local)',
+    );
+  });
+
   it('hard-wraps the id list so a terminal never soft-wraps it', () => {
     const ids = ['shop-stationery', 'payment-invoice', 'payment-provider-stripe'];
     const report = describeComposition({ resolved: ids, discovered: ids });

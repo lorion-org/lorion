@@ -7,6 +7,7 @@ import type { Descriptor } from '@lorion-org/composition-graph';
 import {
   conventionActivation,
   createCompositionRun,
+  describeCompositionOrigins,
   createPackageSourceLoad,
   fileSurfaceConvention,
   formatCompositionOrigins,
@@ -124,7 +125,16 @@ describe('createCompositionRun', () => {
   it('resolves once and hands the same resolution to every entry point', () => {
     const run = createCompositionRun(runInput(['storefront']));
 
+    // Each accessor is asked what it holds before it is asked whether it holds the same
+    // thing twice: comparing a call with itself would accept an accessor that answers
+    // nothing at all.
+    expect(run.capabilities().map((capability) => capability.id)).toContain('checkout');
+    expect(run.providerSelection().slots.map((slot) => slot.capabilityId)).toEqual(['payments']);
+    expect(run.descriptors().map((entry) => entry.descriptor.id)).toContain('storefront');
+
     expect(run.capabilities()).toBe(run.capabilities());
+    expect(run.providerSelection()).toBe(run.providerSelection());
+    expect(run.descriptors()).toBe(run.descriptors());
     expect(run.report().resolved).toEqual(
       run
         .capabilities()
@@ -173,6 +183,20 @@ describe('createCompositionRun', () => {
     ]);
   });
 
+  it('names a resolved package the given package set does not carry', () => {
+    const input = runInput(['storefront']);
+    const run = createCompositionRun({
+      ...input,
+      packageSources: (input.packageSources ?? []).filter(
+        (source) => source.name !== '@acme/checkout',
+      ),
+    });
+
+    expect(() => run.selectedPackageSources()).toThrow(
+      /Selected package "@acme\/checkout" is missing from the package sources/,
+    );
+  });
+
   it('states what a run without package sources cannot answer', () => {
     const { packageSources, ...withoutSources } = runInput(['storefront']);
     const run = createCompositionRun(withoutSources);
@@ -204,6 +228,21 @@ describe('surface entries', () => {
         entryPath: join(root, 'packages/shop-coffee/src/web.ts'),
       },
     ]);
+  });
+
+  it('orders the entries by capability, whatever order the capabilities arrive in', () => {
+    const run = createCompositionRun(runInput(['storefront']));
+    const reversed = [...run.capabilities()].reverse();
+    const sources = resolvePackageSources({ root }).packageSources;
+
+    expect(
+      resolveSurfaceEntries({
+        capabilities: reversed,
+        surface: 'web',
+        activation,
+        packageSources: sources,
+      }).map((entry) => entry.capabilityId),
+    ).toEqual(['checkout', 'shop-coffee']);
   });
 
   it('names the capability whose package is missing, exports nothing or exports a missing file', () => {
@@ -263,7 +302,7 @@ describe('loading from package sources', () => {
       });
 
       const registered: string[] = [];
-      await run.compose({
+      const activated = await run.compose({
         surface: 'web',
         activation,
         register: (exportValue, capability) => {
@@ -273,9 +312,38 @@ describe('loading from package sources', () => {
       });
 
       expect(registered.sort()).toEqual(['checkout', 'receipts', 'shop-coffee']);
+      // What compose returns is what it registered, in the order it registered it.
+      expect(activated.map((capability) => capability.id)).toEqual(registered);
     } finally {
       rmSync(core, { force: true, recursive: true });
     }
+  });
+
+  it('leaves out a surface module that does not export the name the convention asks for', async () => {
+    writeCapability(join(root, 'packages'), {
+      id: 'shop-quiet',
+      web: true,
+      dependencies: { checkout: '^1.0.0' },
+    });
+    // The marker is there and the module loads; only the expected export is not in it.
+    writeFileSync(
+      join(root, 'packages/shop-quiet/src/web.ts'),
+      "export const somethingElse = { id: 'shop-quiet' };\n",
+    );
+
+    const run = createCompositionRun(runInput(['storefront', 'shop-quiet']));
+    const registered: string[] = [];
+    const activated = await run.compose({
+      surface: 'web',
+      activation,
+      register: (_exportValue, capability) => {
+        registered.push(capability.id);
+      },
+    });
+
+    expect(run.capabilities().map((capability) => capability.id)).toContain('shop-quiet');
+    expect(registered).toEqual(['checkout', 'shop-coffee']);
+    expect(activated.map((capability) => capability.id)).toEqual(registered);
   });
 
   it('names a specifier no package source carries', async () => {
@@ -285,6 +353,18 @@ describe('loading from package sources', () => {
       /No package source found for "@acme\/loyalty\/web"/,
     );
     await expect(load('@acme/payments/web')).rejects.toThrow(/declares no "exports"/);
+    // A target that leaves its own package is refused rather than imported.
+    const escaping = resolvePackageSources({ root }).packageSources.map((source) =>
+      source.name === '@acme/checkout'
+        ? {
+            ...source,
+            manifest: { ...source.manifest, exports: { './web': '../payments/src/web.ts' } },
+          }
+        : source,
+    );
+    await expect(createPackageSourceLoad(escaping)('@acme/checkout/web')).rejects.toThrow(
+      /escapes the workspace directory/,
+    );
     await expect(load('@acme/checkout')).rejects.toThrow(/No "\." export resolves/);
   });
 });
@@ -336,6 +416,137 @@ describe('origins', () => {
     // `checkout` arrives through the base grouping, `payments` through its slot row.
     expect(origins.viaGroupings).toEqual(['checkout']);
     expect(origins.pulled).toEqual([]);
+  });
+
+  it('reaches through a grouping that names another grouping', () => {
+    // The run names one set, that set names another, and only the innermost one names
+    // packages. Everything below the named set arrives through the equipment, and the
+    // provider the inner set chose still reads as chosen by this run.
+    const inner: Descriptor = {
+      id: 'coffee-bar',
+      version: '0.0.0',
+      dependencies: { 'shop-coffee': '^1.0.0', 'payment-provider-invoice': '^1.0.0' },
+    };
+    const outer: Descriptor = {
+      id: 'full-shop',
+      version: '0.0.0',
+      dependencies: { 'coffee-bar': '^1.0.0' },
+    };
+    const run = createCompositionRun(
+      runInput(['full-shop'], { virtualDescriptors: [commerce, inner, outer] }),
+    );
+
+    const origins = run.origins();
+
+    expect(origins.groupings).toEqual(['coffee-bar', 'full-shop']);
+    expect(origins.viaGroupings).toEqual(['checkout', 'shop-coffee']);
+    expect(origins.slots).toEqual([
+      {
+        capability: 'payments',
+        chosen: ['payment-provider-invoice'],
+        named: true,
+        alternatives: ['payment-provider-stripe'],
+      },
+    ]);
+    expect(origins.pulled).toEqual([]);
+  });
+
+  it('reads a resolved id that no descriptor of the set describes', () => {
+    // A host may resolve more than it hands over. Such an id needs no dependencies read
+    // from it, whether the run named it or a grouping brought it, and it lands where an
+    // unattributed id belongs.
+    const origins = describeCompositionOrigins({
+      selected: ['shop-coffee', 'bundle'],
+      resolved: ['shop-coffee', 'ghost', 'bundle', 'brought-ghost'],
+      groupings: ['bundle'],
+      descriptors: [
+        { id: 'shop-coffee', version: '1.0.0' },
+        { id: 'bundle', version: '0.0.0', dependencies: { 'brought-ghost': '^1.0.0' } },
+      ],
+    });
+
+    expect(origins.named).toEqual(['shop-coffee']);
+    expect(origins.groupings).toEqual(['bundle']);
+    expect(origins.viaGroupings).toEqual(['brought-ghost']);
+    expect(origins.pulled).toEqual(['ghost']);
+  });
+
+  it('orders every row by id, whatever order the descriptors arrive in', () => {
+    // Two reports of one composition compare as equal text, so no row may carry the
+    // order its input happened to have.
+    const origins = describeCompositionOrigins({
+      selected: ['zeta', 'alpha', 'bundle'],
+      base: ['zulu', 'alpha-base'],
+      resolved: [
+        'zeta',
+        'alpha',
+        'bundle',
+        'zulu',
+        'alpha-base',
+        'zeta-member',
+        'alpha-member',
+        'payments',
+        'zeta-provider',
+      ],
+      groupings: ['bundle'],
+      descriptors: [
+        { id: 'zeta', version: '1.0.0' },
+        { id: 'alpha', version: '1.0.0' },
+        {
+          id: 'bundle',
+          version: '0.0.0',
+          dependencies: { 'zeta-member': '^1.0.0', 'alpha-member': '^1.0.0' },
+        },
+        { id: 'zulu', version: '1.0.0' },
+        { id: 'alpha-base', version: '1.0.0' },
+        { id: 'zeta-member', version: '1.0.0' },
+        { id: 'alpha-member', version: '1.0.0' },
+        { id: 'payments', version: '1.0.0' },
+        { id: 'zeta-provider', version: '1.0.0', providesFor: 'payments' },
+        { id: 'alpha-provider', version: '1.0.0', providesFor: 'payments' },
+        { id: 'mid-provider', version: '1.0.0', providesFor: 'payments' },
+      ],
+    });
+
+    expect(origins.named).toEqual(['alpha', 'zeta']);
+    expect(origins.base).toEqual(['alpha-base', 'zulu']);
+    expect(origins.viaGroupings).toEqual(['alpha-member', 'zeta-member']);
+    expect(origins.slots[0]?.chosen).toEqual(['zeta-provider']);
+    expect(origins.slots[0]?.alternatives).toEqual(['alpha-provider', 'mid-provider']);
+  });
+
+  it('follows a grouping that names itself once instead of forever', () => {
+    const origins = describeCompositionOrigins({
+      selected: ['outer'],
+      resolved: ['outer', 'inner', 'shop-coffee'],
+      groupings: ['outer', 'inner'],
+      descriptors: [
+        { id: 'outer', version: '0.0.0', dependencies: { inner: '^1.0.0' } },
+        {
+          id: 'inner',
+          version: '0.0.0',
+          dependencies: { outer: '^1.0.0', 'shop-coffee': '^1.0.0' },
+        },
+        { id: 'shop-coffee', version: '1.0.0' },
+      ],
+    });
+
+    expect(origins.groupings).toEqual(['inner', 'outer']);
+    expect(origins.viaGroupings).toEqual(['shop-coffee']);
+    expect(origins.pulled).toEqual([]);
+  });
+
+  it('takes a provider slot from a name, not from an empty one', () => {
+    const origins = describeCompositionOrigins({
+      selected: ['stripe'],
+      resolved: ['stripe', 'payments'],
+      descriptors: [
+        { id: 'payments', version: '1.0.0' },
+        { id: 'stripe', version: '1.0.0', providesFor: ['', 'payments'] },
+      ],
+    });
+
+    expect(origins.slots.map((slot) => slot.capability)).toEqual(['payments']);
   });
 
   it('renders a slot nothing filled as the outcome it is', () => {

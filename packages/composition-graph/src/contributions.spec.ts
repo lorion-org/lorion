@@ -92,6 +92,74 @@ describe('resolveContributions', () => {
     );
   });
 
+  it('takes a point name for a name, not for anything a JSON file can hold', () => {
+    const malformed = (fields: Record<string, unknown>): Descriptor => ({
+      id: 'loyalty',
+      version: '1.0.0',
+      ...fields,
+    });
+
+    expect(() => resolveContributions([malformed({ contributionPoints: [42] })])).toThrow(
+      /must list non-empty point names/,
+    );
+    expect(() =>
+      resolveContributions([checkout, malformed({ contributesTo: { checkout: [42] } })]),
+    ).toThrow(/must name one contribution point or a list of them/);
+    expect(() =>
+      resolveContributions([checkout, malformed({ contributesTo: { checkout: '' } })]),
+    ).toThrow(/must name one contribution point or a list of them/);
+  });
+
+  it('rejects a list in which one name among several is none', () => {
+    // A bad entry next to good ones is the shape a hand-written descriptor produces,
+    // and it must not pass because the rest of the list is fine.
+    const malformed = (fields: Record<string, unknown>): Descriptor => ({
+      id: 'loyalty',
+      version: '1.0.0',
+      ...fields,
+    });
+
+    expect(() =>
+      resolveContributions([malformed({ contributionPoints: ['summary-row', 42] })]),
+    ).toThrow(/must list non-empty point names/);
+    // An empty name is no name: it would read as a point every guest may fill.
+    expect(() =>
+      resolveContributions([malformed({ contributionPoints: ['summary-row', ''] })]),
+    ).toThrow(/must list non-empty point names/);
+    expect(() =>
+      resolveContributions([
+        checkout,
+        malformed({ contributesTo: { checkout: ['payment-method', ''] } }),
+      ]),
+    ).toThrow(/must name one contribution point or a list of them/);
+  });
+
+  it('takes the contribution field for a map of owners, and nothing else', () => {
+    const malformed = (fields: Record<string, unknown>): Descriptor => ({
+      id: 'loyalty',
+      version: '1.0.0',
+      ...fields,
+    });
+
+    for (const declared of [null, 42, 'checkout', true]) {
+      expect(() =>
+        resolveContributions([checkout, malformed({ contributesTo: declared })]),
+      ).toThrow(/must map an owning descriptor/);
+    }
+  });
+
+  it('answers with nothing for a descriptor that neither offers nor fills a point', () => {
+    const relations = resolveContributions([checkout, invoice, descriptor('payments')]);
+
+    expect(relations.points('payments')).toEqual([]);
+    expect(relations.fills('payments')).toEqual([]);
+    expect(relations.receives('payments')).toEqual([]);
+    // An id the composition does not hold at all answers the same way.
+    expect(relations.points('absent')).toEqual([]);
+    expect(relations.fills('absent')).toEqual([]);
+    expect(relations.receives('absent')).toEqual([]);
+  });
+
   it('reads the field names a host spells differently', () => {
     const owner = descriptor('checkout', { extensionPoints: ['payment-method'] });
     const guest = descriptor('loyalty', { extends: { checkout: 'payment-method' } });
@@ -112,7 +180,11 @@ describe('resolveContributions', () => {
     });
 
     expect(relation.roles).toEqual(['inspection']);
-    expect(catalog.getProfiles({ ids: ['loyalty'] })[0]?.outgoing[relation.id]).toEqual([
+    expect(relation.id).toBe('contributions');
+    // The edge addresses the owner of the point, not the point: the keys of the field
+    // are descriptor ids, and a graph that walked its values would point at names no
+    // descriptor carries.
+    expect(catalog.getProfiles({ ids: ['loyalty'] })[0]?.outgoing.contributions).toEqual([
       'checkout',
     ]);
     // Registered but not resolved through: naming `loyalty` composes `loyalty` alone,
