@@ -62,3 +62,9 @@ shows the resolved versions; `/shops/coffee` shows the selected implementation.
 Only that version contributes a route and a shop registration. These profiles
 exercise descriptor discovery, version constraints, physical source selection
 and each adapter's activation path together.
+
+Select `storefront-conflict` through the same environment variable to verify a
+startup failure: its `>=1.1.0 <2.0.0` requirement conflicts with the legacy
+bundle's exact `1.0.0` pin. Each example aborts with both requirements and the
+available versions. JSON descriptors and bundle manifests accept the same npm
+SemVer ranges as direct descriptor input.

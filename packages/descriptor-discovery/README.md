@@ -198,3 +198,9 @@ root; the existing primary-root precedence for equal package names across roots
 still applies. Use distinct package names to keep both version candidates in the
 snapshot. The descriptor selection package chooses the compatible source before
 a host loads its exports.
+
+Dependency values in the shared schema use the custom `semver-range` format.
+Lorion's descriptor and bundle loaders validate it with `node-semver.validRange`,
+including wildcard, partial, comparator, union and hyphen ranges. A host using
+the exported schema with its own JSON Schema validator must register that format
+with the same predicate, `validRange(value) !== null`.

@@ -190,6 +190,9 @@ importers:
       ajv:
         specifier: ^8.17.1
         version: 8.20.0
+      semver:
+        specifier: ^7.8.5
+        version: 7.8.5
     devDependencies:
       '@lorion-org/composition-graph':
         specifier: workspace:*
@@ -197,6 +200,9 @@ importers:
       '@lorion-org/runtime-config':
         specifier: workspace:^
         version: link:../runtime-config
+      '@types/semver':
+        specifier: ^7.8.0
+        version: 7.8.0
 
   packages/descriptor-selection:
     dependencies:

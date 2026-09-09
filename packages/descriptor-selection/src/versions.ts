@@ -37,8 +37,10 @@ export function selectVersions<T, R extends { items: T[] }>(input: {
       );
     }
     identities.set(identity, input.getSource?.(item) ?? descriptor.location ?? 'first source');
-    for (const [target, range] of Object.entries(descriptor.dependencies ?? {})) {
-      if (typeof range !== 'string' || !range.trim() || validRange(range) === null) {
+    for (const [target, range] of Object.entries(
+      input.resolveDependencies ? (descriptor.dependencies ?? {}) : {},
+    )) {
+      if (typeof range !== 'string' || validRange(range) === null) {
         throw new Error(
           `Descriptor "${id}@${version}" requires "${target}" with invalid version range ${JSON.stringify(range)}.`,
         );
@@ -47,12 +49,13 @@ export function selectVersions<T, R extends { items: T[] }>(input: {
     if (descriptor.disabled === true) continue;
     groups.set(id, [...(groups.get(id) ?? []), item]);
   }
-  const candidates = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
+  const compareText = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+  const candidates = [...groups.entries()].sort(([a], [b]) => compareText(a, b));
   for (const [, items] of candidates) {
     items.sort((a, b) => {
       const left = input.getDescriptor(a).version;
       const right = input.getDescriptor(b).version;
-      return rcompare(left, right) || left.localeCompare(right);
+      return rcompare(left, right) || compareText(left, right);
     });
   }
 
@@ -64,13 +67,23 @@ export function selectVersions<T, R extends { items: T[] }>(input: {
     ? input.roots
     : candidates.filter(([id]) => !providerIds.has(id)).map(([id]) => id);
   // Only ids that can participate need version choices. Union every candidate's
-  // effective edges, including incoming host relations. All provider-bearing ids
-  // remain possible because the provider contract validates defaults globally.
+  // effective edges, including incoming host relations. Defaults remain possible
+  // because the provider contract validates them globally. Without explicit roots,
+  // an id can become an implicit root when any candidate has no provider role.
+  // Changing provider roles can also turn an ordinary dependency into a required
+  // slot, even when the provider itself never enters the selected closure.
   const possible = new Set([
     ...roots,
     ...descriptors
-      .filter((entry) => entry.providesFor || entry.defaultFor)
+      .filter((entry) => entry.defaultFor || (!input.roots.length && !entry.providesFor))
       .map((entry) => entry.id),
+    ...candidates
+      .filter(
+        ([, items]) =>
+          new Set(items.map((item) => JSON.stringify(input.getDescriptor(item).providesFor))).size >
+          1,
+      )
+      .map(([id]) => id),
   ]);
   const outgoing = new Map<string, Set<string>>();
   for (const descriptor of descriptors) {
@@ -105,6 +118,46 @@ export function selectVersions<T, R extends { items: T[] }>(input: {
       `No compatible version for "${target}": ${requirements.join('; ')}. Available: ${available.join(', ') || 'none'}.`,
     );
   };
+
+  // When only versions and host metadata vary, provider precedence and the active
+  // edges are fixed. Resolve those edges once, then choose compatible versions
+  // independently. Include host relations so version-based edges still use DFS.
+  const topology = (item: T): string => {
+    const descriptor = input.getDescriptor(item);
+    return JSON.stringify([
+      descriptor.dependencies,
+      descriptor.providesFor,
+      descriptor.defaultFor,
+      input.resolutionRelations.map((relation) => readRelationTargets(descriptor, relation)),
+    ]);
+  };
+  if (
+    input.resolveDependencies &&
+    choices.length > 0 &&
+    candidates.every(([, items]) => items.every((item) => topology(item) === topology(items[0]!)))
+  ) {
+    const representative = input.resolve(candidates.map(([, items]) => items[0]!));
+    const resolved = representative.items.map(input.getDescriptor);
+    const resolvedIds = new Set(resolved.map((descriptor) => descriptor.id));
+    const requirements = new Map<string, string[]>();
+    for (const source of resolved) {
+      for (const [target, range] of Object.entries(source.dependencies ?? {}))
+        requirements.set(target, [...(requirements.get(target) ?? []), range]);
+    }
+    const selected = new Map(candidates.map(([id, items]) => [id, items[0]!]));
+    for (const [id, ranges] of requirements) {
+      const match =
+        resolvedIds.has(id) &&
+        groups
+          .get(id)
+          ?.find((item) =>
+            ranges.every((range) => satisfies(input.getDescriptor(item).version, range)),
+          );
+      if (!match) throw conflict(id, resolved);
+      selected.set(id, match);
+    }
+    return input.resolve([...selected.values()]);
+  }
 
   // Propagate only mandatory ordinary dependencies. Provider edges can be removed
   // by precedence, so their constraints are checked against the final composition.

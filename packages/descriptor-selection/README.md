@@ -94,14 +94,15 @@ identity declared twice (`id` plus the exact version, including build metadata)
 is ambiguous and fails before composition, including disabled duplicates.
 
 A descriptor's `version` is a concrete SemVer version. Its `dependencies` values
-are constraints, checked across the complete active composition. The shared
-JSON schema accepts exact versions, caret ranges and tilde ranges, including
-prerelease and build metadata. Direct descriptor input additionally accepts npm
-SemVer range syntax. Prereleases match only ranges that opt into that prerelease
+are constraints, checked across the complete active composition. JSON descriptors, bundle manifests and direct descriptor input accept npm
+SemVer range syntax: exact versions, caret and tilde ranges, partial and wildcard
+ranges, comparator intersections, unions and hyphen ranges. Empty strings are
+wildcard ranges. Prereleases match only ranges that opt into that prerelease
 as defined by `node-semver`.
 
-Candidates are considered in id order, then descending SemVer precedence. Equal
-precedence is ordered by the version string. The first complete compatible
+Candidates are considered in UTF-16 code-unit id order, then descending SemVer
+precedence. Equal precedence is ordered by the version string using the same
+locale-independent code-unit comparison. The first complete compatible
 assignment wins; selection backtracks when a newer candidate's dependencies
 cannot be satisfied. An unqualified id therefore prefers the highest compatible
 version. Pin a root through an ordinary grouping descriptor:
@@ -131,5 +132,13 @@ activation, route generation and runtime configuration. The graph and runtime
 continue to use logical ids, and never host multiple versions of an id at once.
 This is workspace candidate selection; Lorion does not download packages or
 rewrite application imports. Distinct sources in one workspace still need
-distinct npm package names. Use exact constraints when adding a newer compatible
-candidate must not change a composition.
+distinct npm package names. Exact constraints prevent upgrades to a different
+SemVer version. Build metadata does not participate in range matching: a pin to
+`1.0.0+build-a` can also select `1.0.0+build-b`. Give implementations different
+patch or prerelease versions when a range must distinguish them.
+
+If all candidates declare the same dependency constraints, provider roles and
+effective relation targets, selection resolves the provider outcome once and
+chooses compatible versions independently. A fixed conflict in that case fails
+without enumerating unrelated version combinations. Candidates with different
+relations use backtracking; its work can grow with the combinations explored.

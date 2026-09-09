@@ -625,3 +625,36 @@ it('selects the versioned source consistently for capabilities, surfaces, import
     shopCoffeeWebPlugin: { id: 'legacy-coffee' },
   });
 });
+
+it('reports the resolved physical source when a losing version is virtual', () => {
+  writeCapability(join(root, 'packages'), { id: 'feature', version: '2.0.0' });
+  const run = createCompositionRun(
+    runInput(['feature'], {
+      virtualDescriptors: [{ id: 'feature', version: '1.0.0' }],
+      seed: { selected: ['feature'], selectionSeed: false },
+    }),
+  );
+  expect(run.capabilities()[0]?.packageName).toBe('@acme/feature');
+  expect(run.origins()).toMatchObject({ named: ['feature'], groupings: [] });
+});
+
+it('uses the resolved provider catalog for origins regardless of candidate discovery order', () => {
+  const providers: Descriptor[] = [
+    { id: 'provider', version: '2.0.0', providesFor: 'a' },
+    { id: 'provider', version: '1.0.0', providesFor: 'b' },
+  ];
+  for (const order of [providers, [...providers].reverse()]) {
+    const run = createCompositionRun({
+      workspaceRoot: root,
+      descriptorPaths: [],
+      virtualDescriptors: [{ id: 'a', version: '1.0.0' }, { id: 'b', version: '1.0.0' }, ...order],
+      seed: { selected: ['a', 'b'], selectionSeed: false },
+    });
+    expect(run.providerSelection().slots).toMatchObject([
+      { capabilityId: 'a', state: 'unfilled', candidateProviderIds: ['provider'] },
+    ]);
+    expect(run.origins().slots).toEqual([
+      { capability: 'a', chosen: [], named: false, alternatives: ['provider'] },
+    ]);
+  }
+});

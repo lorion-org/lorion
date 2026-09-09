@@ -435,3 +435,62 @@ it('validates concrete SemVer versions separately from dependency constraints', 
     ).toThrow('schema validation failed');
   }
 });
+
+it.each([
+  '',
+  ' ',
+  '*',
+  '1.x',
+  '~1.2',
+  '^0.2.3',
+  '>=1.0.0 <2.0.0',
+  '1.0.0 || 2.0.0',
+  '1.0.0 - 2.0.0',
+  '^2.0.0-beta.1',
+])('accepts the same npm dependency range in files and bundles: %j', (range) => {
+  const root = createTempDir();
+  const descriptor = { id: 'feature', version: '1.0.0', dependencies: { lib: range } };
+  writeFileSync(join(root, 'capability.json'), JSON.stringify(descriptor));
+  writeFileSync(join(root, 'bundles.json'), JSON.stringify({ bundles: [descriptor] }));
+  expect(
+    discoverDescriptors({
+      cwd: root,
+      descriptorPaths: ['capability.json'],
+      validation: { schema: descriptorSchema },
+    })[0]?.descriptor.dependencies,
+  ).toEqual({ lib: range });
+  expect(loadBundleManifest({ cwd: root })[0]?.dependencies).toEqual({ lib: range });
+});
+
+it.each(['banana', 'beta', '^', '1.0.0-01'])(
+  'rejects malformed dependency ranges in nested descriptors and bundles: %j',
+  (range) => {
+    const root = createTempDir();
+    const descriptor = {
+      id: 'outer',
+      version: '1.0.0',
+      bundles: [{ id: 'inner', version: '1.0.0', dependencies: { lib: range } }],
+    };
+    writeFileSync(join(root, 'capability.json'), JSON.stringify(descriptor));
+    writeFileSync(join(root, 'bundles.json'), JSON.stringify({ bundles: [descriptor] }));
+    for (const read of [
+      () =>
+        discoverDescriptors({
+          cwd: root,
+          descriptorPaths: ['capability.json'],
+          validation: { schema: descriptorSchema },
+        }),
+      () => loadBundleManifest({ cwd: root }),
+    ]) {
+      let failure: unknown;
+      try {
+        read();
+      } catch (error) {
+        failure = error;
+      }
+      expect(failure).toBeInstanceOf(Error);
+      expect((failure as Error).message).toContain('semver-range');
+      expect((failure as Error).message).toContain('/bundles/0/dependencies/lib');
+    }
+  },
+);

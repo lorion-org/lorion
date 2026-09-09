@@ -339,9 +339,15 @@ export function describeCompositionOrigins(input: DescribeOriginsInput): Composi
 
   // Which capability each provider fills, and the providers each capability has.
   const providersOf = new Map<DescriptorId, DescriptorId[]>();
-  for (const descriptor of input.descriptors) {
-    for (const capability of providedCapabilities(descriptor)) {
-      providersOf.set(capability, [...(providersOf.get(capability) ?? []), descriptor.id].sort());
+  if (input.providerSlots) {
+    for (const slot of input.providerSlots) {
+      providersOf.set(slot.capabilityId, [...slot.candidateProviderIds].sort());
+    }
+  } else {
+    for (const descriptor of input.descriptors) {
+      for (const capability of providedCapabilities(descriptor)) {
+        providersOf.set(capability, [...(providersOf.get(capability) ?? []), descriptor.id].sort());
+      }
     }
   }
 

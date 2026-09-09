@@ -583,22 +583,13 @@ export function createCompositionRun(input: CompositionRunInput): CompositionRun
       });
     },
     origins: () => {
-      const { capabilities, discoveredDescriptors, providerSelection } = resolveOnce();
+      const { capabilities, providerSelection } = resolveOnce();
       return describeCompositionOrigins({
         selected: resolveDescriptorSelection(input.seed),
         base: input.seed.baseDescriptors ?? [],
         resolved: capabilities.map((capability) => capability.id),
-        descriptors: [
-          ...new Map(
-            [
-              ...discoveredDescriptors.map((entry) => entry.descriptor),
-              ...capabilities.map((entry) => entry.descriptor),
-            ].map((descriptor) => [descriptor.id, descriptor]),
-          ).values(),
-        ],
-        groupings: discoveredDescriptors
-          .filter((entry) => entry.virtual)
-          .map((entry) => entry.descriptor.id),
+        descriptors: capabilities.map((entry) => entry.descriptor),
+        groupings: capabilities.filter((entry) => !entry.packageName).map((entry) => entry.id),
         providerSlots: providerSelection.slots,
       });
     },

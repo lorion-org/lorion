@@ -716,3 +716,33 @@ describe('Nuxt extension bootstrap', () => {
     });
   });
 });
+
+it.each([true, false])('honors enabled=%s with multiple discovered versions', (enabled) => {
+  const root = mkdtempSync(join(tmpdir(), 'lorion-nuxt-enabled-'));
+  try {
+    createExtension(root, 'coffee-old', { id: 'coffee', version: '1.0.0' });
+    createExtension(root, 'coffee-new', { id: 'coffee', version: '2.0.0' });
+    const bootstrap = createNuxtExtensionBootstrap({
+      rootDir: root,
+      options: { enabled, selected: ['coffee'], selectionSeed: false },
+    });
+    expect(bootstrap.requestedExtensions).toEqual(['coffee']);
+    expect(bootstrap.selectedExtensions).toEqual(['coffee']);
+    expect(bootstrap.resolvedExtensionIds).toEqual(enabled ? ['coffee'] : []);
+    expect(bootstrap.publicRuntimeConfig.public).toEqual(
+      enabled
+        ? {
+            extensionSelection: {
+              selectedExtensionIds: ['coffee'],
+              discoveredExtensionIds: ['coffee'],
+              resolvedExtensionIds: ['coffee'],
+              resolvedExtensionVersions: { coffee: '2.0.0' },
+            },
+          }
+        : {},
+    );
+    expect(bootstrap.providerSelection).toEqual({ slots: [], excludedProviderIds: [] });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
