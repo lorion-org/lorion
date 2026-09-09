@@ -187,3 +187,10 @@ pnpm test
 pnpm typecheck
 pnpm package:check
 ```
+
+Versioned inventories are resolved by the shared
+[descriptor selection contract](../descriptor-selection/README.md#capability-versions).
+`run.descriptors()` retains every discovered candidate; `run.capabilities()`
+contains the selected version and its physical source. Use the resolved set for
+active contribution validation and activation. `run.report().resolvedVersions`
+maps resolved ids to their versions, and the formatted report prints `id@version`.

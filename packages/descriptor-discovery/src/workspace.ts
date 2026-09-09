@@ -29,6 +29,7 @@ export interface PackageSource {
   descriptorPath?: string;
   // The id that descriptor declares.
   descriptorId?: string;
+  descriptorVersion?: string;
 }
 
 export interface PackageSourceSnapshot {
@@ -212,6 +213,7 @@ function discoverRoot(input: {
     if (!existsSync(descriptorPath)) return { name, root, manifestPath: path, manifest };
 
     const descriptorId = readDescriptorId(descriptorPath);
+    const descriptorVersion = readJsonObject(descriptorPath).version;
     return {
       name,
       root,
@@ -219,6 +221,7 @@ function discoverRoot(input: {
       manifest,
       descriptorPath,
       ...(descriptorId ? { descriptorId } : {}),
+      ...(typeof descriptorVersion === 'string' ? { descriptorVersion } : {}),
     };
   });
 }
@@ -263,19 +266,19 @@ export function resolvePackageSources(input: PackageSourcesInput): PackageSource
     left.name.localeCompare(right.name),
   );
 
-  // A composition rejects a duplicate id by id alone, which across two roots does not
-  // say which checkout carries which one. Both files are named here, where both paths
-  // are still known.
+  // Different versions remain candidates. Two sources declaring the same identity
+  // are ambiguous; report both files while their paths are still known.
   const declaredBy = new Map<string, string>();
   for (const source of packageSources) {
     if (!source.descriptorId || !source.descriptorPath) continue;
-    const taken = declaredBy.get(source.descriptorId);
+    const identity = JSON.stringify([source.descriptorId, source.descriptorVersion]);
+    const taken = declaredBy.get(identity);
     if (taken) {
       throw new Error(
-        `Duplicate descriptor id "${source.descriptorId}" declared in ${taken} and ${source.descriptorPath}.`,
+        `Duplicate descriptor id "${source.descriptorId}" at version "${source.descriptorVersion ?? 'unspecified'}" declared in ${taken} and ${source.descriptorPath}.`,
       );
     }
-    declaredBy.set(source.descriptorId, source.descriptorPath);
+    declaredBy.set(identity, source.descriptorPath);
   }
 
   const snapshot: PackageSourceSnapshot = {

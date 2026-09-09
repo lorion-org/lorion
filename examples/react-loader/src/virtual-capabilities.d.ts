@@ -8,6 +8,7 @@ declare module 'virtual:capabilities' {
   // `resolvedCapabilityIds`.
   export const capabilityModules: WebPlugin[];
   export const resolvedCapabilityIds: string[];
+  export const resolvedCapabilityVersions: Record<string, string>;
   export const selectedCapabilityIds: string[];
   export const providerSelection: ProviderSelectionResolution;
 }

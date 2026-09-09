@@ -30,7 +30,9 @@ function TechMonitor(): ReactElement {
       <section className="grid">
         <MonitorCard
           title="Resolved capabilities"
-          values={overview.capabilitySelection.resolvedCapabilityIds}
+          values={overview.capabilitySelection.resolvedCapabilityIds.map(
+            (id) => `${id}@${overview.resolvedCapabilityVersions[id]}`,
+          )}
         />
         <MonitorCard title="Active provider" values={activeProviderIds} />
         <MonitorCard title="Provider candidates" values={providerCandidateIds} />

@@ -30,7 +30,7 @@ const unfilledProviderCapabilities = computed(() =>
         <h2>Resolved extensions</h2>
         <ul class="list">
           <li v-for="id in extensionSelection?.resolvedExtensionIds" :key="id">
-            <span>{{ id }}</span>
+            <span>{{ id }}@{{ extensionSelection?.resolvedExtensionVersions?.[id] }}</span>
           </li>
         </ul>
       </article>

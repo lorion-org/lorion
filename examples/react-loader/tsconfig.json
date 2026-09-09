@@ -27,6 +27,8 @@
     "capabilities/**/*.ts",
     "capabilities/**/*.tsx",
     "external/**/*.ts",
-    "external/**/*.tsx"
+    "external/**/*.tsx",
+    "prototypes/**/*.ts",
+    "prototypes/**/*.tsx"
   ]
 }

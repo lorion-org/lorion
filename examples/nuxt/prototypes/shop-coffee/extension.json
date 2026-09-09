@@ -1,0 +1,10 @@
+{
+  "id": "shop-coffee",
+  "version": "1.0.0",
+  "dependencies": {
+    "shops": "^1.0.0"
+  },
+  "contributesTo": {
+    "shops": "shop"
+  }
+}

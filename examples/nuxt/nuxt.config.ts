@@ -27,7 +27,7 @@ const optionalProviderSlot = 'product-theme';
 // `extension.json`.
 const snapshot = resolvePackageSources({
   root: __dirname,
-  patterns: ['layer-extensions/*'],
+  patterns: ['layer-extensions/*', 'prototypes/*'],
   additionalRoots: [{ root: 'external', patterns: ['layer-extensions/*'] }],
   descriptorFileName: 'extension.json',
 });
@@ -50,7 +50,7 @@ const extensionBootstrap = createNuxtExtensionBootstrap({
   },
 });
 
-const descriptors = extensionBootstrap.discoveredExtensions.map((entry) => entry.descriptor);
+const descriptors = extensionBootstrap.resolvedExtensions.map((entry) => entry.descriptor);
 
 // A name no descriptor declares resolves to nothing at all, in either relation.
 assertKnownReferences({

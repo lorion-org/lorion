@@ -3,6 +3,7 @@ declare module 'virtual:capabilities' {
 
   export const capabilityModules: RuntimeCapability[];
   export const resolvedCapabilityIds: string[];
+  export const resolvedCapabilityVersions: Record<string, string>;
   export const selectedCapabilityIds: string[];
   export const providerSelection: ProviderSelectionResolution;
 }

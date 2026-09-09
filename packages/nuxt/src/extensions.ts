@@ -270,6 +270,7 @@ function createExtensionSelectionRuntimeConfig(input: {
   discoveredExtensions: NuxtExtensionEntry[];
   publicRuntimeConfigKey: false | string;
   resolvedExtensionIds: string[];
+  resolvedExtensions: NuxtExtensionEntry[];
   selectedExtensions: string[];
 }): NuxtRuntimeConfig {
   const runtimeConfig = input.activeExtensions.reduce<NuxtRuntimeConfig>(
@@ -290,10 +291,13 @@ function createExtensionSelectionRuntimeConfig(input: {
     public: {
       ...runtimeConfig.public,
       [defaultExtensionOptions.publicRuntimeConfigKey]: {
-        discoveredExtensionIds: input.discoveredExtensions
-          .map((extension) => extension.descriptor.id)
-          .sort((left, right) => left.localeCompare(right)),
+        discoveredExtensionIds: [
+          ...new Set(input.discoveredExtensions.map((extension) => extension.descriptor.id)),
+        ].sort(),
         resolvedExtensionIds: input.resolvedExtensionIds,
+        resolvedExtensionVersions: Object.fromEntries(
+          input.resolvedExtensions.map((entry) => [entry.descriptor.id, entry.descriptor.version]),
+        ),
         selectedExtensionIds: input.selectedExtensions,
       } satisfies NuxtExtensionSelectionRuntimeConfig,
     },
@@ -367,6 +371,7 @@ export function createNuxtExtensionBootstrap(input: {
   } = selectDescriptorsWithProviders({
     items: entries,
     getDescriptor: (entry) => entry.descriptor,
+    getSource: (entry) => entry.cwd,
     withDescriptor: (entry, descriptor) => ({ ...entry, descriptor }),
     seed: {
       baseDescriptors: baseExtensionIds,
@@ -393,6 +398,7 @@ export function createNuxtExtensionBootstrap(input: {
       discoveredExtensions: entries,
       publicRuntimeConfigKey: defaultExtensionOptions.publicRuntimeConfigKey,
       resolvedExtensionIds,
+      resolvedExtensions,
       selectedExtensions,
     }),
     providerSelection,

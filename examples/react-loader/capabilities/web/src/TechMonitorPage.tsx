@@ -22,7 +22,12 @@ export function TechMonitorPage(): ReactElement {
       </header>
 
       <section className="grid">
-        <MonitorCard title="Resolved capabilities" values={overview.resolvedCapabilityIds} />
+        <MonitorCard
+          title="Resolved capabilities"
+          values={overview.resolvedCapabilityIds.map(
+            (id) => `${id}@${overview.resolvedCapabilityVersions[id]}`,
+          )}
+        />
         <MonitorCard title="Selected provider" values={overview.selectedProviderIds} />
         <MonitorCard title="Provider candidates" values={providerCandidateIds} />
         <MonitorCard title="Unfilled provider slots" values={unfilledProviderSlots} />

@@ -1,3 +1,4 @@
+import { resolvedCapabilityVersions } from 'virtual:capabilities';
 import type { CapabilityRuntime } from '@lorion-org/react';
 import { providerSelection, selectedCapabilityIds } from 'virtual:capabilities';
 
@@ -21,6 +22,7 @@ export function createDemoOverview(runtime: CapabilityRuntime) {
   const resolvedSet = new Set(resolvedCapabilityIds);
 
   return {
+    resolvedCapabilityVersions,
     capabilitySelection: {
       discoveredCapabilityIds,
       notInjectedCapabilityIds: discoveredCapabilityIds.filter((id) => !resolvedSet.has(id)),

@@ -2,9 +2,9 @@ export default defineNuxtPlugin((nuxtApp) => {
   nuxtApp.hooks.hook('shops:created', ({ registerShop }) => {
     registerShop({
       id: 'shop-coffee',
-      name: 'Bean Supply',
+      name: 'Bean Supply Plus',
       path: '/shops/coffee',
-      tagline: 'Coffee beans and simple brewing gear.',
+      tagline: 'Coffee beans, brewing gear, and subscriptions.',
     });
   });
 });

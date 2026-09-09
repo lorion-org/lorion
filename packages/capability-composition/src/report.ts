@@ -30,6 +30,7 @@ export type CompositionProviderSlot =
 // mounted layer or an emitted import is a host's own view; a host that reports on
 // that filters before it describes.
 export interface CompositionReport {
+  resolvedVersions?: Readonly<Record<DescriptorId, string>>;
   // The ids a run asked for, or null when it named none. What happens then is the
   // host's business, which `selected` shows; the report does not guess it.
   requested: readonly DescriptorId[] | null;
@@ -46,6 +47,7 @@ export interface CompositionReport {
 }
 
 export interface DescribeCompositionInput {
+  resolvedDescriptors?: readonly Pick<Descriptor, 'id' | 'version'>[];
   requested?: readonly DescriptorId[] | null;
   selected?: readonly DescriptorId[];
   base?: readonly DescriptorId[];
@@ -67,6 +69,15 @@ export function describeComposition(input: DescribeCompositionInput): Compositio
   const resolvedIds = new Set(resolved);
 
   return {
+    ...(input.resolvedDescriptors
+      ? {
+          resolvedVersions: Object.fromEntries(
+            [...input.resolvedDescriptors]
+              .sort((a, b) => a.id.localeCompare(b.id))
+              .map(({ id, version }) => [id, version]),
+          ),
+        }
+      : {}),
     requested: input.requested ? sorted(input.requested) : null,
     selected: sorted(input.selected),
     base: sorted(input.base),
@@ -237,7 +248,9 @@ export function formatCompositionReport(
     'Resolved',
     `${report.resolved.length}/${report.discovered.length}`,
     report.discovered.length === 1 ? 'descriptor' : 'descriptors',
-    report.resolved,
+    report.resolved.map((id) =>
+      report.resolvedVersions?.[id] ? `${id}@${report.resolvedVersions[id]}` : id,
+    ),
     palette.id,
   );
 

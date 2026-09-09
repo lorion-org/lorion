@@ -381,6 +381,7 @@ export function describeCapabilityComposition(
     selected: resolveSelectionSeed(options),
     ...(options.baseDescriptors ? { base: options.baseDescriptors } : {}),
     resolved: items.map((capability) => capability.id),
+    resolvedDescriptors: items.map((capability) => capability.manifest),
     discovered: discovered.map((capability) => capability.id),
     providerSlots: providerSelection.slots,
   });
@@ -438,6 +439,7 @@ function resolveDiscoveredCapabilitySelection(
   const selection = selectDescriptorsWithProviders({
     items: discovered,
     getDescriptor: (capability) => capability.manifest,
+    getSource: (capability) => capability.capabilityDir,
     withDescriptor: (capability, manifest) => ({ ...capability, manifest }),
     seed: options,
     ...(options.relationDescriptors ? { relationDescriptors: options.relationDescriptors } : {}),

@@ -21,11 +21,11 @@ pnpm add @lorion-org/descriptor-selection
 
 ## API
 
-- `selectDescriptors({ items, getDescriptor, withDescriptor, seed, relationDescriptors?, policy? })`
+- `selectDescriptors({ items, getDescriptor, withDescriptor, seed, relationDescriptors?, policy?, getSource? })`
   resolves the active subset of `items`. It is generic over the item type via the
   `getDescriptor` / `withDescriptor` accessors, so a "capability", an "extension",
   or a plain descriptor record all work.
-- `selectDescriptorsWithProviders({ items, getDescriptor, withDescriptor, seed, relationDescriptors?, policy? })`
+- `selectDescriptorsWithProviders({ items, getDescriptor, withDescriptor, seed, relationDescriptors?, policy?, getSource? })`
   resolves the same subset and additionally returns the `ProviderSelectionResolution`
   and the `catalog` it resolved against. `selectDescriptors` wraps it for hosts that
   need only the items.
@@ -85,3 +85,51 @@ pnpm build
 pnpm test
 pnpm typecheck
 ```
+
+## Capability versions
+
+Discovery may supply several descriptors with the same logical `id` and different
+`version` values. Selection returns exactly one version per resolved id. An
+identity declared twice (`id` plus the exact version, including build metadata)
+is ambiguous and fails before composition, including disabled duplicates.
+
+A descriptor's `version` is a concrete SemVer version. Its `dependencies` values
+are constraints, checked across the complete active composition. The shared
+JSON schema accepts exact versions, caret ranges and tilde ranges, including
+prerelease and build metadata. Direct descriptor input additionally accepts npm
+SemVer range syntax. Prereleases match only ranges that opt into that prerelease
+as defined by `node-semver`.
+
+Candidates are considered in id order, then descending SemVer precedence. Equal
+precedence is ordered by the version string. The first complete compatible
+assignment wins; selection backtracks when a newer candidate's dependencies
+cannot be satisfied. An unqualified id therefore prefers the highest compatible
+version. Pin a root through an ordinary grouping descriptor:
+
+```json
+{
+  "id": "legacy-product",
+  "version": "1.0.0",
+  "dependencies": { "feature": "1.0.0" }
+}
+```
+
+Selecting `legacy-product` activates `feature@1.0.0` even when `feature@2.0.0`
+is discovered elsewhere. Other active requirements still have to agree. An
+unsatisfiable selection fails with the requiring descriptors, their constraints,
+and the available enabled versions. Dependencies of inactive candidates and
+losing provider edges impose no constraints. A policy that removes dependencies
+from resolution also removes their version requirements. A host override of the
+`dependencies` relation applies version requirements only when it retains the
+canonical outgoing `dependencies` map with id keys. `getSource` optionally names
+an item's physical source in duplicate-identity errors.
+
+Version selection keeps each item's package name, directory and other source
+metadata together. Hosts must provide a pure `withDescriptor` copy operation:
+backtracking may call it more than once. It runs before graph creation, provider
+activation, route generation and runtime configuration. The graph and runtime
+continue to use logical ids, and never host multiple versions of an id at once.
+This is workspace candidate selection; Lorion does not download packages or
+rewrite application imports. Distinct sources in one workspace still need
+distinct npm package names. Use exact constraints when adding a newer compatible
+candidate must not change a composition.

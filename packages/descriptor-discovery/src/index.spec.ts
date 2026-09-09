@@ -407,3 +407,31 @@ describe('loadBundleManifest', () => {
     expect(() => loadBundleManifest({ cwd: root })).toThrow(/not found/);
   });
 });
+
+it('validates concrete SemVer versions separately from dependency constraints', () => {
+  const root = createTempDir();
+  const file = join(root, 'capability.json');
+  for (const version of ['1.0.0', '1.2.0-beta.1+build.7']) {
+    writeFileSync(
+      file,
+      JSON.stringify({ id: 'feature', version, dependencies: { base: '^1.0.0-beta.1' } }),
+    );
+    expect(
+      discoverDescriptors({
+        cwd: root,
+        descriptorPaths: ['capability.json'],
+        validation: { schema: descriptorSchema },
+      })[0]?.descriptor.version,
+    ).toBe(version);
+  }
+  for (const version of ['^1.0.0', '~1.0.0', '01.0.0', '1.0.0-01']) {
+    writeFileSync(file, JSON.stringify({ id: 'feature', version }));
+    expect(() =>
+      discoverDescriptors({
+        cwd: root,
+        descriptorPaths: ['capability.json'],
+        validation: { schema: descriptorSchema },
+      }),
+    ).toThrow('schema validation failed');
+  }
+});

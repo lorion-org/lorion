@@ -47,3 +47,18 @@ All three examples expose the same provider-slot outcome on `/tech`: selected
 providers, all candidates, and active slots that intentionally remain unfilled.
 Nuxt reads it from public runtime config; both React models read the identical
 `providerSelection` structure from `virtual:capabilities`.
+
+## Selecting a capability version
+
+All three examples discover `shop-coffee@1.0.0` from `prototypes/shop-coffee`
+and `shop-coffee@1.1.0` from their regular capability directory. The packages
+have distinct npm names; their capability id stays `shop-coffee`.
+
+The normal profile selects 1.1.0 and shows **Bean Supply Plus**. The
+`storefront-legacy` bundle pins 1.0.0 and shows **Bean Supply**. Run either React
+example with `LORION_FEATURES=storefront-legacy`, or Nuxt with
+`LORION_CAPABILITIES=storefront-legacy`, prefixed to its command above. `/tech`
+shows the resolved versions; `/shops/coffee` shows the selected implementation.
+Only that version contributes a route and a shop registration. These profiles
+exercise descriptor discovery, version constraints, physical source selection
+and each adapter's activation path together.

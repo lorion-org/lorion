@@ -17,6 +17,7 @@ const defaultBundle = 'storefront';
 
 const lorion = lorionReact({
   workspaceRoot: projectRoot,
+  descriptorPaths: ['capabilities/*/capability.json', 'prototypes/*/capability.json'],
   routesDirectory,
   indexRouteFile: false,
   // Same capability graph and the same bundles.json as the react-loader example:
@@ -28,6 +29,7 @@ const lorion = lorionReact({
   bundles: { cwd: projectRoot },
   baseDescriptors: [baseBundle, optionalProviderSlot],
   defaultSelection: [defaultBundle],
+  selectionSeed: { cliKeys: ['features'], envKeys: ['LORION_FEATURES'] },
 });
 
 export default defineConfig({

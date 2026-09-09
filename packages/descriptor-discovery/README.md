@@ -53,7 +53,7 @@ const { workspaceRoot, packageSources, descriptorPaths } = resolvePackageSources
 - `additionalRoots` joins further checkouts into one snapshot, which is what a
   product does when it composes its own packages with those of a core it consumes.
   The asking workspace wins a package-name collision, because it is the one being
-  asked; two packages claiming one descriptor id abort with both paths.
+  asked; two packages claiming the same descriptor id and version abort with both paths.
 - A pattern whose literal prefix leaves its root names another checkout, and a
   missing one aborts here rather than as a composition that is quietly incomplete.
 - `cache` is a map a host passes to read one snapshot per root within a run. Without
@@ -188,3 +188,13 @@ pnpm test
 pnpm typecheck
 pnpm package:check
 ```
+
+## Versioned sources
+
+`resolvePackageSources` retains different versions of a descriptor id and exposes
+`descriptorVersion` beside `descriptorId`. Two packages declaring the same id and
+version fail with both descriptor paths. Package names remain unique within one
+root; the existing primary-root precedence for equal package names across roots
+still applies. Use distinct package names to keep both version candidates in the
+snapshot. The descriptor selection package chooses the compatible source before
+a host loads its exports.

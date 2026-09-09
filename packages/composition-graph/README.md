@@ -316,3 +316,13 @@ pnpm coverage
 pnpm typecheck
 pnpm package:check
 ```
+
+A catalog contains one descriptor per logical id. Pass a multi-version inventory
+through `@lorion-org/descriptor-selection` before constructing or inspecting a
+composition graph. Candidate discovery and version constraints are owned by that
+selection layer; graph relations continue to address logical ids.
+
+`readRelationTargets(descriptor, relation)` reads a descriptor's target ids with
+the graph's field and target-mode semantics. Inventory-level validation and
+selection can inspect relation declarations before one candidate per id enters
+the catalog. Direction determines edge orientation after this read.
