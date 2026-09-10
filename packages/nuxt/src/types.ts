@@ -73,6 +73,7 @@ export type NuxtProviderSelectionModuleOptions = {
 export type NuxtProviderSelectionRuntimeConfig = ProviderSelectionResolution;
 
 export type NuxtExtensionSelectionRuntimeConfig = {
+  resolvedExtensionVersions?: Record<string, string>;
   discoveredExtensionIds: string[];
   resolvedExtensionIds: string[];
   selectedExtensionIds: string[];

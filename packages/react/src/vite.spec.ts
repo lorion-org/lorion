@@ -152,7 +152,7 @@ describe('React capability Vite helpers', () => {
       exports: { '.': './src/index.ts' },
     });
     writeCapability(workspaceRoot, 'home', '@react-workspace/home', {
-      dependencies: { ui: '0.0.0' },
+      dependencies: { ui: '0.1.0' },
       exports: { './web': './src/web/index.ts' },
     });
 
@@ -1240,5 +1240,39 @@ describe('describeCapabilityComposition', () => {
       .filter((capability) => capability.packageName !== '')
       .map((capability) => capability.id);
     expect(report.resolved.filter((id) => id !== 'storefront')).toEqual(emitted);
+  });
+});
+
+it('binds imports, routes and reported versions to the chosen source', () => {
+  const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-versions-'));
+  for (const [folder, version] of [
+    ['coffee', '1.0.0'],
+    ['coffee-next', '2.0.0'],
+  ]) {
+    writeCapability(workspaceRoot, folder!, `@shop/${folder}`);
+    const directory = join(workspaceRoot, 'capabilities', folder!);
+    writeFileSync(join(directory, 'capability.json'), JSON.stringify({ id: 'coffee', version }));
+    mkdirSync(join(directory, 'src/routes'), { recursive: true });
+  }
+  const options = {
+    workspaceRoot,
+    selected: ['legacy'],
+    selectionSeed: false as const,
+    virtualDescriptors: [{ id: 'legacy', version: '1.0.0', dependencies: { coffee: '^1.0.0' } }],
+  };
+  const items = discoverSelectedCapabilities(workspaceRoot, options);
+  const module = renderCapabilityModule(items);
+  expect(module).toContain("from '@shop/coffee/capability'");
+  expect(module).not.toContain('@shop/coffee-next');
+  expect(module).toContain('resolvedCapabilityVersions = {"coffee":"1.0.0","legacy":"1.0.0"}');
+  const routes = createCapabilityRouteConfig({
+    ...options,
+    routesDirectory: join(workspaceRoot, 'src/routes'),
+  });
+  expect(JSON.stringify(routes)).toContain('capabilities/coffee/src/routes');
+  expect(JSON.stringify(routes)).not.toContain('coffee-next');
+  expect(describeCapabilityComposition(workspaceRoot, options).resolvedVersions).toEqual({
+    coffee: '1.0.0',
+    legacy: '1.0.0',
   });
 });

@@ -5,12 +5,13 @@
   "$defs": {
     "semver": {
       "type": "string",
-      "pattern": "^(\\^|~)?\\d+\\.\\d+\\.\\d+$"
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(?:\\+[0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*)?$"
     },
     "dependencyMap": {
       "type": "object",
       "additionalProperties": {
-        "$ref": "#/$defs/semver"
+        "type": "string",
+        "format": "semver-range"
       }
     },
     "descriptor": {

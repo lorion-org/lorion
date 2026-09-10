@@ -131,7 +131,7 @@ describe('resolvePackageSources', () => {
     );
 
     expect(() => resolvePackageSources({ root })).toThrow(
-      /Duplicate descriptor id "checkout" declared in .*checkout.capability.json and .*checkout-next.capability.json/,
+      /Duplicate descriptor id "checkout" at version "1.0.0" declared in .*checkout.capability.json and .*checkout-next.capability.json/,
     );
   });
 
@@ -509,4 +509,22 @@ describe('resolvePackageEntries', () => {
       resolvePackageEntries(packageSources, ['.', './web']).map((entry) => entry.specifier),
     ).toEqual(['@acme/checkout', '@acme/checkout/web', '@acme/payments']);
   });
+});
+
+it('retains differently versioned sources with their own package names and directories', () => {
+  writeShopWorkspace();
+  writePackage(
+    'packages/checkout-next',
+    { name: '@acme/checkout-next' },
+    { id: 'checkout', version: '2.0.0' },
+  );
+  const snapshot = resolvePackageSources({ root });
+  expect(
+    snapshot.packageSources
+      .filter((source) => source.descriptorId === 'checkout')
+      .map((source) => [source.name, source.descriptorVersion, source.root]),
+  ).toEqual([
+    ['@acme/checkout', '1.0.0', join(root, 'packages/checkout')],
+    ['@acme/checkout-next', '2.0.0', join(root, 'packages/checkout-next')],
+  ]);
 });

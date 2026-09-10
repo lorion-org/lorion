@@ -560,3 +560,12 @@ pnpm test
 pnpm typecheck
 pnpm package:check
 ```
+
+Both React host models use the shared
+[version selection contract](../descriptor-selection/README.md#capability-versions).
+Discover all version candidates through `descriptorPaths`. The chosen candidate
+supplies its imports, routes and runtime configuration. `virtual:capabilities`
+exports `resolvedCapabilityVersions: Record<string, string>` alongside
+`resolvedCapabilityIds`; add it to the host's virtual-module declaration to
+inspect the selected versions. `describeCapabilityComposition` carries the same
+mapping as `resolvedVersions`.

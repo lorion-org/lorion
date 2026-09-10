@@ -13,6 +13,7 @@ export {
   getDependents,
   getIncomingRelationMap,
   getTransitiveTargets,
+  readRelationTargets,
 } from './descriptorGraph';
 export { createDescriptorCatalog } from './descriptorCatalog';
 export {

@@ -4,10 +4,10 @@ import { CoffeeShopPage } from './CoffeeShopPage';
 
 const shop: Shop = {
   id: 'shop-coffee',
-  name: 'Bean Supply',
+  name: 'Bean Supply Plus',
   path: '/shops/coffee',
   slug: 'coffee',
-  tagline: 'Coffee beans and simple brewing gear.',
+  tagline: 'Coffee beans, brewing gear, and subscriptions.',
 };
 
 export const shopCoffeeWebPlugin = defineWebPlugin({

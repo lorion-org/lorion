@@ -1,3 +1,4 @@
+import { resolvedCapabilityVersions } from 'virtual:capabilities';
 import {
   providerSelection,
   resolvedCapabilityIds,
@@ -31,6 +32,7 @@ export function createDemoOverview(runtime: HostRuntime) {
   const providers = runtime.get<PaymentCheckoutProvider>(PAYMENT_PROVIDER_EXTENSION);
 
   return {
+    resolvedCapabilityVersions,
     selectedCapabilityIds,
     resolvedCapabilityIds: [...resolvedCapabilityIds].sort((left, right) =>
       left.localeCompare(right),

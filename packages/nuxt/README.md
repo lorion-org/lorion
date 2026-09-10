@@ -620,3 +620,12 @@ pnpm test:e2e
 pnpm typecheck
 pnpm package:check
 ```
+
+Nuxt uses the shared
+[version selection contract](../descriptor-selection/README.md#capability-versions).
+Discover all version candidates through `descriptorPaths`. The bootstrap retains
+all candidates in `discoveredExtensions`, selects one version per id in
+`resolvedExtensions`, and registers only the selected sources. Call catalog and
+entry-map helpers with one descriptor per id, after version selection.
+`getNuxtExtensionSelection` exposes `resolvedExtensionVersions` from the public
+runtime configuration, including virtual grouping versions.

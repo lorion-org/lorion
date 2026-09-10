@@ -202,6 +202,16 @@ export function getNuxtExtensionSelection(
       .sort((left, right) => left.localeCompare(right)),
     resolvedExtensionIds,
     selectedExtensionIds: toStringArray(selection.selectedExtensionIds),
+    ...(isObject(selection.resolvedExtensionVersions)
+      ? {
+          resolvedExtensionVersions: Object.fromEntries(
+            Object.entries(selection.resolvedExtensionVersions).filter(
+              (entry): entry is [string, string] =>
+                typeof entry[1] === 'string' && resolvedExtensionIdSet.has(entry[0]),
+            ),
+          ),
+        }
+      : {}),
   };
 }
 

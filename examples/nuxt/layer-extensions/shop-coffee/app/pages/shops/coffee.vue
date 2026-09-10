@@ -7,8 +7,8 @@ const checkoutPath = paymentProvider?.createCheckoutPath({ shopId: 'coffee' }) ?
 <template>
   <main class="page">
     <NuxtLink to="/"> Back </NuxtLink>
-    <h1>Bean Supply</h1>
-    <p>Coffee beans and simple brewing gear.</p>
+    <h1>Bean Supply Plus</h1>
+    <p>Coffee beans, brewing gear, and subscriptions.</p>
     <NuxtLink class="button" :to="checkoutPath">
       Checkout with {{ paymentProvider?.label ?? 'selected provider' }}
     </NuxtLink>

@@ -32,6 +32,8 @@ export const selectedCapabilityIds = ${JSON.stringify([...selected])}
 
 export const resolvedCapabilityIds = ${JSON.stringify(capabilityIds)}
 
+export const resolvedCapabilityVersions = ${JSON.stringify(Object.fromEntries(capabilities.map((capability) => [capability.id, capability.manifest.version])))}
+
 export const providerSelection = ${JSON.stringify(providerSelection)}
 
 export const capabilityModules = [

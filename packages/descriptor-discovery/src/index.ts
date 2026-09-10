@@ -2,6 +2,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { basename, dirname, join, resolve as resolvePath } from 'node:path';
 
 import Ajv, { type ErrorObject, type Options as AjvOptions } from 'ajv';
+import { validRange } from 'semver';
 import type { Descriptor } from '@lorion-org/composition-graph';
 
 import { expandPathPattern } from './paths';
@@ -160,6 +161,7 @@ function createDescriptorValidator(
     allErrors: true,
     ...options.ajvOptions,
   });
+  ajv.addFormat('semver-range', (range: string) => validRange(range) !== null);
   const validate = ajv.compile(options.schema);
   const label = options.label ?? 'Descriptor';
   const formatError: DescriptorSchemaValidationErrorFormatter =

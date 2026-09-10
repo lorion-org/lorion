@@ -62,7 +62,7 @@
     "lint": "eslint src --ext .ts",
     "prepack": "pnpm build",
     "package:check": "pnpm build && pnpm pack --dry-run && publint",
-    "test": "vitest run --root ../.. --config vitest.config.mts packages/react/src/index.spec.ts packages/react/src/vite.spec.ts",
+    "test": "vitest run --root ../.. --config vitest.config.mts packages/react/src",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

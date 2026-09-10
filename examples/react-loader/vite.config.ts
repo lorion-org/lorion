@@ -26,7 +26,7 @@ const projectRoot = dirname(fileURLToPath(import.meta.url));
 // them passes nothing at all.
 const snapshot = resolvePackageSources({
   root: projectRoot,
-  patterns: ['capabilities/*'],
+  patterns: ['capabilities/*', 'prototypes/*'],
   additionalRoots: [{ root: 'external', patterns: ['capabilities/*'] }],
 });
 
@@ -95,7 +95,7 @@ const run = createCompositionRun({
   packageSources: snapshot.packageSources,
   seed: selection,
 });
-const descriptors = run.descriptors().map((entry) => entry.descriptor);
+const descriptors = run.capabilities().map((entry) => entry.descriptor);
 
 // A name no descriptor declares resolves to nothing at all, in either relation.
 assertKnownReferences({

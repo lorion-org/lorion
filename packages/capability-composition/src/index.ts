@@ -215,6 +215,7 @@ export function resolveCapabilitySelection(options: CapabilitySelectionInput): {
   const { items: selected, providerSelection } = selectDescriptorsWithProviders({
     items: [...discovered, ...virtual],
     getDescriptor: (item) => item.descriptor,
+    getSource: (item) => item.directory,
     withDescriptor: (item, descriptor) => ({ ...item, descriptor }),
     seed,
     ...(options.relationDescriptors ? { relationDescriptors: options.relationDescriptors } : {}),
@@ -576,20 +577,19 @@ export function createCompositionRun(input: CompositionRunInput): CompositionRun
         selected: resolveDescriptorSelection(input.seed),
         base: input.seed.baseDescriptors ?? [],
         resolved: capabilities.map((capability) => capability.id),
+        resolvedDescriptors: capabilities.map((capability) => capability.descriptor),
         discovered,
         providerSlots: providerSelection.slots,
       });
     },
     origins: () => {
-      const { capabilities, discoveredDescriptors, providerSelection } = resolveOnce();
+      const { capabilities, providerSelection } = resolveOnce();
       return describeCompositionOrigins({
         selected: resolveDescriptorSelection(input.seed),
         base: input.seed.baseDescriptors ?? [],
         resolved: capabilities.map((capability) => capability.id),
-        descriptors: discoveredDescriptors.map((entry) => entry.descriptor),
-        groupings: discoveredDescriptors
-          .filter((entry) => entry.virtual)
-          .map((entry) => entry.descriptor.id),
+        descriptors: capabilities.map((entry) => entry.descriptor),
+        groupings: capabilities.filter((entry) => !entry.packageName).map((entry) => entry.id),
         providerSlots: providerSelection.slots,
       });
     },

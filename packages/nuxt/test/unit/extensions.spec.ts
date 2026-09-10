@@ -48,6 +48,42 @@ describe('Nuxt extension bootstrap', () => {
     tempRoot = undefined;
   });
 
+  it('mounts only the chosen version and reports it with virtual grouping versions', () => {
+    const root = createTempRoot();
+    createExtension(
+      root,
+      'coffee-old',
+      { id: 'coffee', version: '1.0.0', publicRuntimeConfig: { coffee: { label: 'legacy' } } },
+      ['app'],
+    );
+    createExtension(
+      root,
+      'coffee-new',
+      { id: 'coffee', version: '2.0.0', publicRuntimeConfig: { coffee: { label: 'current' } } },
+      ['app'],
+    );
+    writeFileSync(join(root, 'extensions/coffee-old/nuxt.config.ts'), 'export default {};');
+    writeFileSync(join(root, 'extensions/coffee-new/nuxt.config.ts'), 'export default {};');
+    const bootstrap = createNuxtExtensionBootstrap({
+      rootDir: root,
+      options: {
+        selected: ['legacy'],
+        selectionSeed: false,
+        virtualDescriptors: [
+          { id: 'legacy', version: '1.0.0', dependencies: { coffee: '^1.0.0' } },
+        ],
+      },
+    });
+    expect(createNuxtExtensionLayerPaths(bootstrap)).toEqual([join(root, 'extensions/coffee-old')]);
+    expect(bootstrap.publicRuntimeConfig.public).toMatchObject({
+      coffee: { label: 'legacy' },
+      extensionSelection: {
+        discoveredExtensionIds: ['coffee', 'legacy'],
+        resolvedExtensionVersions: { coffee: '1.0.0', legacy: '1.0.0' },
+      },
+    });
+  });
+
   it('uses configured selection before default selection', () => {
     expect(
       resolveExtensionSelection({
@@ -679,4 +715,34 @@ describe('Nuxt extension bootstrap', () => {
       },
     });
   });
+});
+
+it.each([true, false])('honors enabled=%s with multiple discovered versions', (enabled) => {
+  const root = mkdtempSync(join(tmpdir(), 'lorion-nuxt-enabled-'));
+  try {
+    createExtension(root, 'coffee-old', { id: 'coffee', version: '1.0.0' });
+    createExtension(root, 'coffee-new', { id: 'coffee', version: '2.0.0' });
+    const bootstrap = createNuxtExtensionBootstrap({
+      rootDir: root,
+      options: { enabled, selected: ['coffee'], selectionSeed: false },
+    });
+    expect(bootstrap.requestedExtensions).toEqual(['coffee']);
+    expect(bootstrap.selectedExtensions).toEqual(['coffee']);
+    expect(bootstrap.resolvedExtensionIds).toEqual(enabled ? ['coffee'] : []);
+    expect(bootstrap.publicRuntimeConfig.public).toEqual(
+      enabled
+        ? {
+            extensionSelection: {
+              selectedExtensionIds: ['coffee'],
+              discoveredExtensionIds: ['coffee'],
+              resolvedExtensionIds: ['coffee'],
+              resolvedExtensionVersions: { coffee: '2.0.0' },
+            },
+          }
+        : {},
+    );
+    expect(bootstrap.providerSelection).toEqual({ slots: [], excludedProviderIds: [] });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

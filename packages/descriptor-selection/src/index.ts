@@ -1,6 +1,9 @@
+import { selectVersions } from './versions';
 import {
+  assertKnownDescriptorIds,
   createCompositionSelection,
   createDescriptorCatalog,
+  defaultRelationDescriptors,
   extendCompositionPolicy,
   resolveDescriptorSelectionSeed,
   type CompositionPolicy,
@@ -376,6 +379,8 @@ export interface DescriptorSelectionInput<T> {
   items: readonly T[];
   // Read the descriptor an item carries.
   getDescriptor: (item: T) => Descriptor;
+  // Optional physical source label used in duplicate-identity diagnostics.
+  getSource?: (item: T) => string;
   // Return a copy with losing provider relations removed. Keeps the item type
   // opaque to this package.
   withDescriptor: (item: T, descriptor: Descriptor) => T;
@@ -390,7 +395,72 @@ export interface DescriptorSelectionInput<T> {
 // capability: apply provider selection, build the descriptor graph, resolve the
 // seed + base + transitive dependencies, and return the items whose descriptor is
 // in the resolved set, ordered by id.
-export function selectDescriptorsWithProviders<T>(input: DescriptorSelectionInput<T>): {
+export function selectDescriptorsWithProviders<T>(
+  input: DescriptorSelectionInput<T>,
+): ReturnType<typeof selectSingleVersionDescriptors<T>> {
+  assertNoRemovedProviderPreferences(input.items.map(input.getDescriptor));
+  assertKnownProviderCapabilities({
+    declared: input.items.map(input.getDescriptor),
+    providers: input.items
+      .map(input.getDescriptor)
+      .filter((descriptor) => descriptor.disabled !== true),
+  });
+  const enabledById = new Map(
+    input.items
+      .map(input.getDescriptor)
+      .filter((descriptor) => descriptor.disabled !== true)
+      .map((descriptor) => [descriptor.id, descriptor]),
+  );
+  assertKnownDescriptorIds(
+    enabledById,
+    resolveDescriptorSelection(input.seed),
+    'selected descriptors',
+  );
+  assertKnownDescriptorIds(
+    enabledById,
+    toDescriptorIds(input.seed.baseDescriptors, 'baseDescriptors'),
+    'base descriptors',
+  );
+  const relations = [
+    ...new Map(
+      [
+        ...defaultRelationDescriptors,
+        ...providerRelationDescriptors,
+        ...(input.relationDescriptors ?? []),
+      ].map((relation) => [relation.id, relation]),
+    ).values(),
+  ];
+  const policy = extendCompositionPolicy(descriptorSelectionPolicy(input.policy), [
+    ...providerRelationDescriptors,
+    ...(input.relationDescriptors ?? []),
+  ]);
+  const resolutionRelations = relations.filter((relation) =>
+    policy.resolutionRelationIds?.includes(relation.id),
+  );
+  const dependencyRelation = resolutionRelations.find((relation) => relation.id === 'dependencies');
+  // A host may redefine a graph relation. Version requirements belong only to the
+  // canonical outgoing dependency map, not arbitrary host-owned relation values.
+  const resolveDependencies = Boolean(
+    dependencyRelation &&
+    (dependencyRelation.field ?? dependencyRelation.id) === 'dependencies' &&
+    dependencyRelation.direction !== 'incoming' &&
+    dependencyRelation.targetMode !== 'values',
+  );
+  return selectVersions({
+    items: input.items,
+    getDescriptor: input.getDescriptor,
+    ...(input.getSource ? { getSource: input.getSource } : {}),
+    resolve: (items) => selectSingleVersionDescriptors({ ...input, items }),
+    resolveDependencies,
+    resolutionRelations,
+    roots: [
+      ...resolveDescriptorSelection(input.seed),
+      ...toDescriptorIds(input.seed.baseDescriptors, 'baseDescriptors'),
+    ],
+  });
+}
+
+function selectSingleVersionDescriptors<T>(input: DescriptorSelectionInput<T>): {
   items: T[];
   providerSelection: ProviderSelectionResolution;
   // The graph the selection resolved against. A host that inspects the composition
@@ -403,10 +473,6 @@ export function selectDescriptorsWithProviders<T>(input: DescriptorSelectionInpu
   assertNoRemovedProviderPreferences(declared);
   const enabled = items.filter((item) => getDescriptor(item).disabled !== true);
   const descriptors = enabled.map(getDescriptor);
-  assertKnownProviderCapabilities({
-    declared,
-    providers: descriptors,
-  });
   assertSingleDefaultProvider(descriptors);
 
   const selected = resolveDescriptorSelection(seed);
