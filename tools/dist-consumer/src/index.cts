@@ -14,7 +14,7 @@ import type * as providerSelection from '@lorion-org/provider-selection';
 import type * as react from '@lorion-org/react';
 import type * as reactVite from '@lorion-org/react/vite';
 import type * as registryHub from '@lorion-org/registry-hub';
-import type * as runtimeConfig from '@lorion-org/runtime-config';
+import * as runtimeConfig from '@lorion-org/runtime-config';
 import type * as runtimeConfigNode from '@lorion-org/runtime-config-node';
 import type * as surfaceActivation from '@lorion-org/surface-activation';
 
@@ -32,3 +32,6 @@ export type PublishedCommonJsEntryPoints = {
   runtimeConfigNode: typeof runtimeConfigNode;
   surfaceActivation: typeof surfaceActivation;
 };
+
+// A type-only re-export must not silently remove the constructible public value.
+export const validatorRegistry = new runtimeConfig.RuntimeConfigValidatorRegistry({});

@@ -2,9 +2,13 @@
 // `skipLibCheck: true`, so TypeScript never reads the declaration files this
 // repository emits; a `.d.ts` can be syntactically invalid and every gate stays
 // green. This package imports each published entry point with `skipLibCheck: false`,
-// which is the only configuration in the repository that compiles the shipped types.
+// validating the shipped types independently of their API reports.
 //
-// Type-only imports are enough: reading the declaration is the point.
+// Namespace imports read each declaration; the assertions below exercise published contracts.
+
+import { expectTypeOf } from 'vitest';
+import type { NuxtConfig } from 'nuxt/schema';
+import type { LorionNuxtModuleOptions } from '@lorion-org/nuxt';
 
 import type * as capabilityComposition from '@lorion-org/capability-composition';
 import type * as compositionGraph from '@lorion-org/composition-graph';
@@ -20,7 +24,7 @@ import type * as providerSelection from '@lorion-org/provider-selection';
 import type * as react from '@lorion-org/react';
 import type * as reactVite from '@lorion-org/react/vite';
 import type * as registryHub from '@lorion-org/registry-hub';
-import type * as runtimeConfig from '@lorion-org/runtime-config';
+import * as runtimeConfig from '@lorion-org/runtime-config';
 import type * as runtimeConfigNode from '@lorion-org/runtime-config-node';
 import type * as surfaceActivation from '@lorion-org/surface-activation';
 
@@ -45,3 +49,9 @@ export type PublishedEntryPoints = {
   runtimeConfigNode: typeof runtimeConfigNode;
   surfaceActivation: typeof surfaceActivation;
 };
+
+// A type-only re-export must not silently remove the constructible public value.
+export const validatorRegistry = new runtimeConfig.RuntimeConfigValidatorRegistry({});
+
+// Check the complete published augmentation, including its optionality.
+expectTypeOf<Pick<NuxtConfig, 'lorion'>>().toEqualTypeOf<{ lorion?: LorionNuxtModuleOptions }>();

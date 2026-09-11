@@ -40,6 +40,9 @@ Run commands from the LORION repository root:
   file with its colocated spec, or with the package's entry spec when there is none;
   `--tests <spec.ts>` names one instead. One file and one spec per run, because the
   Vitest runner yields the result of a single spec when several are named.
+- `pnpm api` builds packages and updates their committed API reports
+- `pnpm api:check` builds packages and checks those reports without updating them
+- `pnpm api:test` tests API drift detection, also included in `pnpm test`
 - `pnpm changeset` records a release note for a package change
 - `pnpm check` runs the full local gate used by CI
 
@@ -55,8 +58,56 @@ needs a changeset.
   and where the seams are. It does not enumerate them: the exports map and the
   sources are the inventory, and a list kept in prose goes stale silently.
 
-Nothing verifies today that a version bump matches what actually changed. That gap
-is tracked in #9.
+### Reviewing API changes
+
+When a package's public types or export map change, run `pnpm api` from the
+repository root and include the generated [API reports](./api/) in the change.
+Review the report diff before choosing the Changeset bump. The report records
+signatures; runtime behavior changes still need behavioral tests and release notes.
+The bump remains a human decision. Updating a report accepts a new baseline; a
+passing check does not establish backward compatibility.
+
+API Extractor does not preserve value-versus-type-only re-exports or module
+augmentations. When changing either, review the emitted declarations and maintain
+consumer assertions in `tools/dist-consumer/src/`. `pnpm declarations:check` checks
+those assertions against published types in both module resolutions, including
+consumer-file diagnostics. The assertions exercise the exported validator class
+and the Nuxt configuration augmentation; they are not an exhaustive API inventory.
+Dependency version changes and runtime export routing also require review of the
+package manifest and the existing package/resolver checks.
+
+[`api-extractor.json`](./api-extractor.json) owns the shared API Extractor settings.
+`tools/api-reports.mjs` discovers public packages and their declaration targets
+from `packages/*/package.json`, then invokes API Extractor once per exported type
+branch. API Extractor owns the report format, writing and comparison. Report names
+identify the package, export subpath and type conditions; ESM and CommonJS have
+separate reports even when their signatures match. Published declarations are not
+modified by report generation.
+
+The reports cover literal export subpaths with `types` targets under `dist/`,
+including `.d.ts`, `.d.mts` and `.d.cts`, with `import`, `require` and `default`
+conditions. Runtime branches must have an explicit declaration target in their
+branch or a shared enclosing `types` string; `types` must precede runtime
+conditions. Implicit declaration fallback is rejected. Conditional objects under
+`types` can describe type branches but do not cover sibling runtime branches.
+The `lorion-source` condition is excluded from declaration analysis.
+API Extractor expands `@lorion-org/*` against each package's declared dependencies
+and includes their referenced types. Other dependencies retain imports; workspace
+packages also have their own reports. Unsupported export shapes or
+missing declarations fail rather than silently dropping an entry point. When
+introducing another export shape, extend the discovery tests in the same change.
+
+`pnpm api` uses API Extractor's local mode to update reports. `pnpm api:check` uses
+its production mode, which fails on missing or changed reports and leaves generated
+candidates in `.artifacts/api/`. The repository runner also rejects reports that
+no longer correspond to an exported type branch; `pnpm api` removes them after
+successful analysis. Suppressed forgotten-export diagnostics are also excluded
+from report text so checkout paths cannot enter the baseline through those warnings.
+Generated reports are excluded from formatting; regenerate them through the command
+instead of editing them. The check runs in `pnpm check`
+and CI alongside the existing declaration and package checks. Compiler diagnostics
+in third-party declarations are filtered consistently with the declaration gate;
+errors in Lorion declarations fail API analysis.
 
 ## Release model
 

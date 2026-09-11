@@ -72,6 +72,9 @@ jobs:
       - name: Read published declarations as a consumer does
         run: pnpm run declarations:check
 
+      - name: Check published API reports
+        run: pnpm run api:check
+
       - name: Validate bundle manifests
         run: pnpm run manifests:check
 
