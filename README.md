@@ -144,8 +144,8 @@ under `packages/<name>/`.
 
 - Node.js 20.19 or newer on the Node 20 LTS line, or Node.js 22.12 or newer
 - pnpm 10
-- Bun (optional) for running the examples from source; the example tooling uses
-  Bun when it is installed and falls back to Node's `--conditions` resolver
+- Bun at the version recorded in [`.bun-version`](./.bun-version) for running
+  the examples from source and `pnpm bun:check`
 
 ## Runtime compatibility
 

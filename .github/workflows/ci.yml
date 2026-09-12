@@ -81,6 +81,11 @@ jobs:
       - name: Validate bundle manifests
         run: pnpm run manifests:check
 
+      - name: Setup Bun for examples
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+
       - name: Verify examples (dev-only; not part of the package build/typecheck gates)
         run: pnpm run examples:verify
 
