@@ -1,3 +1,5 @@
+// Load the augmentation target explicitly, including in clean declaration builds.
+import type {} from 'nuxt/schema';
 import type {
   NamedRuntimeConfigFragment,
   ProjectSectionedRuntimeConfigOptions,

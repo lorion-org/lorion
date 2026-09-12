@@ -46,6 +46,22 @@ Run commands from the LORION repository root:
 - `pnpm changeset` records a release note for a package change
 - `pnpm check` runs the full local gate used by CI
 
+## Fresh-install verification
+
+Changes to dependencies, build tooling, declaration generation or verification
+commands require verification from a fresh source tree containing the complete
+proposed change.
+
+Run `pnpm install --frozen-lockfile` and `pnpm check` without pre-existing
+`node_modules`, generated outputs or Turbo task caches. The package download cache
+may be reused.
+
+Record the checked revision or patch, commands and results in the PR validation
+section. Checks against previously generated declarations establish report
+consistency, not build reproducibility.
+
+Before declaring a PR ready to merge, confirm successful CI for its latest revision.
+
 ## Public API surface
 
 A symbol reachable from an entry point in a package's `exports` map is public,
