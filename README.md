@@ -173,14 +173,15 @@ Common workspace commands:
 - `pnpm package:check`
 - `pnpm attw` checks the published types across module resolvers
 - `pnpm declarations:check` compiles a consumer against the emitted declaration
-  files with `skipLibCheck: false`, in both module resolutions — the only place
-  that reads what is published
+  files with `skipLibCheck: false`, in both module resolutions
+- `pnpm api` updates the committed [API reports](./api/); `pnpm api:check` checks
+  them for drift. See [reviewing API changes](./CONTRIBUTING.md#reviewing-api-changes).
 - `pnpm manifests:check` loads every `bundles.json` in the repository through the
   real loader
 - `pnpm changeset:check` requires a changeset for a package change
 - `pnpm check` runs the full local gate: Prettier, package build, ESLint, tests,
   package TypeScript, doc snippets, example apps, package checks, published types,
-  published declarations, and bundle manifests
+  published declarations, API reports, and bundle manifests
 
 The `build` and `typecheck` scripts target `packages/*` only — the example apps
 are dev-only and are verified separately via `pnpm examples:verify`, so a broken

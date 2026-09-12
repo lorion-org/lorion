@@ -11,6 +11,10 @@
 - [ ] Breaking change
 - [ ] Docs / tooling only
 
+## Validation
+
+<!-- For dependency, build, declaration or verification-tool changes, include the evidence required by CONTRIBUTING.md#fresh-install-verification. -->
+
 ## Checklist
 
 - [ ] Tests added or updated for behavior changes

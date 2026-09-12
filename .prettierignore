@@ -7,3 +7,4 @@ node_modules
 .output
 pnpm-lock.yaml
 examples/react-runtime/src/routeTree.gen.ts
+api/*.api.md
