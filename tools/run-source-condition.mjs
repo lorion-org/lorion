@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
+import console from 'node:console';
+import process from 'node:process';
 
 const args = process.argv.slice(2);
 
@@ -64,7 +66,14 @@ const hasBun = spawnSync('bun', ['--version'], { stdio: 'ignore', shell: isWindo
 const runner = hasBun
   ? {
       bin: 'bun',
-      args: ['--conditions=lorion-source', 'x', command, ...selectionArgs.remainingArgs],
+      args: [
+        '--conditions=lorion-source',
+        'x',
+        '--bun',
+        '--no-install',
+        command,
+        ...selectionArgs.remainingArgs,
+      ],
       env: { ...process.env, ...selectionArgs.env },
     }
   : {

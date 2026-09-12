@@ -144,8 +144,21 @@ under `packages/<name>/`.
 
 - Node.js 20.19 or newer on the Node 20 LTS line, or Node.js 22.12 or newer
 - pnpm 10
-- Bun (optional) — recommended for running the examples from source; the example
-  tooling falls back to Node's `--conditions` resolver when Bun is absent
+- Bun (optional) for running the examples from source; the example tooling uses
+  Bun when it is installed and falls back to Node's `--conditions` resolver
+
+## Runtime compatibility
+
+The Node.js versions declared above are the supported runtime contract. CI also
+checks Bun at the version recorded in [`.bun-version`](./.bun-version): the Bun
+test workers must identify that runtime. On both Node.js and Bun, every literal
+public JavaScript entry point is loaded from built package output, and
+representative composition, version-selection, and runtime-config file access
+are exercised. The examples are also built with Bun.
+
+The Bun check establishes compatibility for those paths. It does not use Bun as
+the repository package manager, and example builds do not establish browser
+behavior or the runtime of every server process a framework starts.
 
 ## Development
 
@@ -178,6 +191,10 @@ Common workspace commands:
   them for drift. See [reviewing API changes](./CONTRIBUTING.md#reviewing-api-changes).
 - `pnpm manifests:check` loads every `bundles.json` in the repository through the
   real loader
+- `pnpm runtime:check` checks built package entry points and representative
+  behavior with Node.js
+- `pnpm bun:check` runs the package tests and built-output consumer checks with
+  the Bun runtime
 - `pnpm changeset:check` requires a changeset for a package change
 - `pnpm check` runs the full local gate: Prettier, package build, ESLint, tests,
   package TypeScript, doc snippets, example apps, package checks, published types,
