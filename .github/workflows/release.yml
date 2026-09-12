@@ -42,8 +42,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Setup Bun
+      - name: Setup Bun for examples
         uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
 
       - name: Run quality gate
         run: pnpm check

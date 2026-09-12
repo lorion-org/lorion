@@ -213,8 +213,8 @@ describe('listRuntimeConfigScopeFiles', () => {
     const varDir = createTempRoot();
     const docsDir = path.join(varDir, 'runtime-config', 'billing', 'docs');
     mkdirSync(docsDir, { recursive: true });
-    writeFileSync(path.join(docsDir, 'guide.md'), '# Guide', 'utf8');
     writeFileSync(path.join(docsDir, 'schema.json'), '{}', 'utf8');
+    writeFileSync(path.join(docsDir, 'guide.md'), '# Guide', 'utf8');
 
     expect(listRuntimeConfigScopeFiles(varDir, 'billing', 'docs')).toEqual([
       'guide.md',

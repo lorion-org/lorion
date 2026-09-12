@@ -585,7 +585,8 @@ export function listRuntimeConfigScopeFiles(
   return readdirSync(dirPath, { withFileTypes: true })
     .filter((entry) => entry.isFile())
     .map((entry) => entry.name)
-    .filter((name) => (options.extension ? name.endsWith(options.extension) : true));
+    .filter((name) => (options.extension ? name.endsWith(options.extension) : true))
+    .sort();
 }
 
 export function collectRuntimeConfigFragmentFiles(

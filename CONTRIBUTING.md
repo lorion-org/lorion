@@ -32,6 +32,10 @@ Run commands from the LORION repository root:
 - `pnpm tests` is an alias for `pnpm test`
 - `pnpm snippets:check` type-checks the per-package doc snippets (`packages/*/snippets/`)
 - `pnpm examples:verify` type-checks and builds the runnable example apps (`examples/`)
+- `pnpm runtime:check` verifies built package entry points and representative
+  behavior with Node.js
+- `pnpm bun:check` requires Bun and verifies package tests and built package output
+  with the runtime version recorded in `.bun-version`
 - `pnpm package:check` validates package contents and publish shape
 - `pnpm attw` verifies published types resolve across module resolvers
 - `pnpm mutants <source.ts>` measures test effectiveness for one source file: it

@@ -88,6 +88,9 @@ resolveRuntimeConfigPublicFilePath(source, 'checkout/logo.svg');
 // => '/absolute/project/path/var/runtime-config/public/checkout/logo.svg'
 ```
 
+`listRuntimeConfigScopeFiles(...)` returns matching file names in deterministic
+ascending order, independent of the runtime's directory enumeration order.
+
 ## Pattern source example
 
 Adapters can load fragments from path patterns when the directory convention is
