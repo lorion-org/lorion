@@ -680,6 +680,50 @@ describe('grouping version and provider invariants', () => {
       });
     },
   );
+  it('backtracks callback-only indirect members without retaining losing grouping members', () => {
+    const items = [
+      descriptor('app', '1.0.0', { profile: '*' }),
+      descriptor('profile'),
+      descriptor('profile', '2.0.0'),
+      descriptor('feature'),
+      descriptor('feature', '2.0.0', { missing: '*' }),
+      descriptor('losing-member'),
+    ];
+    for (const order of [items, [...items].reverse()]) {
+      const result = selectDescriptorsWithProviders({
+        items: order,
+        getDescriptor: (item) => item,
+        withDescriptor: (_, item) => item,
+        getSelectionGroupMembers: (item) =>
+          item.id === 'profile'
+            ? item.version === '2.0.0'
+              ? ['missing', 'losing-member']
+              : ['feature']
+            : undefined,
+        seed: { selected: ['app'], selectionSeed: false },
+      });
+      expect(identities(result.items)).toEqual(['app@1.0.0', 'feature@1.0.0', 'profile@1.0.0']);
+    }
+  });
+
+  it.each(['app', 'profile'])(
+    'retains explicit prerelease requirements for members reached through %s',
+    (root) => {
+      const result = selectDescriptorsWithProviders({
+        items: [
+          descriptor('app', '1.0.0', { profile: '*' }),
+          descriptor('profile'),
+          descriptor('feature', '1.0.0-beta.1'),
+        ],
+        getDescriptor: (item) => item,
+        withDescriptor: (_, item) => item,
+        getSelectionGroupMembers: (item) => (item.id === 'profile' ? ['feature'] : undefined),
+        seed: { selected: [root, 'feature@1.0.0-beta.1'], selectionSeed: false },
+      });
+      expect(identities(result.items)).toContain('feature@1.0.0-beta.1');
+    },
+  );
+
   it('includes custom membership edges in activation and version backtracking', () => {
     const items = [
       descriptor('profile'),

@@ -48,7 +48,9 @@ has had a stable release.
 
 Changesets pre mode is active for the `beta` tag in `.changeset/pre.json`.
 While it is active, `pnpm version-packages` creates prerelease package versions
-such as `1.0.0-beta.2` instead of stable versions such as `1.0.0`.
+such as `1.0.0-beta.2` instead of stable versions such as `1.0.0`. The command also
+formats the generated changelogs with Prettier so the version PR follows the
+repository formatting contract.
 
 To prepare the stable release path later:
 

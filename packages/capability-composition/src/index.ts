@@ -651,6 +651,7 @@ export function createCompositionRun(input: CompositionRunInput): CompositionRun
   // until the first accessor lets a workspace change between package discovery and
   // descriptor discovery, producing a run whose source and descriptor disagree.
   const resolution = resolveCapabilitySelection(input);
+  let selectedSources: readonly PackageSource[] | undefined;
 
   if (input.packageSources) {
     const sourcesByPath = new Map(
@@ -672,15 +673,38 @@ export function createCompositionRun(input: CompositionRunInput): CompositionRun
         source,
       );
     }
+    const byName = new Map(input.packageSources.map((source) => [source.name, source]));
+    const selected = new Map<string, PackageSource>();
+    for (const capability of resolution.capabilities) {
+      if (!capability.packageName) continue;
+      const source = byName.get(capability.packageName);
+      if (!source) {
+        throw new Error(
+          `Selected package "${capability.packageName}" is missing from the package sources.`,
+        );
+      }
+      assertPackageSourceMatch(
+        {
+          id: capability.id,
+          version: capability.descriptor.version,
+          directory: capability.directory,
+        },
+        source,
+      );
+      selected.set(source.name, source);
+    }
+    selectedSources = [...selected.values()].sort((left, right) =>
+      left.name.localeCompare(right.name),
+    );
   }
 
   const packageSources = (): readonly PackageSource[] => {
-    if (!input.packageSources) {
+    if (!selectedSources) {
       throw new Error(
         'This composition run was created without `packageSources`. Pass the package set the composition addresses.',
       );
     }
-    return input.packageSources;
+    return selectedSources;
   };
 
   return {
@@ -722,29 +746,7 @@ export function createCompositionRun(input: CompositionRunInput): CompositionRun
         providerSlots: providerSelection.slots,
       });
     },
-    selectedPackageSources: () => {
-      const byName = new Map(packageSources().map((source) => [source.name, source]));
-      const selected = new Map<string, PackageSource>();
-      for (const capability of resolution.capabilities) {
-        if (!capability.packageName) continue;
-        const source = byName.get(capability.packageName);
-        if (!source) {
-          throw new Error(
-            `Selected package "${capability.packageName}" is missing from the package sources.`,
-          );
-        }
-        assertPackageSourceMatch(
-          {
-            id: capability.id,
-            version: capability.descriptor.version,
-            directory: capability.directory,
-          },
-          source,
-        );
-        selected.set(source.name, source);
-      }
-      return [...selected.values()].sort((left, right) => left.name.localeCompare(right.name));
-    },
+    selectedPackageSources: () => [...packageSources()],
     surfaceEntries: (surface, activation) =>
       resolveSurfaceEntries({
         capabilities: resolution.capabilities,

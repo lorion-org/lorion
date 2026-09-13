@@ -65,9 +65,11 @@ members reached from a grouping selected by the seed use explicit precedence;
 provider members of a grouping reached only through a normal dependency keep
 dependency precedence. The callback runs against a complete version assignment,
 so a losing grouping version cannot contribute members. Ordinary dependencies
-outside the returned membership retain dependency precedence. Membership also
-activates ordinary members; the callback is pure and returns logical ids, while
-version constraints remain in the descriptor dependency map.
+outside the returned membership retain dependency precedence. Membership activates
+ordinary members of direct and indirectly reached groups, including nested groups.
+The callback is pure and returns logical ids; version constraints remain in the
+descriptor dependency map. Including a capability only as a member leaves its
+provider slot optional; including a provider requests that provider.
 
 Base membership means participation, not consumption. When an active capability
 has provider candidates but no resolved descriptor depends on it, the result

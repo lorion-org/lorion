@@ -11,7 +11,8 @@ Read the package set of a workspace once, and compose from it.
   `discoverDescriptors` takes. Workspace patterns are read in both spellings (a list,
   or an object carrying `packages`), `additionalRoots` joins further checkouts into
   one snapshot with the asking workspace winning a name collision, two packages
-  claiming one descriptor id abort with both paths, a descriptor with no manifest
+  claiming the same descriptor id and exact version abort with both paths, while
+  different versions remain candidates. A descriptor with no manifest
   beside it is named rather than dropped, and a pattern whose prefix names a checkout
   that is not there aborts instead of resolving a composition that is quietly
   incomplete. `findWorkspaceRoot(from)` and `readWorkspacePatterns(manifest)`

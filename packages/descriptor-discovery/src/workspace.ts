@@ -3,7 +3,7 @@ import { dirname, isAbsolute, relative, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-import { expandPathPattern, patternPrefix } from './paths';
+import { globSync, isDynamicPattern } from 'tinyglobby';
 
 // The package set of a workspace: which packages exist, where each one lies, what it
 // is called, and which of them carries a descriptor. A capability lives on disk as a
@@ -137,8 +137,9 @@ export function findWorkspaceRoot(from: string): string {
 // later with an unrelated message, so its directory has to exist. A prefix inside the
 // root stays unchecked: it may describe a location the workspace has not filled yet.
 function assertReachablePattern(root: string, manifestPath: string, pattern: string): void {
-  const prefix = patternPrefix(pattern);
-  if (!prefix) return;
+  if (pattern.startsWith('!')) return;
+  let prefix = pattern;
+  while (isDynamicPattern(prefix)) prefix = dirname(prefix);
 
   const directory = resolve(root, prefix);
   const inside = relative(root, directory);
@@ -179,25 +180,26 @@ function discoverRoot(input: {
   }
   for (const pattern of patterns) assertReachablePattern(input.root, manifestPath, pattern);
 
-  const manifestPaths = [
+  const directories = [
     ...new Set(
-      patterns.flatMap((pattern) =>
-        expandPathPattern(input.root, `${pattern}/${MANIFEST_FILE_NAME}`),
-      ),
+      globSync([...patterns], {
+        cwd: input.root,
+        absolute: true,
+        onlyDirectories: true,
+        expandDirectories: false,
+        ignore: ['**/node_modules/**'],
+      }).map((directory) => resolve(directory)),
     ),
   ].sort();
-
-  // A descriptor whose manifest is missing matches no package and would simply not be
-  // in the snapshot: the composition would be smaller than the workspace reads, and
-  // nothing would say so. It is reported here, where the file that was meant to take
-  // part can still be named.
-  const found = new Set(manifestPaths.map((path) => dirname(path)));
-  for (const pattern of patterns) {
-    for (const descriptorPath of expandPathPattern(
-      input.root,
-      `${pattern}/${input.descriptorFileName}`,
-    )) {
-      if (found.has(dirname(descriptorPath))) continue;
+  const manifestPaths: string[] = [];
+  for (const directory of directories) {
+    const path = resolve(directory, MANIFEST_FILE_NAME);
+    if (existsSync(path) && statSync(path).isFile()) {
+      manifestPaths.push(path);
+      continue;
+    }
+    const descriptorPath = resolve(directory, input.descriptorFileName);
+    if (existsSync(descriptorPath)) {
       throw new Error(
         `${descriptorPath}: no "${MANIFEST_FILE_NAME}" beside this descriptor. A capability lies on disk as a package; add the manifest, or hand the descriptor paths to discovery directly.`,
       );
