@@ -1,5 +1,12 @@
 # @lorion-org/runtime-config-node
 
+## 1.0.0-beta.9
+
+### Patch Changes
+
+- f5d4355: Return scope file names in deterministic ascending order across Node and Bun.
+  - @lorion-org/runtime-config@1.0.0-beta.9
+
 ## 1.0.0-beta.8
 
 ### Patch Changes

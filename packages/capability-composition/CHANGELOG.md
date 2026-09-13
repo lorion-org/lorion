@@ -1,5 +1,125 @@
 # @lorion-org/capability-composition
 
+## 1.0.0-beta.9
+
+### Major Changes
+
+- 29154da: Resolve one compatible version per capability id across workspace sources.
+
+  Different versions of an id can coexist in discovery. Selection considers newer
+  versions first and backtracks to satisfy active transitive dependency constraints,
+  preserving provider precedence and each candidate's package and directory.
+  Duplicate id/version identities and unsatisfiable requirements fail explicitly.
+  Composition reports, React virtual modules and Nuxt runtime selection expose the
+  resolved versions.
+
+  Dependency ranges that were previously ignored are now enforced, even with a
+  single available candidate. Correct mismatched manifests before upgrading. The
+  shared schema requires concrete descriptor versions and accepts npm SemVer
+  dependency ranges, including partial, wildcard, comparator, union and hyphen
+  ranges. Its `semver-range` format is registered by Lorion loaders; hosts using
+  the exported schema directly must register it in their validator.
+  Package names must remain distinct for candidates in the same workspace.
+
+  Custom dependency relation overrides retain their host-defined value semantics.
+  Inactive providers do not multiply version search work. Origin reports derive
+  grouping status and provider alternatives from the resolved source and catalog.
+
+  Use locale-independent candidate ordering. Resolve fixed dependency/provider
+  relations before choosing versions so impossible provider requirements do not
+  multiply independent active version choices. Include generated React module
+  execution tests in the regular package test command.
+
+- 51c49ab: Accept `id@<SemVer range>` in explicit, default, base and CLI/env seeds. Seed
+  constraints intersect with active dependency requirements; incompatible requests
+  fail with their sources and available versions. Unqualified roots now require a
+  stable version, replacing the previous behavior that could select a prerelease.
+  Select prereleases with an explicit matching version range.
+
+  Capture the seed with the composition result and forward selected source and
+  requirement provenance to reports. React and Nuxt retain version constraints
+  through loading and layer selection. Preserve ordinary provider dependencies
+  outside grouping membership and consider membership in version backtracking.
+  Treat an empty contribution dependency range as the npm wildcard.
+
+### Minor Changes
+
+- b8c954e: State a composition run once, and let every projection read that one resolution.
+  - `createCompositionRun(input)` resolves immediately when created and reuses the result for the
+    report, the origins, the package sources it selected, the surface projection and
+    the runtime composition. A host that resolves per entry point states its run twice,
+    and the second statement is free to differ: a build then emits one selection while
+    the server start reports another, and nothing in either says so.
+  - `resolveCapabilitySelection` additionally returns `discoveredDescriptors`, the
+    descriptors behind the ids it already reported. A report that says why a descriptor
+    is in a composition needs the ones that are not, above all the providers that lost
+    a slot, and reading the workspace a second time would answer for a different one.
+  - `resolveRequestedSelection(seed)` in `@lorion-org/descriptor-selection` returns the
+    requested specs, retaining version ranges, or null when none were named.
+    `resolveDescriptorSelection` returns logical ids and falls back to `defaultSelection`. A report says what was asked for, and a run that
+    named nothing is a different statement than one that named what its host defaults to.
+  - `describeCompositionOrigins(input)` and `formatCompositionOrigins(origins)` sort one
+    resolution into where each descriptor came from: named by the run, from the base,
+    from a grouping it runs, a slot filling with the candidates it beat, brought by a
+    grouping, or pulled in behind something named.
+
+- c25cc9f: Add a workspace composition run that seals package and descriptor filesystem
+  observation, plus a versioned candidate inventory and source consistency checks.
+  The returned JavaScript values remain mutable. Directly selected groupings now give
+  their provider members explicit precedence after grouping-version selection. Add
+  version-aware contribution catalog validation and active projection, and let the
+  React Vite loader consume an existing composition run without rediscovery.
+  Descriptor discovery retains the exact descriptor documents in package snapshots,
+  so the workspace run validates and expands them without another filesystem read.
+- b8c954e: Read the package set of a workspace once, and compose from it.
+  - `resolvePackageSources({ from | root, patterns?, additionalRoots?, descriptorFileName?, cache? })`
+    in `@lorion-org/descriptor-discovery`: the packages a workspace holds, each with its
+    name, root, manifest and the descriptor beside it, plus the `descriptorPaths`
+    `discoverDescriptors` takes. Workspace patterns are read in both spellings (a list,
+    or an object carrying `packages`), `additionalRoots` joins further checkouts into
+    one snapshot with the asking workspace winning a name collision, two packages
+    claiming the same descriptor id and exact version abort with both paths, while
+    different versions remain candidates. A descriptor with no manifest
+    beside it is named rather than dropped, and a pattern whose prefix names a checkout
+    that is not there aborts instead of resolving a composition that is quietly
+    incomplete. `findWorkspaceRoot(from)` and `readWorkspacePatterns(manifest)`
+    are the pieces it is built from.
+  - `resolvePackageExport(exports, subpath)` and `resolvePackageEntries(packageSources, subpaths)`
+    in `@lorion-org/descriptor-discovery`: one `exports` resolution (`import` before
+    `require` before `default`, conditions-only shorthand included, `types` never
+    followed), and the public entries of a package set projected onto the files they
+    resolve to. `createWorkspaceLoad` now uses that resolution instead of a second copy
+    of it.
+  - `createPackageSourceLoad(packageSources)` in `@lorion-org/capability-composition`:
+    the `load` callback over a resolved package set rather than one packages directory,
+    so packages of several roots and several directory layouts load through one
+    callback.
+  - `resolveSurfaceEntries({ capabilities, surface, activation, packageSources })` in
+    `@lorion-org/capability-composition`: one surface projected onto the files its
+    packages declare, for a build-time host that emits static imports. A capability
+    whose package is missing from the set, declares no such export, or exports a file
+    that is not there aborts by name.
+
+### Patch Changes
+
+- b35ebc9: Validate selected package sources when a composition run is created, so source
+  projection, surface entries and default loading agree with the selected descriptor.
+  Missing or inconsistent selected sources now abort creation.
+- Updated dependencies [e59fc86]
+- Updated dependencies [3658f36]
+- Updated dependencies [b8c954e]
+- Updated dependencies [5788936]
+- Updated dependencies [c25cc9f]
+- Updated dependencies [29154da]
+- Updated dependencies [51c49ab]
+- Updated dependencies [6190e20]
+- Updated dependencies [b8c954e]
+  - @lorion-org/descriptor-discovery@1.0.0-beta.9
+  - @lorion-org/descriptor-selection@1.0.0-beta.9
+  - @lorion-org/composition-graph@1.0.0-beta.9
+  - @lorion-org/runtime-config@1.0.0-beta.9
+  - @lorion-org/surface-activation@1.0.0-beta.9
+
 ## 1.0.0-beta.8
 
 ### Major Changes

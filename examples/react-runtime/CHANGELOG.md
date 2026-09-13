@@ -1,5 +1,15 @@
 # @lorion-examples/react-runtime
 
+## 0.0.1-beta.6
+
+### Patch Changes
+
+- Updated dependencies [c25cc9f]
+- Updated dependencies [29154da]
+- Updated dependencies [51c49ab]
+  - @lorion-org/react@1.0.0-beta.9
+  - @lorion-org/provider-selection@1.0.0-beta.9
+
 ## 0.0.1-beta.5
 
 ### Patch Changes
