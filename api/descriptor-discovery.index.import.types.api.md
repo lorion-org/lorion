@@ -35,6 +35,13 @@ type Descriptor = {
 };
 
 // @public (undocumented)
+export type DescriptorDocument = {
+    cwd: string;
+    descriptorPath: string;
+    descriptor: Record<string, unknown>;
+};
+
+// @public (undocumented)
 export type DescriptorField = 'id' | 'version' | 'description' | 'providesFor' | 'defaultFor' | 'capabilities' | 'contributesTo' | 'contributionPoints' | 'dependencies' | 'disabled' | 'location' | 'bundles' | 'runtimeConfig' | 'publicRuntimeConfig';
 
 // @public (undocumented)
@@ -65,6 +72,7 @@ export function discoverDescriptors(input: DiscoverDescriptorsInput): Discovered
 // @public (undocumented)
 export type DiscoverDescriptorsInput = {
     cwd?: string;
+    descriptorDocuments?: readonly DescriptorDocument[];
     descriptorPaths?: string[];
     roots?: string[];
     descriptorFileName?: string;
@@ -126,6 +134,8 @@ export interface PackageEntry {
 
 // @public (undocumented)
 export interface PackageSource {
+    // (undocumented)
+    descriptorDocument?: Record<string, unknown>;
     // (undocumented)
     descriptorId?: string;
     // (undocumented)

@@ -4,16 +4,14 @@ import { fileURLToPath } from 'node:url';
 
 import {
   conventionActivation,
-  createCompositionRun,
+  createWorkspaceCompositionRun,
   fileSurfaceConvention,
   formatCompositionOrigins,
-  resolvePackageSources,
 } from '@lorion-org/capability-composition';
 import {
   assertKnownReferences,
   contributionRelationDescriptor,
   defaultRelationDescriptors,
-  resolveContributions,
 } from '@lorion-org/composition-graph';
 
 // A workspace host from the package set up: the packages are resolved once, the run
@@ -25,12 +23,6 @@ const workspaceRoot = dirname(fileURLToPath(import.meta.url));
 
 // The package set: this workspace, plus a second checkout joined into it. Patterns
 // are named here; a workspace whose manifest declares them needs no argument at all.
-const { packageSources, descriptorPaths } = resolvePackageSources({
-  root: workspaceRoot,
-  patterns: ['capabilities/*'],
-  additionalRoots: [{ root: 'external', patterns: ['capabilities/*'] }],
-});
-
 const activation = conventionActivation({
   server: fileSurfaceConvention({
     files: ['src/server.mjs'],
@@ -44,10 +36,10 @@ const activation = conventionActivation({
 // One run. The report, the origins, the surface projection and the runtime
 // composition below are projections of this one resolution, so none of them can
 // describe a composition another one did not compose.
-const run = createCompositionRun({
-  workspaceRoot,
-  descriptorPaths: [...descriptorPaths],
-  packageSources,
+const run = createWorkspaceCompositionRun({
+  root: workspaceRoot,
+  patterns: ['capabilities/*'],
+  additionalRoots: [{ root: 'external', patterns: ['capabilities/*'] }],
   // The declared contribution edge, registered so the graph carries it. It is walked
   // for inspection, and what resolves stays what dependencies and providers resolve.
   relationDescriptors: [contributionRelationDescriptor()],
@@ -75,11 +67,11 @@ assertKnownReferences({
   relationDescriptors: [...defaultRelationDescriptors, contributionRelationDescriptor()],
 });
 
-const contributions = resolveContributions(descriptors);
+const contributions = run.contributions();
 console.log(contributions.receives('dashboard'));
 // [
-//   { from: 'reports', to: 'dashboard', point: 'panel' },
 //   { from: 'audit-log', to: 'dashboard', point: 'panel' },
+//   { from: 'reports', to: 'dashboard', point: 'panel' },
 // ]
 
 console.log(formatCompositionOrigins(run.origins()).join('\n'));

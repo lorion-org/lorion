@@ -68,6 +68,10 @@ describe('resolvePackageSources', () => {
       '@acme/tooling',
     ]);
     expect(snapshot.packageSources[0]?.descriptorId).toBe('checkout');
+    expect(snapshot.packageSources[0]?.descriptorDocument).toMatchObject({
+      id: 'checkout',
+      dependencies: { payments: '^1.0.0' },
+    });
     expect(snapshot.packageSources[2]?.descriptorPath).toBeUndefined();
     expect(snapshot.descriptorPaths.map((path) => path.split(sep).join('/'))).toEqual([
       'packages/checkout/capability.json',

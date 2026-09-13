@@ -104,6 +104,10 @@ export type ExpandNestedDescriptorsInput = {
 
 export type DiscoverDescriptorsInput = {
   cwd?: string;
+  // Already-read descriptor documents from a package snapshot. When supplied,
+  // discovery validates and expands these documents without reading their files
+  // again. Paths remain attached for diagnostics and source identity.
+  descriptorDocuments?: readonly DescriptorDocument[];
   descriptorPaths?: string[];
   roots?: string[];
   descriptorFileName?: string;
@@ -111,6 +115,12 @@ export type DiscoverDescriptorsInput = {
   maxDepth?: number;
   nestedField?: string;
   validation?: false | DescriptorValidationOptions;
+};
+
+export type DescriptorDocument = {
+  cwd: string;
+  descriptorPath: string;
+  descriptor: Record<string, unknown>;
 };
 
 // One line per violation, each naming where it is and what was rejected. Ajv
@@ -338,21 +348,32 @@ export function discoverDescriptors(input: DiscoverDescriptorsInput): Discovered
   const idField: string = input.idField ?? 'id';
   const maxDepth = input.maxDepth ?? 1;
   const validateDescriptor = createDescriptorValidator(input.validation);
-  const descriptorPaths = input.descriptorPaths?.length
-    ? discoverDescriptorFiles({
-        cwd: input.cwd ?? '',
-        descriptorPaths: input.descriptorPaths,
-      })
-    : discoverDescriptorFilesFromRoots({
-        descriptorFileName,
-        maxDepth,
-        roots: input.roots ?? [],
-      });
+  const documents = input.descriptorDocuments
+    ? [...input.descriptorDocuments].sort((left, right) =>
+        left.descriptorPath < right.descriptorPath
+          ? -1
+          : left.descriptorPath > right.descriptorPath
+            ? 1
+            : 0,
+      )
+    : (input.descriptorPaths?.length
+        ? discoverDescriptorFiles({
+            cwd: input.cwd ?? '',
+            descriptorPaths: input.descriptorPaths,
+          })
+        : discoverDescriptorFilesFromRoots({
+            descriptorFileName,
+            maxDepth,
+            roots: input.roots ?? [],
+          })
+      ).map((descriptorPath) => ({
+        cwd: dirname(descriptorPath),
+        descriptorPath,
+        descriptor: JSON.parse(readFileSync(descriptorPath, 'utf8')) as Record<string, unknown>,
+      }));
 
-  return descriptorPaths.flatMap((descriptorPath) => {
-    const cwd = dirname(descriptorPath);
-    const rawDescriptor = JSON.parse(readFileSync(descriptorPath, 'utf8')) as RawDescriptor &
-      Record<string, unknown>;
+  return documents.flatMap(({ cwd, descriptorPath, descriptor }) => {
+    const rawDescriptor = descriptor as RawDescriptor & Record<string, unknown>;
 
     validateDescriptor?.({ descriptorPath }, rawDescriptor);
 

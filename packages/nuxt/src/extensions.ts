@@ -373,6 +373,10 @@ export function createNuxtExtensionBootstrap(input: {
     getDescriptor: (entry) => entry.descriptor,
     getSource: (entry) => entry.cwd,
     withDescriptor: (entry, descriptor) => ({ ...entry, descriptor }),
+    getSelectionGroupMembers: (entry) =>
+      entry.cwd === virtualDescriptorDirectory(input.rootDir, entry.descriptor.id)
+        ? Object.keys(entry.descriptor.dependencies ?? {})
+        : undefined,
     seed: {
       baseDescriptors: baseExtensionIds,
       selected: selectedExtensions,

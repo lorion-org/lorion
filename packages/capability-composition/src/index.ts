@@ -3,18 +3,25 @@ import { dirname, isAbsolute, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type {
   CompositionPolicy,
+  ContributionRelationOptions,
+  ContributionRelations,
   Descriptor,
   DescriptorId,
   RelationDescriptor,
+  VersionedContributionRelations,
 } from '@lorion-org/composition-graph';
+import { resolveVersionedContributions } from '@lorion-org/composition-graph';
 import {
   descriptorSchema,
   discoverDescriptors,
+  type DescriptorDocument,
   NESTED_DESCRIPTOR_FIELD,
   findUp,
   loadBundleManifest,
   type PackageSource,
+  type PackageSourcesInput,
   requirePackageName,
+  resolvePackageSources as resolveWorkspacePackageSources,
   resolvePackageExport,
   virtualDescriptorDirectory,
 } from '@lorion-org/descriptor-discovery';
@@ -161,9 +168,29 @@ export interface DiscoveredCapabilityDescriptor {
   descriptor: Descriptor;
   // True for a grouping: a descriptor that names others and owns no package.
   virtual: boolean;
+  // Physical identity of the candidate. Virtual descriptors have a synthetic
+  // directory and no descriptor path or package name.
+  directory: string;
+  descriptorPath?: string;
+  packageName?: string;
+  // Whether this exact id/version/source candidate won the run's selection.
+  selected: boolean;
 }
 
-export function resolveCapabilitySelection(options: CapabilitySelectionInput): {
+type CapabilityCandidate = {
+  id: DescriptorId;
+  directory: string;
+  descriptor: Descriptor;
+  descriptorPath?: string;
+  virtual: boolean;
+};
+
+export function resolveCapabilitySelection(
+  options: CapabilitySelectionInput & {
+    packageSources?: readonly PackageSource[];
+    descriptorDocuments?: readonly DescriptorDocument[];
+  },
+): {
   capabilities: ResolvedCapability[];
   providerSelection: ProviderSelectionResolution;
   // Everything discovery knew about, selected or not: files, nested descriptors
@@ -181,9 +208,11 @@ export function resolveCapabilitySelection(options: CapabilitySelectionInput): {
     ...(options.bundles ? loadBundleManifest(options.bundles) : []),
   ];
   const seed = options.seed;
-  const discovered = discoverDescriptors({
+  const discovered: CapabilityCandidate[] = discoverDescriptors({
     cwd: options.workspaceRoot,
-    descriptorPaths: [...descriptorPaths],
+    ...(options.descriptorDocuments
+      ? { descriptorDocuments: options.descriptorDocuments }
+      : { descriptorPaths: [...descriptorPaths] }),
     validation:
       options.descriptorSchema === false
         ? false
@@ -200,12 +229,13 @@ export function resolveCapabilitySelection(options: CapabilitySelectionInput): {
       ? virtualDescriptorDirectory(options.workspaceRoot, entry.descriptor.id)
       : entry.cwd,
     descriptor: entry.descriptor,
+    descriptorPath: entry.descriptorPath,
     virtual: entry.nested,
   }));
 
   // Virtual descriptors get a synthetic, non-existent directory so the surface
   // marker never matches (they activate nothing) and readPackageName is skipped.
-  const virtual = virtualDescriptors.map((descriptor) => ({
+  const virtual: CapabilityCandidate[] = virtualDescriptors.map((descriptor) => ({
     id: descriptor.id,
     directory: virtualDescriptorDirectory(options.workspaceRoot, descriptor.id),
     descriptor,
@@ -217,28 +247,57 @@ export function resolveCapabilitySelection(options: CapabilitySelectionInput): {
     getDescriptor: (item) => item.descriptor,
     getSource: (item) => item.directory,
     withDescriptor: (item, descriptor) => ({ ...item, descriptor }),
+    getSelectionGroupMembers: (item) =>
+      item.virtual ? Object.keys(item.descriptor.dependencies ?? {}) : undefined,
     seed,
     ...(options.relationDescriptors ? { relationDescriptors: options.relationDescriptors } : {}),
     ...(options.policy ? { policy: options.policy } : {}),
   });
 
-  // Read package.json only for real, discovered capabilities: virtual grouping
-  // descriptors have no package on disk and never resolve a surface. (Reading it
-  // lazily here also keeps an unrelated broken package.json from aborting a
-  // composition that never imports that capability.)
+  const sourcesByDescriptorPath = new Map(
+    (options.packageSources ?? []).flatMap((source) =>
+      source.descriptorPath ? [[resolve(source.descriptorPath), source] as const] : [],
+    ),
+  );
+  // Virtual grouping descriptors own no package and never resolve a surface. A run
+  // with package sources reads the package name from that snapshot; the standalone
+  // selection API retains its lazy package.json fallback for compatibility.
   const capabilities = selected.map(({ virtual: isVirtual, ...item }) => ({
     ...item,
-    packageName: isVirtual ? '' : readPackageName(item.directory),
+    packageName: isVirtual
+      ? ''
+      : item.descriptorPath
+        ? (sourcesByDescriptorPath.get(resolve(item.descriptorPath))?.name ??
+          readPackageName(item.directory))
+        : readPackageName(item.directory),
   }));
+
+  const selectedIdentities = new Set(
+    selected.map((item) =>
+      JSON.stringify([item.descriptor.id, item.descriptor.version, item.directory]),
+    ),
+  );
 
   return {
     capabilities,
     providerSelection,
     discovered: [...discovered, ...virtual].map((item) => item.id),
-    discoveredDescriptors: [...discovered, ...virtual].map((item) => ({
-      descriptor: item.descriptor,
-      virtual: item.virtual,
-    })),
+    discoveredDescriptors: [...discovered, ...virtual].map((item) => {
+      const source =
+        !item.virtual && item.descriptorPath
+          ? sourcesByDescriptorPath.get(resolve(item.descriptorPath))
+          : undefined;
+      return {
+        descriptor: item.descriptor,
+        virtual: item.virtual,
+        directory: item.directory,
+        ...(item.descriptorPath ? { descriptorPath: item.descriptorPath } : {}),
+        ...(source ? { packageName: source.name } : {}),
+        selected: selectedIdentities.has(
+          JSON.stringify([item.descriptor.id, item.descriptor.version, item.directory]),
+        ),
+      };
+    }),
   };
 }
 
@@ -522,13 +581,18 @@ export interface CompositionRunInput extends CapabilitySelectionInput {
   // The package set the composition addresses. Given here, a run loads and projects
   // surfaces without a host mapping package names to directories again.
   packageSources?: readonly PackageSource[];
+  // A package snapshot can carry the exact documents it already read. Keeping this
+  // beside `packageSources` lets a run validate and expand those documents without
+  // observing a later filesystem state.
+  descriptorDocuments?: readonly DescriptorDocument[];
 }
 
 // One resolution, shared by everything that acts on it or reports about it. A host
 // that resolves per entry point states its run twice, and the second statement is
 // free to differ: a build then emits one selection while the server start reports
-// another, and nothing in either says so. A run is resolved on first use and reused.
+// another, and nothing in either says so. A run is resolved when created and reused.
 export interface CompositionRun {
+  workspaceRoot: () => string;
   capabilities: () => ResolvedCapability[];
   providerSelection: () => ProviderSelectionResolution;
   // Every descriptor the run knew about, selected or not, groupings marked. A check
@@ -536,6 +600,8 @@ export interface CompositionRun {
   // both read what this run resolved rather than a second reading of the workspace.
   // The ids alone are in `report().discovered`.
   descriptors: () => DiscoveredCapabilityDescriptor[];
+  contributionCatalog: (options?: ContributionRelationOptions) => VersionedContributionRelations;
+  contributions: (options?: ContributionRelationOptions) => ContributionRelations;
   report: () => CompositionReport;
   origins: () => CompositionOrigins;
   // The package sources of the capabilities this run resolved, in name order.
@@ -550,12 +616,54 @@ export interface CompositionRun {
   }) => Promise<ResolvedCapability[]>;
 }
 
+function assertPackageSourceMatch(
+  candidate: {
+    id: DescriptorId;
+    version: string;
+    directory: string;
+    descriptorPath?: string;
+  },
+  source: PackageSource,
+): void {
+  if (
+    resolve(source.root) === resolve(candidate.directory) &&
+    (source.descriptorId === undefined || source.descriptorId === candidate.id) &&
+    (source.descriptorVersion ?? '0.0.0') === candidate.version
+  ) {
+    return;
+  }
+  throw new Error(
+    `Descriptor candidate "${candidate.id}@${candidate.version}" at ${candidate.descriptorPath ?? candidate.directory} does not match package source "${source.name}" at ${source.descriptorPath ?? source.manifestPath}, which declares "${source.descriptorId ?? 'no descriptor'}@${source.descriptorVersion ?? 'unspecified'}". Create the package snapshot and composition as one workspace run.`,
+  );
+}
+
 export function createCompositionRun(input: CompositionRunInput): CompositionRun {
-  let resolution: ReturnType<typeof resolveCapabilitySelection> | undefined;
-  const resolveOnce = (): ReturnType<typeof resolveCapabilitySelection> => {
-    resolution ??= resolveCapabilitySelection(input);
-    return resolution;
-  };
+  // Seal the descriptor resolution while the run is created. Delaying this read
+  // until the first accessor lets a workspace change between package discovery and
+  // descriptor discovery, producing a run whose source and descriptor disagree.
+  const resolution = resolveCapabilitySelection(input);
+
+  if (input.packageSources) {
+    const sourcesByPath = new Map(
+      input.packageSources.flatMap((source) =>
+        source.descriptorPath ? [[resolve(source.descriptorPath), source] as const] : [],
+      ),
+    );
+    for (const candidate of resolution.discoveredDescriptors) {
+      if (candidate.virtual || !candidate.descriptorPath) continue;
+      const source = sourcesByPath.get(resolve(candidate.descriptorPath));
+      if (!source) continue;
+      assertPackageSourceMatch(
+        {
+          id: candidate.descriptor.id,
+          version: candidate.descriptor.version,
+          directory: candidate.directory,
+          descriptorPath: candidate.descriptorPath,
+        },
+        source,
+      );
+    }
+  }
 
   const packageSources = (): readonly PackageSource[] => {
     if (!input.packageSources) {
@@ -567,11 +675,22 @@ export function createCompositionRun(input: CompositionRunInput): CompositionRun
   };
 
   return {
-    capabilities: () => resolveOnce().capabilities,
-    providerSelection: () => resolveOnce().providerSelection,
-    descriptors: () => resolveOnce().discoveredDescriptors,
+    workspaceRoot: () => input.workspaceRoot,
+    capabilities: () => resolution.capabilities,
+    providerSelection: () => resolution.providerSelection,
+    descriptors: () => resolution.discoveredDescriptors,
+    contributionCatalog: (options) =>
+      resolveVersionedContributions(
+        resolution.discoveredDescriptors.map((entry) => entry.descriptor),
+        options,
+      ),
+    contributions: (options) =>
+      resolveVersionedContributions(
+        resolution.discoveredDescriptors.map((entry) => entry.descriptor),
+        options,
+      ).project(resolution.capabilities.map((entry) => entry.descriptor)),
     report: () => {
-      const { capabilities, providerSelection, discovered } = resolveOnce();
+      const { capabilities, providerSelection, discovered } = resolution;
       return describeComposition({
         requested: resolveRequestedSelection(input.seed),
         selected: resolveDescriptorSelection(input.seed),
@@ -583,7 +702,7 @@ export function createCompositionRun(input: CompositionRunInput): CompositionRun
       });
     },
     origins: () => {
-      const { capabilities, providerSelection } = resolveOnce();
+      const { capabilities, providerSelection } = resolution;
       return describeCompositionOrigins({
         selected: resolveDescriptorSelection(input.seed),
         base: input.seed.baseDescriptors ?? [],
@@ -596,7 +715,7 @@ export function createCompositionRun(input: CompositionRunInput): CompositionRun
     selectedPackageSources: () => {
       const byName = new Map(packageSources().map((source) => [source.name, source]));
       const selected = new Map<string, PackageSource>();
-      for (const capability of resolveOnce().capabilities) {
+      for (const capability of resolution.capabilities) {
         if (!capability.packageName) continue;
         const source = byName.get(capability.packageName);
         if (!source) {
@@ -604,13 +723,21 @@ export function createCompositionRun(input: CompositionRunInput): CompositionRun
             `Selected package "${capability.packageName}" is missing from the package sources.`,
           );
         }
+        assertPackageSourceMatch(
+          {
+            id: capability.id,
+            version: capability.descriptor.version,
+            directory: capability.directory,
+          },
+          source,
+        );
         selected.set(source.name, source);
       }
       return [...selected.values()].sort((left, right) => left.name.localeCompare(right.name));
     },
     surfaceEntries: (surface, activation) =>
       resolveSurfaceEntries({
-        capabilities: resolveOnce().capabilities,
+        capabilities: resolution.capabilities,
         surface,
         activation,
         packageSources: packageSources(),
@@ -618,8 +745,52 @@ export function createCompositionRun(input: CompositionRunInput): CompositionRun
     compose: (composition) =>
       activateSurface({
         ...composition,
-        active: resolveOnce().capabilities,
+        active: resolution.capabilities,
         load: composition.load ?? createPackageSourceLoad(packageSources()),
       }),
   };
+}
+
+export interface WorkspaceCompositionRunInput
+  extends
+    Omit<
+      CompositionRunInput,
+      | 'workspaceRoot'
+      | 'descriptorPaths'
+      | 'packageSources'
+      | 'capabilitiesDir'
+      | 'descriptorDocuments'
+    >,
+    PackageSourcesInput {}
+
+// Discover the package set and seal its descriptor selection in one synchronous
+// operation. This is the default entry for a workspace host: every report, surface,
+// import and source projection then comes from one snapshot.
+export function createWorkspaceCompositionRun(input: WorkspaceCompositionRunInput): CompositionRun {
+  const { root, from, patterns, additionalRoots, descriptorFileName, cache, ...composition } =
+    input;
+  const snapshot = resolveWorkspacePackageSources({
+    ...(root !== undefined ? { root } : {}),
+    ...(from !== undefined ? { from } : {}),
+    ...(patterns !== undefined ? { patterns } : {}),
+    ...(additionalRoots !== undefined ? { additionalRoots } : {}),
+    ...(descriptorFileName !== undefined ? { descriptorFileName } : {}),
+    ...(cache !== undefined ? { cache } : {}),
+  });
+  return createCompositionRun({
+    ...composition,
+    workspaceRoot: snapshot.workspaceRoot,
+    descriptorDocuments: snapshot.packageSources.flatMap((source) =>
+      source.descriptorPath && source.descriptorDocument
+        ? [
+            {
+              cwd: source.root,
+              descriptorPath: source.descriptorPath,
+              descriptor: source.descriptorDocument,
+            },
+          ]
+        : [],
+    ),
+    packageSources: snapshot.packageSources,
+  });
 }

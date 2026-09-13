@@ -177,6 +177,8 @@ export interface DescriptorSelectionInput<T> {
     // (undocumented)
     getDescriptor: (item: T) => Descriptor;
     // (undocumented)
+    getSelectionGroupMembers?: (item: T) => readonly DescriptorId[] | undefined;
+    // (undocumented)
     getSource?: (item: T) => string;
     // (undocumented)
     items: readonly T[];

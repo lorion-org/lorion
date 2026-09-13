@@ -21,11 +21,11 @@ pnpm add @lorion-org/descriptor-selection
 
 ## API
 
-- `selectDescriptors({ items, getDescriptor, withDescriptor, seed, relationDescriptors?, policy?, getSource? })`
+- `selectDescriptors({ items, getDescriptor, withDescriptor, seed, relationDescriptors?, policy?, getSource?, getSelectionGroupMembers? })`
   resolves the active subset of `items`. It is generic over the item type via the
   `getDescriptor` / `withDescriptor` accessors, so a "capability", an "extension",
   or a plain descriptor record all work.
-- `selectDescriptorsWithProviders({ items, getDescriptor, withDescriptor, seed, relationDescriptors?, policy?, getSource? })`
+- `selectDescriptorsWithProviders({ items, getDescriptor, withDescriptor, seed, relationDescriptors?, policy?, getSource?, getSelectionGroupMembers? })`
   resolves the same subset and additionally returns the `ProviderSelectionResolution`
   and the `catalog` it resolved against. `selectDescriptors` wraps it for hosts that
   need only the items.
@@ -59,6 +59,11 @@ discovery order never decides the winner. Provider descriptors named through the
 host's resolved selection or `baseDescriptors` belong to the `explicit` tier.
 Provider reports forward the public provenance contract owned by
 `@lorion-org/provider-selection`; `seed` remains the internal graph-input concept.
+`getSelectionGroupMembers` identifies grouping edges in a host's item type. Provider
+members reached from a grouping selected by the seed use explicit precedence;
+provider members of a grouping reached only through a normal dependency keep
+dependency precedence. The callback runs against a complete version assignment,
+so a losing grouping version cannot contribute members.
 
 Base membership means participation, not consumption. When an active capability
 has provider candidates but no resolved descriptor depends on it, the result

@@ -276,6 +276,7 @@ function createProviderCapabilitiesById(
 
 function createDependencyProviderRequests(input: {
   descriptors: readonly Descriptor[];
+  explicitGroupingIds: ReadonlySet<DescriptorId>;
   providerCapabilitiesById: ReadonlyMap<DescriptorId, DescriptorId[]>;
   resolvedIds: ReadonlySet<DescriptorId>;
 }): ProviderSelectionRequest[] {
@@ -283,6 +284,7 @@ function createDependencyProviderRequests(input: {
 
   for (const descriptor of input.descriptors) {
     if (!input.resolvedIds.has(descriptor.id)) continue;
+    if (input.explicitGroupingIds.has(descriptor.id)) continue;
     for (const dependencyId of Object.keys(descriptor.dependencies ?? {})) {
       for (const capabilityId of input.providerCapabilitiesById.get(dependencyId) ?? []) {
         requests.push({ capabilityId, providerId: dependencyId, sourceId: descriptor.id });
@@ -384,6 +386,12 @@ export interface DescriptorSelectionInput<T> {
   // Return a copy with losing provider relations removed. Keeps the item type
   // opaque to this package.
   withDescriptor: (item: T, descriptor: Descriptor) => T;
+  // Members of a selection grouping carried by this item. Providers reached from a
+  // grouping named by the seed have the same explicit precedence as a provider named
+  // directly. A grouping reached through an ordinary dependency keeps dependency
+  // precedence. The callback is evaluated after version assignment, so only the
+  // members of the selected grouping version take part.
+  getSelectionGroupMembers?: (item: T) => readonly DescriptorId[] | undefined;
   seed: DescriptorSelectionSeed;
   // Extra relations to resolve alongside the provider relations (for example a
   // host's own dependency or grouping edges).
@@ -488,8 +496,29 @@ function selectSingleVersionDescriptors<T>(input: DescriptorSelectionInput<T>): 
   const providerCapabilitiesById = createProviderCapabilitiesById(descriptors);
   const providerIds = new Set(providerCapabilitiesById.keys());
   const descriptorsById = new Map(descriptors.map((descriptor) => [descriptor.id, descriptor]));
+  const itemsByDescriptorId = new Map(enabled.map((item) => [getDescriptor(item).id, item]));
+  const explicitlySelectedIds = new Set(seedRoots);
+  const explicitGroupingIds = new Set<DescriptorId>();
+  if (input.getSelectionGroupMembers) {
+    const pending = [...seedRoots];
+    const visitedGroups = new Set<DescriptorId>();
+    while (pending.length) {
+      const groupId = pending.shift()!;
+      if (visitedGroups.has(groupId)) continue;
+      visitedGroups.add(groupId);
+      const group = itemsByDescriptorId.get(groupId);
+      if (!group) continue;
+      const members = input.getSelectionGroupMembers(group);
+      if (!members) continue;
+      explicitGroupingIds.add(groupId);
+      for (const memberId of members) {
+        explicitlySelectedIds.add(memberId);
+        pending.push(memberId);
+      }
+    }
+  }
   const explicitRequests = collectProviderRequests({
-    items: seedRoots
+    items: [...explicitlySelectedIds]
       .map((id) => descriptorsById.get(id))
       .filter((descriptor): descriptor is Descriptor => Boolean(descriptor?.providesFor)),
     getCapabilityId: (descriptor) => descriptor.providesFor,
@@ -544,6 +573,7 @@ function selectSingleVersionDescriptors<T>(input: DescriptorSelectionInput<T>): 
     const nextResolvedIds = new Set(closure.getResolved());
     const dependencyRequests = createDependencyProviderRequests({
       descriptors,
+      explicitGroupingIds,
       providerCapabilitiesById,
       resolvedIds: nextResolvedIds,
     });

@@ -27,11 +27,14 @@ export {
   CONTRIBUTION_POINT_FIELD,
   contributionRelationDescriptor,
   resolveContributions,
+  resolveVersionedContributions,
 } from './contributions';
 export type {
   ContributionEdge,
   ContributionRelationOptions,
   ContributionRelations,
+  VersionedContributionEdge,
+  VersionedContributionRelations,
 } from './contributions';
 export type {
   CompositionOriginType,

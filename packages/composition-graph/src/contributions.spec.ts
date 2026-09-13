@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   contributionRelationDescriptor,
-  createDescriptorCatalog,
   resolveContributions,
-  type Descriptor,
-} from './index';
+  resolveVersionedContributions,
+} from './contributions';
+import { createDescriptorCatalog, type Descriptor } from './index';
 
 function descriptor(id: string, overrides: Partial<Descriptor> = {}): Descriptor {
   return { id, version: '1.0.0', ...overrides };
@@ -193,5 +193,309 @@ describe('resolveContributions', () => {
     expect(
       catalog.resolveSelection({ selected: ['payment-provider-invoice'] }).getResolved(),
     ).toEqual(['checkout', 'payment-provider-invoice']);
+  });
+});
+
+describe('resolveVersionedContributions', () => {
+  const ownerV1: Descriptor = {
+    id: 'owner',
+    version: '1.0.0',
+    contributionPoints: ['legacy'],
+  };
+  const ownerV2: Descriptor = {
+    id: 'owner',
+    version: '2.0.0',
+    contributionPoints: ['current'],
+  };
+  const guestV2: Descriptor = {
+    id: 'guest',
+    version: '2.0.0',
+    dependencies: { owner: '^2.0.0' },
+    contributesTo: { owner: 'current' },
+  };
+
+  it('validates and projects exact owner versions independent of discovery order', () => {
+    for (const catalog of [
+      [ownerV1, ownerV2, guestV2],
+      [guestV2, ownerV2, ownerV1],
+    ]) {
+      const relations = resolveVersionedContributions(catalog);
+      expect(relations.edges).toEqual([
+        {
+          from: 'guest',
+          fromVersion: '2.0.0',
+          point: 'current',
+          to: 'owner',
+          toVersion: '2.0.0',
+        },
+      ]);
+      expect(relations.project([ownerV2, guestV2]).edges).toEqual([
+        { from: 'guest', point: 'current', to: 'owner' },
+      ]);
+    }
+  });
+
+  it('uses code-unit ordering independent of the process locale', () => {
+    const zGuest = { ...guestV2, id: 'z-guest' };
+    const umlautGuest = { ...guestV2, id: 'ä-guest' };
+
+    expect(
+      resolveVersionedContributions([ownerV2, umlautGuest, zGuest]).edges.map((edge) => edge.from),
+    ).toEqual(['z-guest', 'ä-guest']);
+  });
+
+  it('produces the same code-unit order for every discovery permutation', () => {
+    const ids = ['a-guest', 'm-guest', 'z-guest'];
+    const permutations = [
+      ids,
+      ['a-guest', 'z-guest', 'm-guest'],
+      ['m-guest', 'a-guest', 'z-guest'],
+      ['m-guest', 'z-guest', 'a-guest'],
+      ['z-guest', 'a-guest', 'm-guest'],
+      ['z-guest', 'm-guest', 'a-guest'],
+    ];
+
+    for (const permutation of permutations) {
+      const guests = permutation.map((id) => ({ ...guestV2, id }));
+      expect(
+        resolveVersionedContributions([ownerV2, ...guests]).edges.map((edge) => edge.from),
+      ).toEqual(ids);
+    }
+  });
+
+  it('orders every versioned edge field deterministically', () => {
+    const owners = [
+      descriptor('a-owner', { contributionPoints: ['a-point', 'z-point'] }),
+      descriptor('z-owner', { contributionPoints: ['a-point'] }),
+      descriptor('z-owner', { version: '2.0.0', contributionPoints: ['a-point'] }),
+      descriptor('z-owner', { version: '10.0.0', contributionPoints: ['a-point'] }),
+    ];
+    const guests = [
+      descriptor('guest', {
+        contributesTo: { 'z-owner': 'a-point', 'a-owner': ['z-point', 'a-point'] },
+      }),
+      descriptor('guest', {
+        version: '2.0.0',
+        contributesTo: { 'a-owner': 'a-point' },
+      }),
+    ];
+
+    expect(resolveVersionedContributions([...guests.reverse(), ...owners.reverse()]).edges).toEqual(
+      [
+        {
+          from: 'guest',
+          fromVersion: '1.0.0',
+          point: 'a-point',
+          to: 'a-owner',
+          toVersion: '1.0.0',
+        },
+        {
+          from: 'guest',
+          fromVersion: '1.0.0',
+          point: 'z-point',
+          to: 'a-owner',
+          toVersion: '1.0.0',
+        },
+        {
+          from: 'guest',
+          fromVersion: '1.0.0',
+          point: 'a-point',
+          to: 'z-owner',
+          toVersion: '1.0.0',
+        },
+        {
+          from: 'guest',
+          fromVersion: '1.0.0',
+          point: 'a-point',
+          to: 'z-owner',
+          toVersion: '2.0.0',
+        },
+        {
+          from: 'guest',
+          fromVersion: '1.0.0',
+          point: 'a-point',
+          to: 'z-owner',
+          toVersion: '10.0.0',
+        },
+        {
+          from: 'guest',
+          fromVersion: '2.0.0',
+          point: 'a-point',
+          to: 'a-owner',
+          toVersion: '1.0.0',
+        },
+      ],
+    );
+  });
+
+  it('applies npm SemVer prerelease range semantics to owner candidates', () => {
+    const betaOwner: Descriptor = {
+      id: 'owner',
+      version: '2.0.0-beta.2',
+      contributionPoints: ['current'],
+    };
+    const betaGuest: Descriptor = {
+      ...guestV2,
+      version: '2.0.0-beta.3',
+      dependencies: { owner: '^2.0.0-beta.1' },
+    };
+
+    expect(resolveVersionedContributions([betaOwner, betaGuest]).edges).toMatchObject([
+      { fromVersion: '2.0.0-beta.3', toVersion: '2.0.0-beta.2' },
+    ]);
+    expect(() =>
+      resolveVersionedContributions([
+        betaOwner,
+        { ...betaGuest, dependencies: { owner: '^2.0.0' } },
+      ]),
+    ).toThrow(/no owner version satisfies "\^2\.0\.0"/);
+  });
+
+  it('leaves a contribution inactive when its known owner is not selected', () => {
+    const relations = resolveVersionedContributions([ownerV1, ownerV2, guestV2]);
+
+    expect(relations.project([guestV2]).edges).toEqual([]);
+    expect(relations.project([guestV2]).fills('guest')).toEqual([]);
+  });
+
+  it('does not let one owner version validate another owner version vocabulary', () => {
+    const unconstrainedGuest: Descriptor = {
+      id: guestV2.id,
+      version: guestV2.version,
+      contributesTo: { owner: 'current' },
+    };
+
+    expect(() => resolveVersionedContributions([ownerV1, ownerV2, unconstrainedGuest])).toThrow(
+      /guest@2\.0\.0.*current.*owner@1\.0\.0/s,
+    );
+  });
+
+  it('rejects duplicate version identities instead of choosing one by order', () => {
+    expect(() => resolveVersionedContributions([ownerV1, { ...ownerV1 }])).toThrow(
+      /Duplicate descriptor identity "owner@1\.0\.0"/,
+    );
+  });
+
+  it.each([
+    {
+      guest: { ...guestV2, contributesTo: null },
+      message: /must map an owning descriptor/,
+    },
+    {
+      guest: { ...guestV2, contributesTo: ['owner'] },
+      message: /must map an owning descriptor/,
+    },
+    {
+      guest: { ...guestV2, contributesTo: 'owner' },
+      message: /must map an owning descriptor/,
+    },
+    {
+      guest: { ...guestV2, contributesTo: 42 },
+      message: /must map an owning descriptor/,
+    },
+    {
+      guest: { ...guestV2, contributesTo: { owner: [] } },
+      message: /must name one contribution point/,
+    },
+    {
+      guest: { ...guestV2, contributesTo: { owner: [42] } },
+      message: /must name one contribution point/,
+    },
+    {
+      guest: { ...guestV2, contributesTo: { owner: [''] } },
+      message: /must name one contribution point/,
+    },
+    {
+      guest: { ...guestV2, contributesTo: { owner: ['current', 42] } },
+      message: /must name one contribution point/,
+    },
+    {
+      guest: { ...guestV2, contributesTo: { owner: [{ length: 1 }] } },
+      message: /must name one contribution point/,
+    },
+    {
+      guest: { ...guestV2, contributesTo: { guest: 'current' } },
+      message: /contribution to itself/,
+    },
+    {
+      guest: { ...guestV2, contributesTo: { missing: 'current' } },
+      message: /not a known descriptor of this catalog/,
+    },
+    {
+      guest: { ...guestV2, dependencies: { owner: 'banana' } },
+      message: /invalid dependency range "banana"/,
+    },
+    {
+      guest: { ...guestV2, dependencies: { owner: '^3.0.0' } },
+      message: /no owner version satisfies "\^3\.0\.0"/,
+    },
+  ] as Array<{ guest: Descriptor; message: RegExp }>)(
+    'rejects malformed versioned declaration %#',
+    ({ guest, message }) => {
+      expect(() => resolveVersionedContributions([ownerV1, ownerV2, guest])).toThrow(message);
+    },
+  );
+
+  it.each(['v1.0.0', ' 1.0.0', ''])('rejects invalid descriptor version %j', (version) => {
+    expect(() => resolveVersionedContributions([{ ...ownerV1, version }])).toThrow(
+      /has invalid version/,
+    );
+  });
+
+  it('rejects a non-string descriptor version from an untyped caller', () => {
+    expect(() =>
+      resolveVersionedContributions([{ ...ownerV1, version: 1 } as unknown as Descriptor]),
+    ).toThrow(/has invalid version 1/);
+  });
+
+  it('rejects a non-string owner dependency range from an untyped caller', () => {
+    const untyped = {
+      ...guestV2,
+      dependencies: { owner: 2 },
+    } as unknown as Descriptor;
+
+    expect(() => resolveVersionedContributions([ownerV2, untyped])).toThrow(
+      /invalid dependency range 2/,
+    );
+  });
+
+  it('reports an owner version that declares no contribution points', () => {
+    expect(() =>
+      resolveVersionedContributions([descriptor('owner', { version: '2.0.0' }), guestV2]),
+    ).toThrow(/declares no contribution point/);
+  });
+
+  it('names the available contribution points in an incompatible declaration', () => {
+    expect(() =>
+      resolveVersionedContributions([
+        { ...ownerV1, contributionPoints: ['legacy', 'fallback'] },
+        { ...guestV2, dependencies: {} },
+      ]),
+    ).toThrow(/which declares "legacy", "fallback"/);
+  });
+
+  it('answers points and both directions for the selected version', () => {
+    const catalog = resolveVersionedContributions([ownerV1, ownerV2, guestV2]);
+    const projected = catalog.project([ownerV2, guestV2]);
+
+    expect(catalog.points(ownerV1)).toEqual(['legacy']);
+    expect(catalog.points({ id: 'missing', version: '1.0.0' })).toEqual([]);
+    expect(projected.points('owner')).toEqual(['current']);
+    expect(projected.fills('guest')).toEqual([{ from: 'guest', point: 'current', to: 'owner' }]);
+    expect(projected.receives('owner')).toEqual([{ from: 'guest', point: 'current', to: 'owner' }]);
+    expect(projected.points('missing')).toEqual([]);
+    expect(projected.receives('missing')).toEqual([]);
+  });
+
+  it('rejects a projection from outside the catalog or with two selected versions', () => {
+    const relations = resolveVersionedContributions([ownerV1, ownerV2, guestV2]);
+
+    expect(() => relations.project([{ id: 'missing', version: '1.0.0' }])).toThrow(
+      /selected unknown descriptor "missing@1\.0\.0"/,
+    );
+    expect(() => relations.project([ownerV1, ownerV2])).toThrow(
+      /selected multiple versions of "owner": 1\.0\.0, 2\.0\.0/,
+    );
+    expect(relations.project([ownerV2, ownerV2]).points('owner')).toEqual(['current']);
   });
 });

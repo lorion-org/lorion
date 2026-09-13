@@ -478,7 +478,7 @@ describe('Nuxt extension bootstrap', () => {
               state: 'selected',
               required: true,
               candidateProviderIds: ['payment-provider-invoice', 'payment-provider-stripe'],
-              mode: 'dependency',
+              mode: 'explicit',
               overriddenProviderIds: [],
               selectedProviderId: 'payment-provider-stripe',
             },

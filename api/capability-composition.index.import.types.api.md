@@ -180,6 +180,10 @@ export interface CompositionRun {
         load?: (specifier: string) => Promise<Record<string, unknown>>;
     }) => Promise<ResolvedCapability[]>;
     // (undocumented)
+    contributionCatalog: (options?: ContributionRelationOptions) => VersionedContributionRelations;
+    // (undocumented)
+    contributions: (options?: ContributionRelationOptions) => ContributionRelations;
+    // (undocumented)
     descriptors: () => DiscoveredCapabilityDescriptor[];
     // (undocumented)
     origins: () => CompositionOrigins;
@@ -191,12 +195,46 @@ export interface CompositionRun {
     selectedPackageSources: () => PackageSource[];
     // (undocumented)
     surfaceEntries: (surface: string, activation: ActivationResolver) => SurfaceEntry[];
+    // (undocumented)
+    workspaceRoot: () => string;
 }
 
 // @public (undocumented)
 export interface CompositionRunInput extends CapabilitySelectionInput {
     // (undocumented)
+    descriptorDocuments?: readonly DescriptorDocument[];
+    // (undocumented)
     packageSources?: readonly PackageSource[];
+}
+
+// @public (undocumented)
+interface ContributionEdge {
+    // (undocumented)
+    from: DescriptorId;
+    // (undocumented)
+    point: string;
+    // (undocumented)
+    to: DescriptorId;
+}
+
+// @public (undocumented)
+interface ContributionRelationOptions {
+    // (undocumented)
+    field?: string;
+    // (undocumented)
+    pointField?: string;
+}
+
+// @public (undocumented)
+interface ContributionRelations {
+    // (undocumented)
+    edges: readonly ContributionEdge[];
+    // (undocumented)
+    fills: (id: DescriptorId) => readonly ContributionEdge[];
+    // (undocumented)
+    points: (id: DescriptorId) => readonly string[];
+    // (undocumented)
+    receives: (id: DescriptorId) => readonly ContributionEdge[];
 }
 
 // @public (undocumented)
@@ -207,6 +245,9 @@ export function createCompositionRun(input: CompositionRunInput): CompositionRun
 
 // @public (undocumented)
 export function createPackageSourceLoad(packageSources: readonly PackageSource[]): (specifier: string) => Promise<Record<string, unknown>>;
+
+// @public (undocumented)
+export function createWorkspaceCompositionRun(input: WorkspaceCompositionRunInput): CompositionRun;
 
 // @public (undocumented)
 export function createWorkspaceLoad(options: {
@@ -271,6 +312,13 @@ type Descriptor = {
 };
 
 // @public (undocumented)
+type DescriptorDocument = {
+    cwd: string;
+    descriptorPath: string;
+    descriptor: Record<string, unknown>;
+};
+
+// @public (undocumented)
 type DescriptorId = string;
 
 // @public (undocumented)
@@ -295,6 +343,14 @@ interface DescriptorSelectionSeed {
 export interface DiscoveredCapabilityDescriptor {
     // (undocumented)
     descriptor: Descriptor;
+    // (undocumented)
+    descriptorPath?: string;
+    // (undocumented)
+    directory: string;
+    // (undocumented)
+    packageName?: string;
+    // (undocumented)
+    selected: boolean;
     // (undocumented)
     virtual: boolean;
 }
@@ -348,6 +404,8 @@ export interface PackageEntry {
 
 // @public (undocumented)
 export interface PackageSource {
+    // (undocumented)
+    descriptorDocument?: Record<string, unknown>;
     // (undocumented)
     descriptorId?: string;
     // (undocumented)
@@ -412,7 +470,10 @@ type RelationId = string;
 type RelationRole = 'resolution' | 'provenance' | 'inspection';
 
 // @public (undocumented)
-export function resolveCapabilitySelection(options: CapabilitySelectionInput): {
+export function resolveCapabilitySelection(options: CapabilitySelectionInput & {
+    packageSources?: readonly PackageSource[];
+    descriptorDocuments?: readonly DescriptorDocument[];
+}): {
     capabilities: ResolvedCapability[];
     providerSelection: ProviderSelectionResolution;
     discovered: DescriptorId[];
@@ -494,6 +555,28 @@ export interface SurfaceEntry {
 
 // @public (undocumented)
 type VersionConstraintMap = Record<DescriptorId, string>;
+
+// @public (undocumented)
+interface VersionedContributionEdge extends ContributionEdge {
+    // (undocumented)
+    fromVersion: string;
+    // (undocumented)
+    toVersion: string;
+}
+
+// @public (undocumented)
+interface VersionedContributionRelations {
+    // (undocumented)
+    edges: readonly VersionedContributionEdge[];
+    // (undocumented)
+    points: (descriptor: Pick<Descriptor, 'id' | 'version'>) => readonly string[];
+    // (undocumented)
+    project: (selected: readonly Descriptor[]) => ContributionRelations;
+}
+
+// @public (undocumented)
+export interface WorkspaceCompositionRunInput extends Omit<CompositionRunInput, 'workspaceRoot' | 'descriptorPaths' | 'packageSources' | 'capabilitiesDir' | 'descriptorDocuments'>, PackageSourcesInput {
+}
 
 // (No @packageDocumentation comment for this package)
 
