@@ -1,4 +1,5 @@
 import type { Descriptor, DescriptorId, RelationDescriptor } from './types';
+import { compareBuild, satisfies, valid, validRange } from 'semver';
 
 // The declared contribution relation: a descriptor offers named points, and other
 // descriptors declare which of those points they fill. It is the non-exclusive
@@ -36,6 +37,21 @@ export interface ContributionRelations {
   fills: (id: DescriptorId) => readonly ContributionEdge[];
   // What other descriptors contribute into this one.
   receives: (id: DescriptorId) => readonly ContributionEdge[];
+}
+
+export interface VersionedContributionEdge extends ContributionEdge {
+  fromVersion: string;
+  toVersion: string;
+}
+
+export interface VersionedContributionRelations {
+  // Every valid edge between version candidates. This is catalog validation, not
+  // the active projection of one composition.
+  edges: readonly VersionedContributionEdge[];
+  points: (descriptor: Pick<Descriptor, 'id' | 'version'>) => readonly string[];
+  // Project the catalog onto the exact descriptor versions a composition selected.
+  // A known owner absent from that selection makes its contribution inactive.
+  project: (selected: readonly Descriptor[]) => ContributionRelations;
 }
 
 export interface ContributionRelationOptions {
@@ -154,5 +170,183 @@ export function resolveContributions(
     points: (id) => pointsOf.get(id) ?? [],
     fills: (id) => outgoing.get(id) ?? [],
     receives: (id) => incoming.get(id) ?? [],
+  };
+}
+
+function descriptorIdentity(descriptor: Pick<Descriptor, 'id' | 'version'>): string {
+  return JSON.stringify([descriptor.id, descriptor.version]);
+}
+
+function compareText(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+// Validate contribution declarations across a versioned catalog and retain the
+// version identity on every possible edge. When a contributor constrains its owner
+// through `dependencies`, only matching owner versions are its contract. Without a
+// constraint the point must exist in every owner version, so discovery order can
+// never choose the vocabulary accidentally.
+export function resolveVersionedContributions(
+  descriptors: readonly Descriptor[],
+  options: ContributionRelationOptions = {},
+): VersionedContributionRelations {
+  const resolved = {
+    field: options.field ?? CONTRIBUTION_FIELD,
+    pointField: options.pointField ?? CONTRIBUTION_POINT_FIELD,
+  };
+  const byIdentity = new Map<string, Descriptor>();
+  const byId = new Map<DescriptorId, Descriptor[]>();
+  const pointsByIdentity = new Map<string, string[]>();
+  for (const descriptor of descriptors) {
+    if (
+      !valid(descriptor.version) ||
+      descriptor.version.startsWith('v') ||
+      descriptor.version !== descriptor.version.trim()
+    ) {
+      throw new Error(
+        `Descriptor "${descriptor.id}" has invalid version ${JSON.stringify(descriptor.version)}.`,
+      );
+    }
+    const identity = descriptorIdentity(descriptor);
+    if (byIdentity.has(identity)) {
+      throw new Error(
+        `Duplicate descriptor identity "${descriptor.id}@${descriptor.version}" in contribution catalog.`,
+      );
+    }
+    byIdentity.set(identity, descriptor);
+    byId.set(descriptor.id, [...(byId.get(descriptor.id) ?? []), descriptor]);
+    pointsByIdentity.set(identity, readPoints(descriptor, resolved.pointField));
+  }
+
+  const edges: VersionedContributionEdge[] = [];
+  for (const descriptor of descriptors) {
+    const declared = descriptor[resolved.field];
+    if (declared === undefined) continue;
+    if (!declared || typeof declared !== 'object' || Array.isArray(declared)) {
+      throw new Error(
+        `Descriptor "${descriptor.id}@${descriptor.version}": "${resolved.field}" must map an owning descriptor to the point or points filled there.`,
+      );
+    }
+
+    for (const [to, value] of Object.entries(declared as Record<string, unknown>)) {
+      const requestedPoints = typeof value === 'string' ? [value] : value;
+      if (
+        !Array.isArray(requestedPoints) ||
+        !requestedPoints.length ||
+        requestedPoints.some((point) => typeof point !== 'string' || !point.length)
+      ) {
+        throw new Error(
+          `Descriptor "${descriptor.id}@${descriptor.version}": "${resolved.field}.${to}" must name one contribution point or a list of them.`,
+        );
+      }
+      if (to === descriptor.id) {
+        throw new Error(
+          `Descriptor "${descriptor.id}@${descriptor.version}" declares a contribution to itself; a contribution names a foreign owner.`,
+        );
+      }
+
+      const owners = byId.get(to) ?? [];
+      if (!owners.length) {
+        throw new Error(
+          `Descriptor "${descriptor.id}@${descriptor.version}" contributes to "${to}", which is not a known descriptor of this catalog.`,
+        );
+      }
+      const ownerRange = descriptor.dependencies?.[to];
+      if (ownerRange !== undefined && validRange(ownerRange) === null) {
+        throw new Error(
+          `Descriptor "${descriptor.id}@${descriptor.version}" has invalid dependency range ${JSON.stringify(ownerRange)} for contribution owner "${to}".`,
+        );
+      }
+      const compatibleOwners =
+        ownerRange !== undefined
+          ? owners.filter((owner) => satisfies(owner.version, ownerRange))
+          : owners;
+      if (!compatibleOwners.length) {
+        throw new Error(
+          `Descriptor "${descriptor.id}@${descriptor.version}" contributes to "${to}", but no owner version satisfies "${ownerRange}".`,
+        );
+      }
+
+      for (const owner of compatibleOwners) {
+        const owned = pointsByIdentity.get(descriptorIdentity(owner)) ?? [];
+        for (const point of requestedPoints as string[]) {
+          if (!owned.includes(point)) {
+            throw new Error(
+              `Descriptor "${descriptor.id}@${descriptor.version}" contributes "${point}" to "${owner.id}@${owner.version}", which declares ${
+                owned.length
+                  ? owned.map((entry) => `"${entry}"`).join(', ')
+                  : 'no contribution point'
+              }.`,
+            );
+          }
+          edges.push({
+            from: descriptor.id,
+            fromVersion: descriptor.version,
+            to: owner.id,
+            toVersion: owner.version,
+            point,
+          });
+        }
+      }
+    }
+  }
+
+  const sortedEdges = edges.sort(
+    (left, right) =>
+      compareText(left.from, right.from) ||
+      compareBuild(left.fromVersion, right.fromVersion) ||
+      compareText(left.fromVersion, right.fromVersion) ||
+      compareText(left.to, right.to) ||
+      compareBuild(left.toVersion, right.toVersion) ||
+      compareText(left.toVersion, right.toVersion) ||
+      compareText(left.point, right.point),
+  );
+
+  return {
+    edges: sortedEdges,
+    points: (descriptor) => pointsByIdentity.get(descriptorIdentity(descriptor)) ?? [],
+    project: (selected) => {
+      const selectedVersions = new Map<DescriptorId, string>();
+      for (const descriptor of selected) {
+        if (!byIdentity.has(descriptorIdentity(descriptor))) {
+          throw new Error(
+            `Contribution projection selected unknown descriptor "${descriptor.id}@${descriptor.version}".`,
+          );
+        }
+        const existing = selectedVersions.get(descriptor.id);
+        if (existing !== undefined && existing !== descriptor.version) {
+          throw new Error(
+            `Contribution projection selected multiple versions of "${descriptor.id}": ${existing}, ${descriptor.version}.`,
+          );
+        }
+        selectedVersions.set(descriptor.id, descriptor.version);
+      }
+      const selectedIdentities = new Set(selected.map(descriptorIdentity));
+      const activeEdges = sortedEdges
+        .filter(
+          (edge) =>
+            selectedIdentities.has(JSON.stringify([edge.from, edge.fromVersion])) &&
+            selectedIdentities.has(JSON.stringify([edge.to, edge.toVersion])),
+        )
+        .map(({ from, to, point }) => ({ from, to, point }));
+      const activePoints = new Map(
+        selected.map((descriptor) => [
+          descriptor.id,
+          pointsByIdentity.get(descriptorIdentity(descriptor)) ?? [],
+        ]),
+      );
+      const outgoing = new Map<DescriptorId, ContributionEdge[]>();
+      const incoming = new Map<DescriptorId, ContributionEdge[]>();
+      for (const edge of activeEdges) {
+        outgoing.set(edge.from, [...(outgoing.get(edge.from) ?? []), edge]);
+        incoming.set(edge.to, [...(incoming.get(edge.to) ?? []), edge]);
+      }
+      return {
+        edges: activeEdges,
+        points: (id) => activePoints.get(id) ?? [],
+        fills: (id) => outgoing.get(id) ?? [],
+        receives: (id) => incoming.get(id) ?? [],
+      };
+    },
   };
 }

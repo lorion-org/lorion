@@ -1,20 +1,23 @@
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Descriptor } from '@lorion-org/composition-graph';
 import {
   conventionActivation,
   createCompositionRun,
+  createWorkspaceCompositionRun,
   describeCompositionOrigins,
   createPackageSourceLoad,
   fileSurfaceConvention,
   formatCompositionOrigins,
+  formatCompositionReport,
   resolvePackageSources,
   resolveSurfaceEntries,
   type CompositionRunInput,
   type PackageSource,
+  type PackageSourceSnapshot,
 } from './index';
 
 // A shop workspace on disk, composed the way a host composes it: the package set is
@@ -118,6 +121,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   rmSync(root, { force: true, recursive: true });
 });
 
@@ -205,6 +209,192 @@ describe('createCompositionRun', () => {
 
     expect(run.report().resolved).toContain('checkout');
     expect(() => run.selectedPackageSources()).toThrow(/without `packageSources`/);
+  });
+
+  it('seals descriptor resolution when the run is created', () => {
+    const input = runInput(['shop-coffee']);
+    const run = createCompositionRun(input);
+    writeJson(join(root, 'packages/shop-coffee/capability.json'), {
+      id: 'shop-coffee',
+      version: '2.0.0',
+    });
+
+    expect(run.capabilities().find((entry) => entry.id === 'shop-coffee')?.descriptor.version).toBe(
+      '1.0.0',
+    );
+  });
+
+  it('creates an atomic workspace run and rejects a separately stale package snapshot', () => {
+    const run = createWorkspaceCompositionRun({
+      root,
+      seed: { selected: ['shop-coffee'], selectionSeed: false },
+    });
+    expect(
+      run.selectedPackageSources().find((source) => source.descriptorId === 'shop-coffee'),
+    ).toMatchObject({
+      descriptorId: 'shop-coffee',
+      descriptorVersion: '1.0.0',
+    });
+
+    const stale = resolvePackageSources({ root });
+    writeJson(join(root, 'packages/shop-coffee/capability.json'), {
+      id: 'shop-coffee',
+      version: '1.1.0',
+    });
+    expect(() =>
+      createCompositionRun({
+        workspaceRoot: root,
+        descriptorPaths: stale.descriptorPaths,
+        packageSources: stale.packageSources,
+        seed: { selected: ['shop-coffee'], selectionSeed: false },
+      }),
+    ).toThrow(/shop-coffee@1\.1\.0.*does not match package source/s);
+  });
+
+  it('uses every field of the descriptor document captured by the package snapshot', () => {
+    const cache = new Map<string, PackageSourceSnapshot>();
+    resolvePackageSources({ root, cache });
+    writeJson(join(root, 'packages/shop-coffee/capability.json'), {
+      id: 'shop-coffee',
+      version: '1.0.0',
+      dependencies: { missing: '^1.0.0' },
+    });
+    writeJson(join(root, 'packages/shop-coffee/package.json'), {
+      name: '@changed/shop-coffee',
+      version: '1.0.0',
+      private: true,
+    });
+
+    const run = createWorkspaceCompositionRun({
+      root,
+      cache,
+      seed: { selected: ['shop-coffee'], selectionSeed: false },
+    });
+
+    expect(run.capabilities().map((entry) => entry.id)).toContain('checkout');
+    expect(run.capabilities().map((entry) => entry.id)).not.toContain('missing');
+    expect(run.capabilities().find((entry) => entry.id === 'shop-coffee')?.packageName).toBe(
+      '@acme/shop-coffee',
+    );
+  });
+
+  it('keeps nested descriptors virtual while checking their containing package snapshot', () => {
+    writeCapability(join(root, 'packages'), {
+      id: 'profiles',
+      bundles: [
+        {
+          id: 'anonymous-profile',
+          version: '1.0.0',
+          dependencies: { 'shop-coffee': '^1.0.0' },
+        },
+      ],
+    });
+
+    const run = createWorkspaceCompositionRun({
+      root,
+      seed: { selected: ['anonymous-profile'], selectionSeed: false },
+    });
+    const nested = run.descriptors().find((entry) => entry.descriptor.id === 'anonymous-profile');
+
+    expect(nested).toMatchObject({ virtual: true, selected: true });
+    expect(nested?.packageName).toBeUndefined();
+    expect(run.capabilities().find((entry) => entry.id === 'anonymous-profile')?.packageName).toBe(
+      '',
+    );
+  });
+
+  it.each([
+    { field: 'descriptor id', change: { descriptorId: 'other' } },
+    { field: 'source directory', change: { root: '/other/source' } },
+  ])('rejects a package snapshot with a stale $field', ({ change }) => {
+    const snapshot = resolvePackageSources({ root });
+    const packageSources = snapshot.packageSources.map((source) =>
+      source.descriptorId === 'shop-coffee' ? { ...source, ...change } : source,
+    );
+
+    expect(() =>
+      createCompositionRun({
+        workspaceRoot: root,
+        descriptorPaths: snapshot.descriptorPaths,
+        packageSources,
+        seed: { selected: ['shop-coffee'], selectionSeed: false },
+      }),
+    ).toThrow(/shop-coffee@1\.0\.0.*does not match package source/s);
+  });
+
+  it('exposes every versioned candidate with its physical source and winner state', () => {
+    writeCapability(join(root, 'prototypes'), {
+      id: 'shop-coffee',
+      scope: '@prototype',
+      version: '2.0.0',
+    });
+    const run = createWorkspaceCompositionRun({
+      root,
+      patterns: ['packages/*', 'prototypes/*'],
+      virtualDescriptors: [
+        { id: 'application', version: '1.0.0', dependencies: { 'shop-coffee': '^2.0.0' } },
+      ],
+      seed: { selected: ['application'], selectionSeed: false },
+    });
+
+    expect(
+      run
+        .descriptors()
+        .filter((entry) => entry.descriptor.id === 'shop-coffee')
+        .map((entry) => ({
+          packageName: entry.packageName,
+          selected: entry.selected,
+          version: entry.descriptor.version,
+        })),
+    ).toEqual([
+      { packageName: '@acme/shop-coffee', selected: false, version: '1.0.0' },
+      { packageName: '@prototype/shop-coffee', selected: true, version: '2.0.0' },
+    ]);
+  });
+
+  it('treats provider members of a directly selected virtual grouping as explicit', () => {
+    const packages = join(root, 'packages');
+    writeCapability(packages, { id: 'auth' });
+    writeCapability(packages, { id: 'auth-session', providesFor: 'auth' });
+    writeCapability(packages, { id: 'auth-anonymous', providesFor: 'auth' });
+    writeCapability(packages, {
+      id: 'application',
+      dependencies: { 'auth-session': '^1.0.0' },
+    });
+    const snapshot = resolvePackageSources({ root });
+    const run = createCompositionRun({
+      workspaceRoot: root,
+      descriptorPaths: snapshot.descriptorPaths,
+      packageSources: snapshot.packageSources,
+      virtualDescriptors: [
+        {
+          id: 'anonymous-profile',
+          version: '1.0.0',
+          dependencies: { 'auth-anonymous': '^1.0.0' },
+        },
+      ],
+      seed: { selected: ['application', 'anonymous-profile'], selectionSeed: false },
+    });
+
+    expect(run.providerSelection().slots).toMatchObject([
+      { capabilityId: 'auth', selectedProviderId: 'auth-anonymous', mode: 'explicit' },
+    ]);
+  });
+
+  it('validates versioned contributions and projects only selected owners', () => {
+    const run = createCompositionRun({
+      workspaceRoot: root,
+      descriptorPaths: [],
+      virtualDescriptors: [
+        { id: 'dashboard', version: '1.0.0', contributionPoints: ['panel'] },
+        { id: 'dashboard', version: '2.0.0', contributionPoints: ['panel'] },
+        { id: 'audit', version: '1.0.0', contributesTo: { dashboard: 'panel' } },
+      ],
+      seed: { selected: ['audit'], selectionSeed: false },
+    });
+
+    expect(run.contributionCatalog().edges).toHaveLength(2);
+    expect(run.contributions().edges).toEqual([]);
   });
 });
 
@@ -657,4 +847,52 @@ it('uses the resolved provider catalog for origins regardless of candidate disco
       { capability: 'a', chosen: [], named: false, alternatives: ['provider'] },
     ]);
   }
+});
+
+describe('captured versioned run selection', () => {
+  it('keeps CLI/env selection and its provenance after the environment changes', () => {
+    vi.stubEnv('LORION_RUN_SELECTION', 'shop-coffee@1');
+    const run = createWorkspaceCompositionRun({
+      root,
+      seed: { selectionSeed: { argv: [], envKeys: ['LORION_RUN_SELECTION'] } },
+    });
+    const report = run.report();
+    const origins = run.origins();
+    vi.stubEnv('LORION_RUN_SELECTION', 'checkout@99');
+    expect(run.report()).toEqual(report);
+    expect(run.origins()).toEqual(origins);
+    expect(report.requested).toEqual(['shop-coffee@1']);
+    expect(report.selected).toEqual(['shop-coffee']);
+    const formatted = formatCompositionReport(report).join('\n');
+    expect(formatted).toContain(`shop-coffee@1.0.0 from ${join(root, 'packages/shop-coffee')}`);
+    expect(formatted).toContain('seed.selectionSeed requires shop-coffee@1');
+    expect(report.versionSelection?.find((entry) => entry.id === 'shop-coffee')).toEqual({
+      id: 'shop-coffee',
+      version: '1.0.0',
+      source: join(root, 'packages/shop-coffee'),
+      requirements: [{ id: 'shop-coffee', range: '1', source: 'seed.selectionSeed' }],
+    });
+  });
+  it('selects a version directly from a seed and retains each candidate source', () => {
+    writeCapability(join(root, 'prototypes'), {
+      id: 'shop-coffee',
+      scope: '@prototype',
+      version: '2.0.0',
+    });
+    const run = createWorkspaceCompositionRun({
+      root,
+      patterns: ['packages/*', 'prototypes/*'],
+      seed: { selected: ['shop-coffee@1'], selectionSeed: false },
+    });
+    expect(run.report().resolvedVersions?.['shop-coffee']).toBe('1.0.0');
+    expect(
+      run
+        .descriptors()
+        .filter((entry) => entry.descriptor.id === 'shop-coffee')
+        .map((entry) => entry.selected),
+    ).toEqual([true, false]);
+    expect(
+      run.selectedPackageSources().find((source) => source.descriptorId === 'shop-coffee')?.name,
+    ).toBe('@acme/shop-coffee');
+  });
 });

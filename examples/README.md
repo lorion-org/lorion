@@ -51,11 +51,11 @@ Nuxt reads it from public runtime config; both React models read the identical
 ## Selecting a capability version
 
 All three examples discover `shop-coffee@1.0.0` from `prototypes/shop-coffee`
-and `shop-coffee@1.1.0` from their regular capability directory. The packages
+and `shop-coffee@2.0.0` from their regular capability directory. The packages
 have distinct npm names; their capability id stays `shop-coffee`.
 
-The normal profile selects 1.1.0 and shows **Bean Supply Plus**. The
-`storefront-legacy` bundle pins 1.0.0 and shows **Bean Supply**. Run either React
+The normal profile accepts v1 or v2 and selects v2, showing **Bean Supply Plus**.
+The `storefront-legacy` bundle requires v1 and shows **Bean Supply**. Run either React
 example with `LORION_FEATURES=storefront-legacy`, or Nuxt with
 `LORION_CAPABILITIES=storefront-legacy`, prefixed to its command above. `/tech`
 shows the resolved versions; `/shops/coffee` shows the selected implementation.
@@ -64,7 +64,27 @@ exercise descriptor discovery, version constraints, physical source selection
 and each adapter's activation path together.
 
 Select `storefront-conflict` through the same environment variable to verify a
-startup failure: its `>=1.1.0 <2.0.0` requirement conflicts with the legacy
-bundle's exact `1.0.0` pin. Each example aborts with both requirements and the
+startup failure: its `2` requirement conflicts with the legacy
+bundle's `1` requirement. Each example aborts with both requirements and the
 available versions. JSON descriptors and bundle manifests accept the same npm
 SemVer ranges as direct descriptor input.
+
+A seed can select a version directly without adding a grouping. These commands
+build each example with its existing older coffee implementation:
+
+```shell
+pnpm --filter @lorion-examples/react-loader build --features="storefront,shop-coffee@1"
+pnpm --filter @lorion-examples/react-runtime build --features="storefront,shop-coffee@1"
+pnpm --filter @lorion-examples/nuxt build --capabilities="default,shop-coffee@1"
+```
+
+Use the same arguments with `dev` to inspect `/shops/coffee` and `/tech`.
+Replace `shop-coffee@1` with `shop-coffee@2` to select v2. The descriptor documents
+store concrete SemVer versions (`1.0.0` and `2.0.0`); seeds and dependency maps use
+the major ranges `1` and `2`. The shared web profile explicitly accepts `1 || 2`
+because it can consume either implementation. Adding `shop-coffee@2` next to
+`storefront-legacy` fails because the seed requires v2 and the grouping requires v1.
+The loader example prints requested specifications, chosen versions, source paths
+and their effective requirements from its single composition run. The shared
+[selection contract](../packages/descriptor-selection/README.md#capability-versions)
+owns range syntax, stable defaults and explicit prerelease opt-in.

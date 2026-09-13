@@ -70,6 +70,23 @@ the contributor itself aborts while the declaring descriptor can still be named.
 Resolution does not walk the relation: a contribution says where a descriptor's output
 lands, not what has to be present for it to work.
 
+For a catalog that contains several versions of one logical descriptor, validate
+with `resolveVersionedContributions(descriptors)`. Candidate edges retain both
+versions. A contributor dependency on its owner limits validation to owner versions
+that satisfy that npm SemVer range; without such a dependency, every owner version
+must declare the point.
+
+```ts
+const catalog = resolveVersionedContributions(run.descriptors().map((entry) => entry.descriptor));
+const active = catalog.project(run.capabilities().map((entry) => entry.descriptor));
+```
+
+`project()` accepts one selected version per logical id. Contributions whose known
+owner is not selected are inactive and produce no edge. Unknown owners, duplicate
+candidate identities, incompatible owner ranges, and points missing from a
+compatible owner version fail during catalog validation. This keeps full-catalog
+contract checking separate from the active relation of one composition.
+
 ## Names that resolve to nothing
 
 A relation resolves only for a target the descriptor map holds; every other name is
@@ -326,3 +343,9 @@ selection layer; graph relations continue to address logical ids.
 the graph's field and target-mode semantics. Inventory-level validation and
 selection can inspect relation declarations before one candidate per id enters
 the catalog. Direction determines edge orientation after this read.
+
+For a host whose seed carries syntax beyond logical ids,
+`readDescriptorSelectionSeed` returns the raw CLI/env/default value using the
+same key and precedence rules as `resolveDescriptorSelectionSeed`. The latter
+continues to parse plain descriptor-id lists. Versioned seed parsing belongs to
+[`descriptor-selection`](../descriptor-selection/README.md#capability-versions).

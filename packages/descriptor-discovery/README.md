@@ -48,8 +48,11 @@ const { workspaceRoot, packageSources, descriptorPaths } = resolvePackageSources
   declares workspace patterns, in either spelling (`workspaces` as a list, or as an
   object carrying `packages`). `root` names it directly, `patterns` replaces the
   declared patterns.
-- `descriptorPaths` is relative to the workspace root and goes straight into
-  `discoverDescriptors({ cwd, descriptorPaths })`.
+- `descriptorPaths` is relative to the workspace root and can go straight into
+  `discoverDescriptors({ cwd, descriptorPaths })`. Each descriptor-bearing
+  `PackageSource` also retains the exact `descriptorDocument` read by the snapshot;
+  `discoverDescriptors({ descriptorDocuments })` validates and expands such
+  already-read documents without observing the filesystem a second time.
 - `additionalRoots` joins further checkouts into one snapshot, which is what a
   product does when it composes its own packages with those of a core it consumes.
   The asking workspace wins a package-name collision, because it is the one being

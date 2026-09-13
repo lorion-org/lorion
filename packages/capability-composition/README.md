@@ -13,12 +13,13 @@ pnpm add @lorion-org/capability-composition
 ## API
 
 - `resolveSelectedCapabilities(input)` resolves the active capabilities: base descriptors, the selection seed, transitive dependencies, and active provider slots. A slot may remain unfilled unless a resolved descriptor requires its capability. Items come back ordered by id: stable for a given input and independent of discovery order, but not dependency order.
-- `resolveCapabilitySelection(input)` resolves the same set and additionally returns the `ProviderSelectionResolution`: every active provider slot, whether it is selected or unfilled, whether it was required, its candidates, and the winning mode where applicable. It also returns `discovered`, every descriptor id the run knew about, groupings and nested descriptors included.
+- `resolveCapabilitySelection(input)` resolves the same set and additionally returns the `ProviderSelectionResolution`: every active provider slot, whether it is selected or unfilled, whether it was required, its candidates, and the winning mode where applicable. It also returns `discovered`, every logical descriptor id, and `discoveredDescriptors`, every version candidate with its directory, descriptor path, package name when supplied by a package snapshot, virtual status, and selected status.
 - `CapabilitySelectionInput` is the composition contract every host adapter accepts: `workspaceRoot`, `capabilitiesDir`, `descriptorPaths`, `descriptorSchema`, `virtualDescriptors`, `bundles`, `nestedField`, `relationDescriptors`, `policy` and `seed`. `CAPABILITY_SELECTION_OPTIONS` enumerates the options an adapter must forward. Each adapter's test suite carries one behavioural case per entry, and a missing case fails to compile.
 - `conventionActivation(surfaces)` builds an activation resolver from per-surface conventions (a file-layout marker plus an export-name derivation), so descriptors carry no surface config. Re-exported from [`@lorion-org/surface-activation`](../surface-activation), which owns the addressing convention.
 - `composeCapabilities(input)` takes `CapabilityCompositionInput`, the selection input plus `surface`, `activation`, `load` and `register`. It forwards the selection input whole, so a runtime composition resolves exactly what the build-time one does. It resolves the active set and, for each capability that provides the surface, loads its module and hands the exported value to the host's registration. Registry- and framework-agnostic.
 - `descriptorPaths` (optional) takes glob patterns and replaces the `capabilitiesDir` convention when a host's descriptors span several roots. `descriptorSchema` (optional) replaces the shared descriptor schema, or disables validation with `false`. `nestedField` (optional) names the field in a discovered descriptor that holds further descriptors, which are resolved as groupings: a synthetic directory, no package name, no surface. `relationDescriptors` and `policy` (optional) add relations to walk and change how the graph resolves them.
 - `virtualDescriptors` (optional) are host-provided descriptors that join the discovered set for graph resolution without living on disk as packages: grouping descriptors (bundles) whose `dependencies` point at real capabilities. They take part in selection but carry no surface, so they are never imported and need no `package.json`. This is the second, filesystem-free way to feed the composition, alongside disk discovery.
+- A grouping reached directly from the run selection expands as part of that selection. Provider members therefore have `explicit` precedence. A grouping reached only through another descriptor's ordinary dependency retains `dependency` precedence. Version assignment happens before expansion, so only the chosen grouping version supplies members.
 - `bundles: { cwd, fileName? }` (optional) is the batteries-included path: it discovers a bundle manifest upward from `cwd` (via `loadBundleManifest` in [`@lorion-org/descriptor-discovery`](../descriptor-discovery)) and adds its declared groupings to `virtualDescriptors`. A host declares bundles in data and needs no bundling code of its own. The manifest declares descriptors only; the host names `seed.baseDescriptors` and `seed.defaultSelection`, so one manifest serves runs that seed it differently.
 - `createWorkspaceLoad({ workspaceRoot, packagesDir? })` builds the `load` callback `composeCapabilities` needs for a Node/Bun workspace host: it imports a workspace package from `<workspaceRoot>/<packagesDir>/<folder>` through its declared `exports`. `packagesDir` defaults to `'packages'`. This is the runtime counterpart to build-time workspace source aliases — a workspace host needs no per-host loading code of its own.
 - `resolveWorkspaceRoot(from, { markers? })` walks up from `from` (a file URL such as `import.meta.url`, or a path) until a directory holds all `markers` (default `['packages']`), and throws a clear error if none does.
@@ -53,9 +54,10 @@ provider slot. An unfilled slot is reported positively instead of disappearing;
 each descriptor set hangs below its own heading, because a list of
 hundreds of ids is a block and not one row's value.
 
-The report is stated in descriptor ids alone. Whether a descriptor is a package on
-disk, a mounted layer or a manifest grouping is a host's own view, so a host that
-reports on that filters before it describes. Every id list is deduplicated and
+Selection lists use logical descriptor ids. Version selection details retain the
+chosen version, source and effective requirements; requested seeds retain their
+original version specifications. Host-specific categories such as package or
+mounted layer remain the host's view. Every id list is deduplicated and
 sorted, so two reports of one run compare as equal text, and `discovered` is
 required: defaulting it to `resolved` would make the count claim that nothing was
 left out. A provider whose winner is not part of the composition is reported as
@@ -128,21 +130,47 @@ does with that set lives here:
 ### One run
 
 ```ts
-import { createCompositionRun } from '@lorion-org/capability-composition';
+import { createWorkspaceCompositionRun } from '@lorion-org/capability-composition';
 
-const run = createCompositionRun({ workspaceRoot, descriptorPaths, packageSources, seed });
+const run = createWorkspaceCompositionRun({
+  root: workspaceRoot,
+  patterns: ['packages/*', 'prototypes/*'],
+  seed,
+});
 
 run.report();
 run.origins();
+run.descriptors();
+run.contributionCatalog();
+run.contributions();
 run.surfaceEntries('web', activation);
 await run.compose({ surface: 'server', activation, register });
 ```
 
 A host that resolves per entry point states its run twice, and the second statement
 is free to differ: a build then emits one selection while the server start reports
-another, and nothing in either says so. A run resolves on first use and every
-projection reads that one resolution. Without `packageSources` a run still resolves
-and reports; the entry points that address packages say what they are missing.
+another, and nothing in either says so. `createWorkspaceCompositionRun` discovers
+package sources and immediately seals descriptor selection from the exact descriptor
+documents that snapshot read. No second descriptor-file read occurs. Every
+projection reads that resolution. `run.descriptors()` is the
+versioned candidate inventory; `run.report().discovered` remains the deduplicated
+logical-id summary.
+
+Here, sealed means that later filesystem changes cannot alter the run's package or
+descriptor inputs. The returned JavaScript objects are not deep-frozen; callers
+that mutate them also mutate the values they hold.
+
+`createCompositionRun({ workspaceRoot, descriptorPaths, packageSources?, seed })`
+is the lower-level entry for an already prepared input. It also seals immediately.
+When package sources are supplied, a selected descriptor whose id, version or
+directory disagrees with its source fails before source projection. Without
+`packageSources` a run still resolves and reports; entry points that address
+packages say what they are missing.
+
+`run.contributionCatalog()` validates the versioned candidate catalog.
+`run.contributions()` projects it onto the versions this run selected. A known but
+unselected point owner makes the contribution inactive, while an unknown owner or
+an incompatible point declaration fails catalog validation.
 
 ### Why a descriptor is in the composition
 
@@ -193,4 +221,8 @@ Versioned inventories are resolved by the shared
 `run.descriptors()` retains every discovered candidate; `run.capabilities()`
 contains the selected version and its physical source. Use the resolved set for
 active contribution validation and activation. `run.report().resolvedVersions`
-maps resolved ids to their versions, and the formatted report prints `id@version`.
+maps resolved ids to their versions. `run.report().versionSelection` carries each
+chosen version, source and effective requirements; the formatted report includes
+these values. Seed entries accept `id@<SemVer range>` through the shared contract.
+The run captures the seed once, including CLI/env values, and reports its original
+requests even if the environment changes later.

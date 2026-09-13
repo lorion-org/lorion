@@ -177,6 +177,8 @@ export interface DescriptorSelectionInput<T> {
     // (undocumented)
     getDescriptor: (item: T) => Descriptor;
     // (undocumented)
+    getSelectionGroupMembers?: (item: T) => readonly DescriptorId[] | undefined;
+    // (undocumented)
     getSource?: (item: T) => string;
     // (undocumented)
     items: readonly T[];
@@ -194,6 +196,20 @@ export interface DescriptorSelectionInput<T> {
 export function descriptorSelectionPolicy(policy?: Partial<CompositionPolicy>): Partial<CompositionPolicy>;
 
 // @public (undocumented)
+export interface DescriptorSelectionResult<T> {
+    // (undocumented)
+    catalog: DescriptorCatalog;
+    // (undocumented)
+    items: T[];
+    // (undocumented)
+    providerSelection: ProviderSelectionResolution;
+    // (undocumented)
+    seed: ResolvedDescriptorSeed;
+    // (undocumented)
+    versions: DescriptorVersionSelection[];
+}
+
+// @public (undocumented)
 export interface DescriptorSelectionSeed {
     // (undocumented)
     baseDescriptors?: readonly DescriptorId[];
@@ -209,6 +225,28 @@ export interface DescriptorSelectionSeed {
         cliKeys?: string[];
         envKeys?: string[];
     };
+}
+
+// @public (undocumented)
+export interface DescriptorVersionRequirement {
+    // (undocumented)
+    id: DescriptorId;
+    // (undocumented)
+    range: string;
+    // (undocumented)
+    source: string;
+}
+
+// @public (undocumented)
+export interface DescriptorVersionSelection {
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    requirements: readonly DescriptorVersionRequirement[];
+    // (undocumented)
+    source?: string;
+    // (undocumented)
+    version: string;
 }
 
 // @public (undocumented)
@@ -263,23 +301,31 @@ type ResolutionStep = {
 };
 
 // @public (undocumented)
+export interface ResolvedDescriptorSeed {
+    // (undocumented)
+    baseDescriptors: readonly DescriptorId[];
+    // (undocumented)
+    requested: readonly string[] | null;
+    // (undocumented)
+    requirements: readonly DescriptorVersionRequirement[];
+    // (undocumented)
+    selected: readonly DescriptorId[];
+}
+
+// @public (undocumented)
+export function resolveDescriptorSeed(seed: DescriptorSelectionSeed): ResolvedDescriptorSeed;
+
+// @public (undocumented)
 export function resolveDescriptorSelection(seed: DescriptorSelectionSeed): DescriptorId[];
 
 // @public (undocumented)
-export function resolveRequestedSelection(seed: DescriptorSelectionSeed): DescriptorId[] | null;
+export function resolveRequestedSelection(seed: DescriptorSelectionSeed): string[] | null;
 
 // @public (undocumented)
 export function selectDescriptors<T>(input: DescriptorSelectionInput<T>): T[];
 
 // @public (undocumented)
-export function selectDescriptorsWithProviders<T>(input: DescriptorSelectionInput<T>): ReturnType<typeof selectSingleVersionDescriptors<T>>;
-
-// @public (undocumented)
-function selectSingleVersionDescriptors<T>(input: DescriptorSelectionInput<T>): {
-    items: T[];
-    providerSelection: ProviderSelectionResolution;
-    catalog: DescriptorCatalog;
-};
+export function selectDescriptorsWithProviders<T>(input: DescriptorSelectionInput<T>): DescriptorSelectionResult<T>;
 
 // @public (undocumented)
 type UnfilledProviderSlot = {

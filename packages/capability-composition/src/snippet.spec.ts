@@ -25,8 +25,8 @@ afterAll(() => {
 describe('the workspace composition snippet', () => {
   it('reads the contributions its comment names', () => {
     expect(printed[0]?.[0]).toEqual([
-      { from: 'reports', to: 'dashboard', point: 'panel' },
       { from: 'audit-log', to: 'dashboard', point: 'panel' },
+      { from: 'reports', to: 'dashboard', point: 'panel' },
     ]);
   });
 

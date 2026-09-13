@@ -1,9 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import process from 'node:process';
 import {
   createDescriptorCatalog,
-  resolveDescriptorSelectionSeed,
   type DescriptorCatalog,
   type RelationDescriptor,
 } from '@lorion-org/composition-graph';
@@ -20,12 +18,14 @@ import type { ProviderSelectionResolution } from '@lorion-org/provider-selection
 import {
   providerRelationDescriptors,
   resolveDescriptorSelection,
+  resolveDescriptorSeed,
   selectDescriptorsWithProviders,
+  type DescriptorSelectionSeed,
+  type DescriptorVersionSelection,
 } from '@lorion-org/descriptor-selection';
 import type {
   NuxtExtensionSelectionRuntimeConfig,
   NuxtExtensionModuleOptions,
-  NuxtExtensionSelectionSeedOptions,
   NuxtProviderSelectionRuntimeConfig,
   NuxtRuntimeConfig,
 } from './types';
@@ -33,8 +33,8 @@ import type {
 export type {
   LorionNuxtModuleOptions,
   NuxtExtensionModuleOptions,
-  NuxtExtensionSelectionSeedOptions,
   RuntimeConfigNuxtModuleOptions,
+  NuxtExtensionSelectionSeedOptions,
 } from './types';
 
 // A Nuxt extension descriptor is the shared descriptor. Every field this adapter
@@ -54,12 +54,13 @@ export type NuxtExtensionEntry = {
 };
 
 export type NuxtExtensionBootstrap = {
+  versionSelection?: readonly DescriptorVersionSelection[];
   activeExtensions: NuxtExtensionEntry[];
   baseExtensionIds: string[];
   catalog: DescriptorCatalog;
   discoveredExtensions: NuxtExtensionEntry[];
   publicRuntimeConfig: NuxtRuntimeConfig;
-  // The ids this run asked for through `selected` or the seed, or null when it
+  // The specifications this run asked for through `selected` or the seed, or null when it
   // named none and took `defaultSelection`. Kept apart from `selectedExtensions`,
   // which is the outcome, so a report can say which of the two a reader is seeing.
   requestedExtensions: string[] | null;
@@ -84,20 +85,6 @@ const defaultExtensionSelectionSeedKey = 'capability';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function resolveNuxtExtensionSelectionSeed(
-  seedOptions: false | NuxtExtensionSelectionSeedOptions | undefined,
-): string[] {
-  if (seedOptions === false) return [];
-
-  return resolveDescriptorSelectionSeed({
-    argv: seedOptions?.argv ?? process.argv,
-    env: seedOptions?.env ?? process.env,
-    key: seedOptions?.key ?? defaultExtensionSelectionSeedKey,
-    ...(seedOptions?.cliKeys ? { cliKeys: seedOptions.cliKeys } : {}),
-    ...(seedOptions?.envKeys ? { envKeys: seedOptions.envKeys } : {}),
-  });
 }
 
 function resolveExtensionOptions(
@@ -309,12 +296,18 @@ export function createNuxtExtensionBootstrap(input: {
   rootDir: string;
 }): NuxtExtensionBootstrap {
   const options = input.options ?? {};
-  const requested = options.selected ?? resolveNuxtExtensionSelectionSeed(options.selectionSeed);
-  const requestedExtensions = requested.length ? [...requested] : null;
-  const selectedExtensions = resolveExtensionSelection({
-    ...(options.defaultSelection ? { defaultSelection: options.defaultSelection } : {}),
-    selected: requested,
-  });
+  const seedInput: DescriptorSelectionSeed = {
+    defaultSelection: options.defaultSelection ?? defaultExtensionOptions.defaultSelection,
+    ...(options.selected ? { selected: options.selected } : {}),
+    baseDescriptors: options.baseDescriptors ?? [],
+    selectionSeed:
+      options.selectionSeed === false
+        ? false
+        : {
+            ...options.selectionSeed,
+            key: options.selectionSeed?.key ?? defaultExtensionSelectionSeedKey,
+          },
+  };
   const createCatalog = (entries: NuxtExtensionEntry[]): DescriptorCatalog =>
     createNuxtExtensionCatalog({
       entries,
@@ -325,39 +318,27 @@ export function createNuxtExtensionBootstrap(input: {
     slots: [],
   });
 
-  if (options.enabled === false) {
-    return {
-      activeExtensions: [],
-      baseExtensionIds: [],
-      catalog: createCatalog([]),
-      discoveredExtensions: [],
-      publicRuntimeConfig: { public: {} },
-      providerSelection: emptyProviderSelection(),
-      requestedExtensions,
-      resolvedExtensionIds: [],
-      resolvedExtensions: [],
-      selectedExtensions,
-    };
-  }
-
-  const entries = discoverNuxtExtensionEntries({
-    projectRootDir: input.rootDir,
-    options,
-  });
-  const baseExtensionIds = [...(options.baseDescriptors ?? [])];
-
+  const entries =
+    options.enabled === false
+      ? []
+      : discoverNuxtExtensionEntries({
+          projectRootDir: input.rootDir,
+          options,
+        });
   if (!entries.length) {
+    const seed = resolveDescriptorSeed(seedInput);
     return {
+      versionSelection: [],
       activeExtensions: [],
-      baseExtensionIds,
+      baseExtensionIds: options.enabled === false ? [] : [...seed.baseDescriptors],
       catalog: createCatalog(entries),
       discoveredExtensions: entries,
       publicRuntimeConfig: { public: {} },
       providerSelection: emptyProviderSelection(),
-      requestedExtensions,
+      requestedExtensions: seed.requested ? [...seed.requested] : null,
       resolvedExtensionIds: [],
       resolvedExtensions: [],
-      selectedExtensions,
+      selectedExtensions: [...seed.selected],
     };
   }
 
@@ -366,6 +347,8 @@ export function createNuxtExtensionBootstrap(input: {
   // other for the very same descriptors.
   const {
     items: resolvedExtensions,
+    seed,
+    versions,
     catalog,
     providerSelection,
   } = selectDescriptorsWithProviders({
@@ -373,21 +356,24 @@ export function createNuxtExtensionBootstrap(input: {
     getDescriptor: (entry) => entry.descriptor,
     getSource: (entry) => entry.cwd,
     withDescriptor: (entry, descriptor) => ({ ...entry, descriptor }),
-    seed: {
-      baseDescriptors: baseExtensionIds,
-      selected: selectedExtensions,
-      // The selection is already resolved above, from options and the CLI/env seed.
-      selectionSeed: false,
-    },
+    getSelectionGroupMembers: (entry) =>
+      entry.cwd === virtualDescriptorDirectory(input.rootDir, entry.descriptor.id)
+        ? Object.keys(entry.descriptor.dependencies ?? {})
+        : undefined,
+    seed: seedInput,
     ...(options.relationDescriptors
       ? { relationDescriptors: [...options.relationDescriptors] }
       : {}),
     ...(options.policy ? { policy: options.policy } : {}),
   });
+  const selectedExtensions = [...seed.selected];
+  const baseExtensionIds = [...seed.baseDescriptors];
+  const requestedExtensions = seed.requested ? [...seed.requested] : null;
   const resolvedExtensionIds = resolvedExtensions.map((entry) => entry.descriptor.id);
   const activeExtensions = resolvedExtensions.filter(canRegisterExtensionLayer);
 
   return {
+    versionSelection: versions,
     activeExtensions,
     baseExtensionIds,
     catalog,

@@ -21,16 +21,17 @@ pnpm add @lorion-org/descriptor-selection
 
 ## API
 
-- `selectDescriptors({ items, getDescriptor, withDescriptor, seed, relationDescriptors?, policy?, getSource? })`
+- `selectDescriptors({ items, getDescriptor, withDescriptor, seed, relationDescriptors?, policy?, getSource?, getSelectionGroupMembers? })`
   resolves the active subset of `items`. It is generic over the item type via the
   `getDescriptor` / `withDescriptor` accessors, so a "capability", an "extension",
   or a plain descriptor record all work.
-- `selectDescriptorsWithProviders({ items, getDescriptor, withDescriptor, seed, relationDescriptors?, policy?, getSource? })`
+- `selectDescriptorsWithProviders({ items, getDescriptor, withDescriptor, seed, relationDescriptors?, policy?, getSource?, getSelectionGroupMembers? })`
   resolves the same subset and additionally returns the `ProviderSelectionResolution`
-  and the `catalog` it resolved against. `selectDescriptors` wraps it for hosts that
-  need only the items.
+  and the `catalog` it resolved against, together with the captured `seed` and
+  `versions` containing the chosen identities, sources and requirements.
+  `selectDescriptors` wraps it for hosts that need only the items.
 - `resolveDescriptorSelection(seed)` resolves just the selection ids from a seed.
-- `resolveRequestedSelection(seed)` returns the ids the run named, or `null` when it
+- `resolveRequestedSelection(seed)` returns the specifications the run named, or `null` when it
   named none. `resolveDescriptorSelection` falls back to `defaultSelection` on top of
   it, so a host that reports what was asked for can tell the two apart.
 - `assertKnownProviderCapabilities({ declared, providers })` throws when a descriptor
@@ -59,6 +60,14 @@ discovery order never decides the winner. Provider descriptors named through the
 host's resolved selection or `baseDescriptors` belong to the `explicit` tier.
 Provider reports forward the public provenance contract owned by
 `@lorion-org/provider-selection`; `seed` remains the internal graph-input concept.
+`getSelectionGroupMembers` identifies grouping edges in a host's item type. Provider
+members reached from a grouping selected by the seed use explicit precedence;
+provider members of a grouping reached only through a normal dependency keep
+dependency precedence. The callback runs against a complete version assignment,
+so a losing grouping version cannot contribute members. Ordinary dependencies
+outside the returned membership retain dependency precedence. Membership also
+activates ordinary members; the callback is pure and returns logical ids, while
+version constraints remain in the descriptor dependency map.
 
 Base membership means participation, not consumption. When an active capability
 has provider candidates but no resolved descriptor depends on it, the result
@@ -100,30 +109,51 @@ ranges, comparator intersections, unions and hyphen ranges. Empty strings are
 wildcard ranges. Prereleases match only ranges that opt into that prerelease
 as defined by `node-semver`.
 
-Candidates are considered in UTF-16 code-unit id order, then descending SemVer
-precedence. Equal precedence is ordered by the version string using the same
-locale-independent code-unit comparison. The first complete compatible
-assignment wins; selection backtracks when a newer candidate's dependencies
-cannot be satisfied. An unqualified id therefore prefers the highest compatible
-version. Pin a root through an ordinary grouping descriptor:
+Seed entries in `selected`, `defaultSelection`, and `baseDescriptors` accept an id
+or `id@<SemVer range>`. An unqualified id means `id@*`: the highest compatible
+stable version. A prerelease needs an explicit matching range, such as
+`feature@3.0.0-beta.2` or `feature@^3.0.0-beta.1`. Registry tags (`latest`, `beta`)
+are not version ranges and fail with an invalid-request error.
 
-```json
-{
-  "id": "legacy-product",
-  "version": "1.0.0",
-  "dependencies": { "feature": "1.0.0" }
-}
+```ts
+seed: { selected: ['feature@2', 'search@^1.4.0'], selectionSeed: false }
 ```
 
-Selecting `legacy-product` activates `feature@1.0.0` even when `feature@2.0.0`
-is discovered elsewhere. Other active requirements still have to agree. An
-unsatisfiable selection fails with the requiring descriptors, their constraints,
-and the available enabled versions. Dependencies of inactive candidates and
-losing provider edges impose no constraints. A policy that removes dependencies
-from resolution also removes their version requirements. A host override of the
-`dependencies` relation applies version requirements only when it retains the
-canonical outgoing `dependencies` map with id keys. `getSource` optionally names
-an item's physical source in duplicate-identity errors.
+A host naming its seed flag `packages` can pass `--packages=feature@2`. CLI and
+environment values accept comma-separated requests. Separate requests containing
+spaces with commas, for example `--packages="feature@>=1 <2, search@1 || 2"`.
+Whitespace-separated bare ids and simple `id@range` requests remain accepted.
+Programmatic arrays carry one complete request per element. Scoped ids retain
+their scope: `@acme/feature@2` requests id `@acme/feature` at range `2`.
+
+Explicit non-empty `selected` wins over CLI, CLI over environment, and an absent
+request falls back to `defaultSelection`. The base is always added. Multiple
+requests for one id intersect, including requests from the base. A seed range and
+an active JSON dependency range must both hold; neither overrides the other.
+Provider precedence chooses an implementation, not permission to violate that
+implementation's remaining version requirements.
+
+Candidates are considered in UTF-16 code-unit id order, then descending SemVer
+precedence. Equal precedence is ordered by the version string using the same
+locale-independent comparison. The first complete compatible assignment wins;
+selection backtracks when a newer candidate's dependencies cannot be satisfied.
+A selected candidate with no version requirement uses the stable wildcard.
+Dependencies of inactive candidates and losing provider edges impose no
+constraints. Unknown seed ids, invalid requests and unsatisfiable requirements
+fail separately; conflicts name the seed or requiring descriptors, their ranges
+and the available enabled versions.
+
+`resolveDescriptorSeed` captures requested specifications, selected ids, base ids
+and seed requirements without selecting versions. Selection returns this captured
+seed alongside `versions`: each chosen identity, its source when supplied, and
+its effective seed and dependency requirements. Adapters forward these values
+without reading CLI or environment inputs again. Returned values remain mutable.
+
+A policy that removes dependencies from resolution also removes their version
+requirements; explicit seed ranges still apply. A host override of `dependencies`
+applies dependency version requirements only when it retains the canonical
+outgoing map with id keys. `getSource` names the physical source in selection
+results and duplicate-identity errors.
 
 Version selection keeps each item's package name, directory and other source
 metadata together. Hosts must provide a pure `withDescriptor` copy operation:
@@ -137,7 +167,7 @@ SemVer version. Build metadata does not participate in range matching: a pin to
 `1.0.0+build-a` can also select `1.0.0+build-b`. Give implementations different
 patch or prerelease versions when a range must distinguish them.
 
-If all candidates declare the same dependency constraints, provider roles and
+If all candidates declare the same dependency constraints, provider roles, grouping membership and
 effective relation targets, selection resolves the provider outcome once and
 chooses compatible versions independently. A fixed conflict in that case fails
 without enumerating unrelated version combinations. Candidates with different

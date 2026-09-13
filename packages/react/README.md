@@ -79,8 +79,7 @@ file-based routing from LORION.
 
 ### Model B: capability loader with your own runtime
 
-`capabilityLoader()` on its own resolves the descriptor graph at build time and
-emits `virtual:capabilities`; the host consumes that pre-resolved module list
+`capabilityLoader()` emits `virtual:capabilities`; the host consumes that module list
 with its own plugin registry, its own routing, and its own lifecycle. Nothing
 from the React runtime or route config is required. Capabilities activate through
 an explicit `activation` resolver against their existing package exports, and
@@ -279,6 +278,37 @@ resolved modules with its own runtime. The build resolves the descriptor graph
 and emits `capabilityModules` already ordered and filtered. The same virtual
 module exports `providerSelection`, including selected and unfilled slots, so a
 React host sees the same serializable result as a Nuxt host.
+
+For a host that also reports, starts a server, or projects other surfaces, create
+one workspace run and pass it to the loader. The loader reads the run's selected
+descriptors, versions, providers, and package sources. It performs no discovery or
+selection of its own.
+
+```ts
+import { createWorkspaceCompositionRun } from '@lorion-org/capability-composition';
+import { capabilityLoader } from '@lorion-org/react/vite';
+
+const run = createWorkspaceCompositionRun({
+  root: workspaceRoot,
+  patterns: ['packages/*', 'prototypes/*'],
+  seed: {
+    baseDescriptors: ['shell', 'auth'],
+    defaultSelection: ['home', 'reports'],
+    selectionSeed: { cliKeys: ['features'], envKeys: ['APP_FEATURES'] },
+  },
+});
+
+capabilityLoader({
+  run,
+  activation: ({ descriptor }) => ({
+    exportSubpath: './web',
+    exportName: `${descriptor.id}WebPlugin`,
+  }),
+});
+```
+
+The options-only form below remains available for a Vite-only host. It creates its
+own selection when Vite resolves the config.
 
 ```ts
 // vite.config.ts
@@ -548,8 +578,9 @@ for (const line of formatCompositionReport(describeCapabilityComposition(root, o
 }
 ```
 
-Because both come from the loader's own options, a report cannot describe a
-different composition than the bundle it belongs to.
+An options-only loader and `describeCapabilityComposition` resolve separately.
+Use `capabilityLoader({ run, ... })` and `run.report()` when the report and bundle
+must be projections of the same sealed workspace state.
 
 ## Local Commands
 
@@ -569,3 +600,12 @@ exports `resolvedCapabilityVersions: Record<string, string>` alongside
 `resolvedCapabilityIds`; add it to the host's virtual-module declaration to
 inspect the selected versions. `describeCapabilityComposition` carries the same
 mapping as `resolvedVersions`.
+
+Versioned seeds use the shared
+[selection contract](../descriptor-selection/README.md#capability-versions),
+including `selected: ['shop-coffee@1']` and CLI/env ranges. Both loader models
+preserve the requested ranges while emitting logical `selectedCapabilityIds`
+and the chosen `resolvedCapabilityVersions`. The options-only loader captures
+selection during `configResolved`; the run-backed loader uses the run's captured
+selection. `describeCapabilityComposition` includes source and requirement
+provenance in `versionSelection`.

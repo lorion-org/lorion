@@ -27,6 +27,9 @@ export interface PackageSource {
   manifest: Record<string, unknown>;
   // The descriptor beside the manifest, when the package carries one.
   descriptorPath?: string;
+  // The exact document read with this package snapshot. A composition can validate
+  // and expand it without a second filesystem read.
+  descriptorDocument?: Record<string, unknown>;
   // The id that descriptor declares.
   descriptorId?: string;
   descriptorVersion?: string;
@@ -147,8 +150,11 @@ function assertReachablePattern(root: string, manifestPath: string, pattern: str
   );
 }
 
-function readDescriptorId(descriptorPath: string): string | undefined {
-  const id = readJsonObject(descriptorPath).id;
+function readDescriptorId(
+  descriptorPath: string,
+  descriptor: Record<string, unknown>,
+): string | undefined {
+  const id = descriptor.id;
   if (id === undefined) return undefined;
   if (typeof id !== 'string' || id.length === 0) {
     throw new Error(`${descriptorPath}: "id" must be a non-empty string.`);
@@ -212,14 +218,16 @@ function discoverRoot(input: {
     const descriptorPath = resolve(root, input.descriptorFileName);
     if (!existsSync(descriptorPath)) return { name, root, manifestPath: path, manifest };
 
-    const descriptorId = readDescriptorId(descriptorPath);
-    const descriptorVersion = readJsonObject(descriptorPath).version;
+    const descriptor = readJsonObject(descriptorPath);
+    const descriptorId = readDescriptorId(descriptorPath, descriptor);
+    const descriptorVersion = descriptor.version;
     return {
       name,
       root,
       manifestPath: path,
       manifest,
       descriptorPath,
+      descriptorDocument: descriptor,
       ...(descriptorId ? { descriptorId } : {}),
       ...(typeof descriptorVersion === 'string' ? { descriptorVersion } : {}),
     };

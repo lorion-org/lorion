@@ -306,6 +306,36 @@ describe('discoverDescriptors', () => {
       }),
     ).toThrow(/Descriptor schema validation failed.*providerPreferences/s);
   });
+
+  it('validates, orders and expands already-read descriptor documents', () => {
+    const root = createTempDir();
+    const discovered = discoverDescriptors({
+      descriptorDocuments: [
+        {
+          cwd: join(root, 'z'),
+          descriptorPath: join(root, 'z/capability.json'),
+          descriptor: { id: 'z', version: '1.0.0' },
+        },
+        {
+          cwd: join(root, 'a'),
+          descriptorPath: join(root, 'a/capability.json'),
+          descriptor: {
+            id: 'a',
+            version: '1.0.0',
+            bundles: [{ id: 'a-profile', version: '1.0.0' }],
+          },
+        },
+      ],
+      nestedField: 'bundles',
+      validation: { schema: descriptorSchema },
+    });
+
+    expect(discovered.map((entry) => [entry.id, entry.nested])).toEqual([
+      ['a', false],
+      ['a-profile', true],
+      ['z', false],
+    ]);
+  });
 });
 
 describe('requirePackageName', () => {

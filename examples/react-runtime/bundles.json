@@ -35,7 +35,7 @@
       "version": "1.0.0",
       "dependencies": {
         "web": "^1.0.0",
-        "shop-coffee": "1.0.0"
+        "shop-coffee": "1"
       }
     },
     {
@@ -43,7 +43,7 @@
       "version": "1.0.0",
       "dependencies": {
         "storefront-legacy": "1.0.0",
-        "shop-coffee": ">=1.1.0 <2.0.0"
+        "shop-coffee": "2"
       }
     }
   ]

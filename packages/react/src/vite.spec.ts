@@ -20,6 +20,7 @@ import type {
 } from '@lorion-org/capability-composition';
 import {
   CAPABILITY_SELECTION_OPTIONS,
+  createWorkspaceCompositionRun,
   notResolved,
   resolveSelectedCapabilities,
   type CapabilitySelectionOption,
@@ -27,6 +28,70 @@ import {
 import { conventionActivation, fileSurfaceConvention } from '@lorion-org/surface-activation';
 
 describe('React capability Vite helpers', () => {
+  it('renders from a sealed composition run without rediscovering changed descriptors', () => {
+    const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-run-loader-'));
+    writeFileSync(
+      join(workspaceRoot, 'package.json'),
+      JSON.stringify({ private: true, workspaces: ['capabilities/*'] }),
+    );
+    writeCapability(workspaceRoot, 'home', '@react-workspace/home');
+    const selectionEnv = { LORION_TEST_SELECTION: 'profile@1' };
+    const run = createWorkspaceCompositionRun({
+      root: workspaceRoot,
+      virtualDescriptors: [{ id: 'profile', version: '1.0.0', dependencies: { home: '^0.1.0' } }],
+      seed: { selectionSeed: { argv: [], env: selectionEnv, envKeys: ['LORION_TEST_SELECTION'] } },
+    });
+    writeFileSync(
+      join(workspaceRoot, 'capabilities/home/capability.json'),
+      JSON.stringify({ id: 'home', version: '9.0.0' }),
+    );
+    writeFileSync(
+      join(workspaceRoot, 'capabilities/home/package.json'),
+      JSON.stringify({ name: '@changed/home', exports: {} }),
+    );
+
+    selectionEnv.LORION_TEST_SELECTION = 'other@99';
+    const plugin = capabilityLoader({ run });
+    plugin.configResolved({ root: workspaceRoot });
+    const moduleId = plugin.resolveId('virtual:capabilities');
+    const source = moduleId ? plugin.load(moduleId) : null;
+
+    expect(source).toContain('selectedCapabilityIds = ["profile"]');
+    expect(run.report().requested).toEqual(['profile@1']);
+    expect(source).toContain('"home":"0.1.0"');
+    expect(source).toContain('"profile":"1.0.0"');
+    expect(source).not.toContain('9.0.0');
+    expect(source).toContain("from '@react-workspace/home/capability'");
+    expect(source).not.toContain("from 'profile");
+    expect(plugin.resolveId('@react-workspace/home/capability')).toBe(
+      join(workspaceRoot, 'capabilities/home/src/capability.ts'),
+    );
+    expect(run.report().resolvedVersions).toEqual({ home: '0.1.0', profile: '1.0.0' });
+  });
+
+  it('preserves versioned CLI seeds in the options-only loader and its report', () => {
+    const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-seed-'));
+    writeCapability(workspaceRoot, 'home', '@react-workspace/home');
+    writeCapability(workspaceRoot, 'home-next', '@react-workspace/home-next');
+    writeFileSync(
+      join(workspaceRoot, 'capabilities/home-next/capability.json'),
+      JSON.stringify({ id: 'home', version: '2.0.0' }),
+    );
+    const env = { FEATURES: 'home@<1' };
+    const options = { workspaceRoot, selectionSeed: { argv: [], env, envKeys: ['FEATURES'] } };
+    const report = describeCapabilityComposition(workspaceRoot, options);
+    expect(report.requested).toEqual(['home@<1']);
+    expect(report.resolvedVersions).toEqual({ home: '0.1.0' });
+    expect(report.versionSelection?.[0]?.source).toBe(join(workspaceRoot, 'capabilities/home'));
+    const plugin = capabilityLoader(options);
+    plugin.configResolved({ root: workspaceRoot });
+    env.FEATURES = 'home-next';
+    const emitted = plugin.load(plugin.resolveId('virtual:capabilities')!);
+    expect(emitted).toContain('selectedCapabilityIds = ["home"]');
+    expect(emitted).toContain('"home":"0.1.0"');
+    expect(emitted).not.toContain('@react-workspace/home-next');
+  });
+
   it('discovers local capabilities and renders a virtual module', () => {
     const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-capability-loader-'));
 

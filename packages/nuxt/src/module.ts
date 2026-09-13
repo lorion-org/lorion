@@ -720,6 +720,8 @@ export function formatNuxtExtensionBootstrapLog(event: NuxtExtensionBootstrapLog
     selected: bootstrap.selectedExtensions,
     base: bootstrap.baseExtensionIds,
     resolved: bootstrap.resolvedExtensionIds,
+    resolvedDescriptors: bootstrap.resolvedExtensions.map((entry) => entry.descriptor),
+    ...(bootstrap.versionSelection ? { versionSelection: bootstrap.versionSelection } : {}),
     discovered: bootstrap.discoveredExtensions.map((extension) => extension.descriptor.id),
     providerSlots: event.providerSelection?.slots ?? [],
   });

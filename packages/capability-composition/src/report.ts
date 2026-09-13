@@ -1,5 +1,6 @@
 import type { Descriptor, DescriptorId } from '@lorion-org/composition-graph';
 import type {
+  DescriptorVersionSelection,
   ProviderSelectionMode,
   ProviderSlotResolution,
 } from '@lorion-org/descriptor-selection';
@@ -30,8 +31,9 @@ export type CompositionProviderSlot =
 // mounted layer or an emitted import is a host's own view; a host that reports on
 // that filters before it describes.
 export interface CompositionReport {
+  versionSelection?: readonly DescriptorVersionSelection[];
   resolvedVersions?: Readonly<Record<DescriptorId, string>>;
-  // The ids a run asked for, or null when it named none. What happens then is the
+  // The specifications a run asked for, or null when it named none. What happens then is the
   // host's business, which `selected` shows; the report does not guess it.
   requested: readonly DescriptorId[] | null;
   // What the selection resolved to, and the always-on floor it resolves against.
@@ -47,6 +49,7 @@ export interface CompositionReport {
 }
 
 export interface DescribeCompositionInput {
+  versionSelection?: readonly DescriptorVersionSelection[];
   resolvedDescriptors?: readonly Pick<Descriptor, 'id' | 'version'>[];
   requested?: readonly DescriptorId[] | null;
   selected?: readonly DescriptorId[];
@@ -69,6 +72,7 @@ export function describeComposition(input: DescribeCompositionInput): Compositio
   const resolvedIds = new Set(resolved);
 
   return {
+    ...(input.versionSelection ? { versionSelection: input.versionSelection } : {}),
     ...(input.resolvedDescriptors
       ? {
           resolvedVersions: Object.fromEntries(
@@ -253,6 +257,17 @@ export function formatCompositionReport(
     ),
     palette.id,
   );
+
+  for (const choice of report.versionSelection ?? []) {
+    lines.push(
+      `${LIST_INDENT}${palette.id(`${choice.id}@${choice.version}`)}${choice.source ? ` from ${choice.source}` : ''}`,
+    );
+    for (const requirement of choice.requirements) {
+      lines.push(
+        `${LIST_INDENT}  ${requirement.source} requires ${requirement.id}@${requirement.range}`,
+      );
+    }
+  }
 
   // What the workspace holds and this composition leaves out: the answer to "why
   // is my capability not in the app". Dimmed, because it is what is *not* there.

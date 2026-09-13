@@ -79,6 +79,206 @@ describe('resolveDescriptorSelection', () => {
 });
 
 describe('selectDescriptors', () => {
+  it('gives providers named through a directly selected grouping explicit precedence', () => {
+    type Item = { descriptor: Descriptor; grouping?: boolean };
+    const items: Item[] = [
+      { descriptor: { id: 'auth', version: '1.0.0' } },
+      { descriptor: { id: 'auth-session', version: '1.0.0', providesFor: 'auth' } },
+      { descriptor: { id: 'auth-anonymous', version: '1.0.0', providesFor: 'auth' } },
+      {
+        descriptor: {
+          id: 'application',
+          version: '1.0.0',
+          dependencies: { 'auth-session': '^1.0.0' },
+        },
+      },
+      {
+        grouping: true,
+        descriptor: {
+          id: 'anonymous-profile',
+          version: '1.0.0',
+          dependencies: { 'auth-anonymous': '^1.0.0' },
+        },
+      },
+    ];
+
+    const result = selectDescriptorsWithProviders({
+      items,
+      getDescriptor: (item) => item.descriptor,
+      withDescriptor: (item, descriptor) => ({ ...item, descriptor }),
+      getSelectionGroupMembers: (item) =>
+        item.grouping ? Object.keys(item.descriptor.dependencies ?? {}) : undefined,
+      seed: { selected: ['application', 'anonymous-profile'] },
+    });
+
+    expect(result.providerSelection.slots).toMatchObject([
+      {
+        capabilityId: 'auth',
+        selectedProviderId: 'auth-anonymous',
+        mode: 'explicit',
+      },
+    ]);
+  });
+
+  it('keeps provider members of a dependency-reached grouping at dependency precedence', () => {
+    type Item = { descriptor: Descriptor; grouping?: boolean };
+    const items: Item[] = [
+      { descriptor: { id: 'auth', version: '1.0.0' } },
+      { descriptor: { id: 'auth-session', version: '1.0.0', providesFor: 'auth' } },
+      {
+        grouping: true,
+        descriptor: {
+          id: 'session-profile',
+          version: '1.0.0',
+          dependencies: { 'auth-session': '^1.0.0' },
+        },
+      },
+      {
+        descriptor: {
+          id: 'application',
+          version: '1.0.0',
+          dependencies: { 'session-profile': '^1.0.0' },
+        },
+      },
+    ];
+
+    const result = selectDescriptorsWithProviders({
+      items,
+      getDescriptor: (item) => item.descriptor,
+      withDescriptor: (item, descriptor) => ({ ...item, descriptor }),
+      getSelectionGroupMembers: (item) =>
+        item.grouping ? Object.keys(item.descriptor.dependencies ?? {}) : undefined,
+      seed: { selected: ['application'] },
+    });
+
+    expect(result.providerSelection.slots).toMatchObject([
+      { capabilityId: 'auth', selectedProviderId: 'auth-session', mode: 'dependency' },
+    ]);
+  });
+
+  it('expands only the selected version of an explicitly named grouping', () => {
+    type Item = { descriptor: Descriptor; grouping?: boolean; source: string };
+    const items: Item[] = [
+      { descriptor: { id: 'auth', version: '1.0.0' }, source: 'auth' },
+      {
+        descriptor: { id: 'auth-anonymous', version: '1.0.0', providesFor: 'auth' },
+        source: 'anonymous',
+      },
+      {
+        descriptor: { id: 'auth-session', version: '1.0.0', providesFor: 'auth' },
+        source: 'session',
+      },
+      {
+        grouping: true,
+        descriptor: {
+          id: 'profile',
+          version: '1.0.0',
+          dependencies: { 'auth-anonymous': '^1.0.0' },
+        },
+        source: 'profile-v1',
+      },
+      {
+        grouping: true,
+        descriptor: {
+          id: 'profile',
+          version: '2.0.0',
+          dependencies: { 'auth-session': '^1.0.0' },
+        },
+        source: 'profile-v2',
+      },
+      {
+        descriptor: { id: 'application', version: '1.0.0', dependencies: { profile: '^1.0.0' } },
+        source: 'application',
+      },
+    ];
+
+    const result = selectDescriptorsWithProviders({
+      items,
+      getDescriptor: (item) => item.descriptor,
+      getSource: (item) => item.source,
+      withDescriptor: (item, descriptor) => ({ ...item, descriptor }),
+      getSelectionGroupMembers: (item) =>
+        item.grouping ? Object.keys(item.descriptor.dependencies ?? {}) : undefined,
+      seed: { selected: ['application', 'profile'] },
+    });
+
+    expect(result.items.find((item) => item.descriptor.id === 'profile')?.descriptor.version).toBe(
+      '1.0.0',
+    );
+    expect(result.providerSelection.slots).toMatchObject([
+      { capabilityId: 'auth', selectedProviderId: 'auth-anonymous', mode: 'explicit' },
+    ]);
+  });
+
+  it('expands nested grouping cycles once and preserves explicit provider precedence', () => {
+    type Item = { descriptor: Descriptor; grouping?: boolean };
+    const items: Item[] = [
+      { descriptor: { id: 'auth', version: '1.0.0' } },
+      { descriptor: { id: 'auth-anonymous', version: '1.0.0', providesFor: 'auth' } },
+      { descriptor: { id: 'auth-session', version: '1.0.0', providesFor: 'auth' } },
+      {
+        grouping: true,
+        descriptor: { id: 'outer', version: '1.0.0', dependencies: { inner: '^1.0.0' } },
+      },
+      {
+        grouping: true,
+        descriptor: {
+          id: 'inner',
+          version: '1.0.0',
+          dependencies: { outer: '^1.0.0', 'auth-anonymous': '^1.0.0' },
+        },
+      },
+      {
+        descriptor: {
+          id: 'application',
+          version: '1.0.0',
+          dependencies: { 'auth-session': '^1.0.0' },
+        },
+      },
+    ];
+
+    const result = selectDescriptorsWithProviders({
+      items,
+      getDescriptor: (item) => item.descriptor,
+      withDescriptor: (item, descriptor) => ({ ...item, descriptor }),
+      getSelectionGroupMembers: (item) =>
+        item.grouping ? Object.keys(item.descriptor.dependencies ?? {}) : undefined,
+      seed: { selected: ['application', 'outer'] },
+    });
+
+    expect(result.providerSelection.slots).toMatchObject([
+      { capabilityId: 'auth', selectedProviderId: 'auth-anonymous', mode: 'explicit' },
+    ]);
+  });
+
+  it('fails when one directly selected grouping names competing providers', () => {
+    type Item = { descriptor: Descriptor; grouping?: boolean };
+    const items: Item[] = [
+      { descriptor: { id: 'auth', version: '1.0.0' } },
+      { descriptor: { id: 'auth-session', version: '1.0.0', providesFor: 'auth' } },
+      { descriptor: { id: 'auth-anonymous', version: '1.0.0', providesFor: 'auth' } },
+      {
+        grouping: true,
+        descriptor: {
+          id: 'profile',
+          version: '1.0.0',
+          dependencies: { 'auth-session': '^1.0.0', 'auth-anonymous': '^1.0.0' },
+        },
+      },
+    ];
+
+    expect(() =>
+      selectDescriptorsWithProviders({
+        items,
+        getDescriptor: (item) => item.descriptor,
+        withDescriptor: (item, descriptor) => ({ ...item, descriptor }),
+        getSelectionGroupMembers: (item) =>
+          item.grouping ? Object.keys(item.descriptor.dependencies ?? {}) : undefined,
+        seed: { selected: ['profile'] },
+      }),
+    ).toThrow(/auth.*auth-anonymous.*auth-session/s);
+  });
+
   it('keeps an active provider slot visible and unfilled without a consumer', () => {
     const items: Descriptor[] = [
       { id: 'platform', version: '1.0.0' },

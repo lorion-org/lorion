@@ -19,7 +19,10 @@ export type CapabilityActivationEntry = {
 };
 
 // @public (undocumented)
-export function capabilityLoader(rawOptions?: CapabilityLoaderOptions): VitePlugin;
+type CapabilityId = string;
+
+// @public (undocumented)
+export function capabilityLoader(rawOptions?: CapabilityLoaderOptions | CompositionRunCapabilityLoaderOptions): VitePlugin;
 
 // @public (undocumented)
 export type CapabilityLoaderOptions = Partial<Omit<CapabilitySelectionInput, 'seed' | 'relationDescriptors'>> & CapabilitySelectionSeed & {
@@ -70,6 +73,34 @@ interface CapabilitySelectionInput {
 type CapabilitySelectionSeed = DescriptorSelectionSeed;
 
 // @public (undocumented)
+interface CompositionOrigins {
+    // (undocumented)
+    base: DescriptorId[];
+    // (undocumented)
+    groupings: DescriptorId[];
+    // (undocumented)
+    named: DescriptorId[];
+    // (undocumented)
+    pulled: DescriptorId[];
+    // (undocumented)
+    slots: CompositionOriginSlot[];
+    // (undocumented)
+    viaGroupings: DescriptorId[];
+}
+
+// @public (undocumented)
+interface CompositionOriginSlot {
+    // (undocumented)
+    alternatives: DescriptorId[];
+    // (undocumented)
+    capability: DescriptorId;
+    // (undocumented)
+    chosen: DescriptorId[];
+    // (undocumented)
+    named: boolean;
+}
+
+// @public (undocumented)
 type CompositionPolicy = {
     resolutionRelationIds: RelationId[];
     provenanceRelationIds: RelationId[];
@@ -109,6 +140,80 @@ interface CompositionReport {
     resolvedVersions?: Readonly<Record<DescriptorId, string>>;
     // (undocumented)
     selected: readonly DescriptorId[];
+    // (undocumented)
+    versionSelection?: readonly DescriptorVersionSelection[];
+}
+
+// @public (undocumented)
+interface CompositionRun {
+    // (undocumented)
+    capabilities: () => ResolvedCapability[];
+    // (undocumented)
+    compose: (input: {
+        surface: string;
+        activation: ActivationResolver;
+        register: (exportValue: unknown, capability: ResolvedCapability) => void | Promise<void>;
+        load?: (specifier: string) => Promise<Record<string, unknown>>;
+    }) => Promise<ResolvedCapability[]>;
+    // (undocumented)
+    contributionCatalog: (options?: ContributionRelationOptions) => VersionedContributionRelations;
+    // (undocumented)
+    contributions: (options?: ContributionRelationOptions) => ContributionRelations;
+    // (undocumented)
+    descriptors: () => DiscoveredCapabilityDescriptor[];
+    // (undocumented)
+    origins: () => CompositionOrigins;
+    // (undocumented)
+    providerSelection: () => ProviderSelectionResolution;
+    // (undocumented)
+    report: () => CompositionReport;
+    // (undocumented)
+    selectedPackageSources: () => PackageSource[];
+    // (undocumented)
+    surfaceEntries: (surface: string, activation: ActivationResolver) => SurfaceEntry[];
+    // (undocumented)
+    workspaceRoot: () => string;
+}
+
+// @public (undocumented)
+export type CompositionRunCapabilityLoaderOptions = {
+    run: CompositionRun;
+    activation?: ResolveCapabilityActivation;
+    surface?: {
+        name: string;
+        resolver: ActivationResolver;
+    };
+    runtimeConfig?: false | ReactRuntimeConfigOptions;
+};
+
+// @public (undocumented)
+interface ContributionEdge {
+    // (undocumented)
+    from: DescriptorId;
+    // (undocumented)
+    point: string;
+    // (undocumented)
+    to: DescriptorId;
+}
+
+// @public (undocumented)
+interface ContributionRelationOptions {
+    // (undocumented)
+    field?: string;
+    // (undocumented)
+    pointField?: string;
+}
+
+// @public (undocumented)
+interface ContributionRelations {
+    // (undocumented)
+    edges: readonly ContributionEdge[];
+    // (undocumented)
+    fills: (id: DescriptorId) => readonly ContributionEdge[];
+    // (undocumented)
+    points: (id: DescriptorId) => readonly string[];
+    // (undocumented)
+    receives: (id: DescriptorId) => readonly ContributionEdge[];
 }
 
 // @public (undocumented)
@@ -158,6 +263,28 @@ interface DescriptorSelectionSeed {
 }
 
 // @public (undocumented)
+interface DescriptorVersionRequirement {
+    // (undocumented)
+    id: DescriptorId;
+    // (undocumented)
+    range: string;
+    // (undocumented)
+    source: string;
+}
+
+// @public (undocumented)
+interface DescriptorVersionSelection {
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    requirements: readonly DescriptorVersionRequirement[];
+    // (undocumented)
+    source?: string;
+    // (undocumented)
+    version: string;
+}
+
+// @public (undocumented)
 export function discoverCapabilities(workspaceRoot: string, options?: CapabilityLoaderOptions): DiscoveredCapability[];
 
 // @public (undocumented)
@@ -175,6 +302,22 @@ export type DiscoveredCapability = {
 };
 
 // @public (undocumented)
+interface DiscoveredCapabilityDescriptor {
+    // (undocumented)
+    descriptor: Descriptor;
+    // (undocumented)
+    descriptorPath?: string;
+    // (undocumented)
+    directory: string;
+    // (undocumented)
+    packageName?: string;
+    // (undocumented)
+    selected: boolean;
+    // (undocumented)
+    virtual: boolean;
+}
+
+// @public (undocumented)
 export function discoverSelectedCapabilities(workspaceRoot: string, rawOptions?: CapabilityLoaderOptions): DiscoveredCapability[];
 
 // @public (undocumented)
@@ -190,7 +333,50 @@ export type LorionReactViteSetup = {
 };
 
 // @public (undocumented)
+interface PackageSource {
+    // (undocumented)
+    descriptorDocument?: Record<string, unknown>;
+    // (undocumented)
+    descriptorId?: string;
+    // (undocumented)
+    descriptorPath?: string;
+    // (undocumented)
+    descriptorVersion?: string;
+    // (undocumented)
+    manifest: Record<string, unknown>;
+    // (undocumented)
+    manifestPath: string;
+    // (undocumented)
+    name: string;
+    // (undocumented)
+    root: string;
+}
+
+// @public (undocumented)
+type ProviderId = string;
+
+// @public (undocumented)
+type ProviderSelection = {
+    capabilityId: CapabilityId;
+    state: 'selected';
+    required: boolean;
+    selectedProviderId: ProviderId;
+    candidateProviderIds: readonly ProviderId[];
+    overriddenProviderIds: readonly ProviderId[];
+    mode: ProviderSelectionMode;
+};
+
+// @public (undocumented)
 type ProviderSelectionMode = 'explicit' | 'dependency' | 'default';
+
+// @public (undocumented)
+type ProviderSelectionResolution = {
+    slots: readonly ProviderSlotResolution[];
+    excludedProviderIds: readonly ProviderId[];
+};
+
+// @public (undocumented)
+type ProviderSlotResolution = ProviderSelection | UnfilledProviderSlot;
 
 // @public (undocumented)
 export type ReactRuntimeConfig = {
@@ -255,6 +441,12 @@ export type ResolveCapabilityActivation = (input: {
 }) => CapabilityActivationEntry | null | undefined;
 
 // @public (undocumented)
+interface ResolvedCapability extends SurfaceCapability {
+    // (undocumented)
+    descriptor: Descriptor;
+}
+
+// @public (undocumented)
 type RuntimeConfigPathPatternSource = {
     paths: string[];
 };
@@ -299,7 +491,57 @@ interface SurfaceActivation {
 }
 
 // @public (undocumented)
+interface SurfaceCapability {
+    // (undocumented)
+    directory: string;
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    packageName: string;
+}
+
+// @public (undocumented)
+interface SurfaceEntry {
+    // (undocumented)
+    capabilityId: DescriptorId;
+    // (undocumented)
+    entryPath: string;
+    // (undocumented)
+    exportName: string;
+    // (undocumented)
+    packageName: string;
+    // (undocumented)
+    specifier: string;
+}
+
+// @public (undocumented)
+type UnfilledProviderSlot = {
+    capabilityId: CapabilityId;
+    state: 'unfilled';
+    required: false;
+    candidateProviderIds: readonly ProviderId[];
+};
+
+// @public (undocumented)
 type VersionConstraintMap = Record<DescriptorId, string>;
+
+// @public (undocumented)
+interface VersionedContributionEdge extends ContributionEdge {
+    // (undocumented)
+    fromVersion: string;
+    // (undocumented)
+    toVersion: string;
+}
+
+// @public (undocumented)
+interface VersionedContributionRelations {
+    // (undocumented)
+    edges: readonly VersionedContributionEdge[];
+    // (undocumented)
+    points: (descriptor: Pick<Descriptor, 'id' | 'version'>) => readonly string[];
+    // (undocumented)
+    project: (selected: readonly Descriptor[]) => ContributionRelations;
+}
 
 // @public (undocumented)
 export type VirtualIndexRoute = {

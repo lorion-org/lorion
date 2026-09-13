@@ -14,14 +14,15 @@ import {
   virtualDescriptorDirectory,
   type DiscoveredDescriptor,
 } from '@lorion-org/descriptor-discovery';
+import type { DescriptorSelectionResult } from '@lorion-org/descriptor-selection';
 import type {
   CapabilitySelectionInput,
   CapabilitySelectionSeed,
+  CompositionRun,
   CompositionReport,
 } from '@lorion-org/capability-composition';
 import { describeComposition } from '@lorion-org/capability-composition';
 import {
-  resolveDescriptorSelection,
   selectDescriptorsWithProviders,
   type ProviderSelectionResolution,
 } from '@lorion-org/descriptor-selection';
@@ -96,6 +97,15 @@ export type CapabilityLoaderOptions = Partial<
     relationDescriptors?: readonly RelationDescriptor[];
     runtimeConfig?: false | ReactRuntimeConfigOptions;
   };
+
+export type CompositionRunCapabilityLoaderOptions = {
+  // The already sealed workspace run. The loader reads its capabilities, provider
+  // outcome and package sources and performs no discovery or selection of its own.
+  run: CompositionRun;
+  activation?: ResolveCapabilityActivation;
+  surface?: { name: string; resolver: ActivationResolver };
+  runtimeConfig?: false | ReactRuntimeConfigOptions;
+};
 
 export type ReactRuntimeConfigEnvOptions = {
   env?: Record<string, string | undefined>;
@@ -208,10 +218,14 @@ function resolveBundleOptions(options: CapabilityLoaderOptions): CapabilityLoade
   return resolved;
 }
 
-export function capabilityLoader(rawOptions: CapabilityLoaderOptions = {}): VitePlugin {
+export function capabilityLoader(
+  rawOptions: CapabilityLoaderOptions | CompositionRunCapabilityLoaderOptions = {},
+): VitePlugin {
+  if ('run' in rawOptions) return capabilityLoaderFromRun(rawOptions);
   const options = resolveBundleOptions(rawOptions);
   let config: ViteResolvedConfig;
   let capabilities: DiscoveredCapability[] = [];
+  let selected: readonly DescriptorId[] = [];
   let providerSelection: ProviderSelectionResolution = { slots: [], excludedProviderIds: [] };
   let runtimeConfig: ReactRuntimeConfig = { private: {}, public: {} };
 
@@ -225,6 +239,7 @@ export function capabilityLoader(rawOptions: CapabilityLoaderOptions = {}): Vite
         options,
       );
       capabilities = selection.items;
+      selected = selection.seed.selected;
       providerSelection = selection.providerSelection;
       runtimeConfig = createReactRuntimeConfig(
         capabilities,
@@ -253,7 +268,80 @@ export function capabilityLoader(rawOptions: CapabilityLoaderOptions = {}): Vite
       }
       if (id !== resolvedVirtualModuleId) return null;
 
-      return renderCapabilityModule(capabilities, resolveSelectionSeed(options), providerSelection);
+      return renderCapabilityModule(capabilities, selected, providerSelection);
+    },
+  };
+}
+
+function capabilityLoaderFromRun(options: CompositionRunCapabilityLoaderOptions): VitePlugin {
+  const { run } = options;
+  const resolveActivation = toResolveActivation(options);
+  const sourcesByName = new Map(
+    run.selectedPackageSources().map((source) => [source.name, source]),
+  );
+  const capabilities = run.capabilities().map((capability): DiscoveredCapability => {
+    if (!capability.packageName)
+      return toVirtualCapability(run.workspaceRoot(), capability.descriptor);
+    const source = sourcesByName.get(capability.packageName);
+    if (!source) {
+      throw new Error(
+        `Selected package "${capability.packageName}" is missing from the composition run's package sources.`,
+      );
+    }
+    const activationEntry = resolveActivationEntry(
+      capability.directory,
+      source.manifest,
+      capability.packageName,
+      capability.descriptor,
+      resolveActivation,
+    );
+    return {
+      capabilityDir: capability.directory,
+      disabled: capability.descriptor.disabled === true,
+      id: capability.id,
+      manifest: capability.descriptor,
+      packageName: capability.packageName,
+      ...(activationEntry
+        ? {
+            exportName: activationEntry.exportName,
+            importSpecifier: activationEntry.importSpecifier,
+            ...(activationEntry.entryFile ? { entryFile: activationEntry.entryFile } : {}),
+          }
+        : {}),
+      variableName: toVariableName(capability.id),
+    };
+  });
+  let runtimeConfig: ReactRuntimeConfig = { private: {}, public: {} };
+
+  return {
+    name: 'lorion-react-capability-loader',
+    enforce: 'pre',
+    configResolved(config) {
+      runtimeConfig = createReactRuntimeConfig(
+        capabilities,
+        run.workspaceRoot(),
+        options.runtimeConfig,
+        config,
+      );
+    },
+    resolveId(id) {
+      if (id === virtualModuleId) return resolvedVirtualModuleId;
+      if (id === runtimeConfigModuleId) return resolvedRuntimeConfigModuleId;
+      if (id === serverRuntimeConfigModuleId) return resolvedServerRuntimeConfigModuleId;
+      return capabilities.find((capability) => capability.importSpecifier === id)?.entryFile;
+    },
+    load(id, loadOptions) {
+      if (id === resolvedRuntimeConfigModuleId) return renderRuntimeConfigModule(runtimeConfig);
+      if (id === resolvedServerRuntimeConfigModuleId) {
+        if (!loadOptions?.ssr) {
+          throw new Error(
+            'virtual:capability-runtime-config/server may only be imported from SSR/server code.',
+          );
+        }
+        return renderServerRuntimeConfigModule(runtimeConfig);
+      }
+      if (id !== resolvedVirtualModuleId) return null;
+      return renderCapabilityModule(capabilities, run.report().selected, run.providerSelection());
     },
   };
 }
@@ -365,21 +453,13 @@ export function describeCapabilityComposition(
   const options = resolveBundleOptions(rawOptions);
   // Groupings included: a count that leaves them out claims the workspace holds
   // fewer descriptors than the selection can reach.
-  const { discovered, items, providerSelection } = resolveDiscoveredCapabilitySelection(
-    workspaceRoot,
-    options,
-  );
-  // What the run asked for, resolved without the default so the two stay apart: a
-  // report that calls the default an explicit request cannot be checked against it.
-  const requested = resolveDescriptorSelection({
-    ...(options.selected ? { selected: options.selected } : {}),
-    ...(options.selectionSeed === undefined ? {} : { selectionSeed: options.selectionSeed }),
-  });
-
+  const { discovered, items, providerSelection, seed, versions } =
+    resolveDiscoveredCapabilitySelection(workspaceRoot, options);
   return describeComposition({
-    requested: requested.length ? requested : null,
-    selected: resolveSelectionSeed(options),
-    ...(options.baseDescriptors ? { base: options.baseDescriptors } : {}),
+    requested: seed.requested,
+    selected: seed.selected,
+    base: seed.baseDescriptors,
+    versionSelection: versions,
     resolved: items.map((capability) => capability.id),
     resolvedDescriptors: items.map((capability) => capability.manifest),
     discovered: discovered.map((capability) => capability.id),
@@ -427,11 +507,7 @@ function toVirtualCapabilities(
 function resolveDiscoveredCapabilitySelection(
   workspaceRoot: string,
   options: CapabilityLoaderOptions = {},
-): {
-  discovered: DiscoveredCapability[];
-  items: DiscoveredCapability[];
-  providerSelection: ProviderSelectionResolution;
-} {
+): DescriptorSelectionResult<DiscoveredCapability> & { discovered: DiscoveredCapability[] } {
   const discovered = [
     ...discoverCapabilities(workspaceRoot, options),
     ...toVirtualCapabilities(workspaceRoot, options),
@@ -441,18 +517,14 @@ function resolveDiscoveredCapabilitySelection(
     getDescriptor: (capability) => capability.manifest,
     getSource: (capability) => capability.capabilityDir,
     withDescriptor: (capability, manifest) => ({ ...capability, manifest }),
+    getSelectionGroupMembers: (capability) =>
+      capability.packageName ? undefined : Object.keys(capability.manifest.dependencies ?? {}),
     seed: options,
     ...(options.relationDescriptors ? { relationDescriptors: options.relationDescriptors } : {}),
     ...(options.policy ? { policy: options.policy } : {}),
   });
 
   return { discovered, ...selection };
-}
-
-function resolveSelectionSeed(
-  options: Pick<CapabilityLoaderOptions, 'defaultSelection' | 'selected' | 'selectionSeed'>,
-): DescriptorId[] {
-  return resolveDescriptorSelection(options);
 }
 
 export function createCapabilityRouteConfig(

@@ -151,6 +151,20 @@ describe('LORION Nuxt module', () => {
     expect(formatNuxtExtensionBootstrapLog({ bootstrap })).toContain('Requested shop');
   });
 
+  it('logs the captured CLI version request with its source', () => {
+    const bootstrap = createNuxtExtensionBootstrap({
+      rootDir: join(__dirname, '../fixtures/extensions'),
+      options: { selectionSeed: { argv: ['--capabilities=shop@1'], env: {} } },
+    });
+    const log = formatNuxtExtensionBootstrapLog({ bootstrap });
+    expect(log).toContain('Requested shop@1');
+    expect(log).toContain('Selected  shop');
+    expect(log).toContain('seed.selectionSeed requires shop@1');
+    expect(log).toContain(
+      `shop@1.0.0 from ${join(__dirname, '../fixtures/extensions/extensions/shop')}`,
+    );
+  });
+
   it('formats the native bootstrap log output', () => {
     const bootstrap = createNuxtExtensionBootstrap({
       rootDir: join(__dirname, '../fixtures/extensions'),
@@ -194,7 +208,11 @@ describe('LORION Nuxt module', () => {
         '  shipping  stripe (not in this composition)',
         '',
         '  Resolved 2/5 descriptors',
-        '    default, shop',
+        '    default@1.0.0, shop@1.0.0',
+        `    default@1.0.0 from ${join(__dirname, '../fixtures/extensions/__lorion_virtual__/default')}`,
+        '      seed.defaultSelection requires default@*',
+        `    shop@1.0.0 from ${join(__dirname, '../fixtures/extensions/extensions/shop')}`,
+        '      default@1.0.0 requires shop@^1.0.0',
         '',
         '  Not resolved 3 descriptors',
         '    admin, admin-profile, bundles',

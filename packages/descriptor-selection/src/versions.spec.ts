@@ -627,3 +627,72 @@ it('rejects a missing dependency even when otherwise compatible version choices 
   expect((failure as Error).message).toContain('requires missing@1.0.0');
   expect((failure as Error).message).toContain('Available: none');
 });
+
+describe('grouping version and provider invariants', () => {
+  const providers: Descriptor[] = [
+    descriptor('auth'),
+    { ...descriptor('a'), providesFor: 'auth' },
+    { ...descriptor('b'), providesFor: 'auth' },
+    descriptor('app', '1.0.0', { a: '*' }),
+  ];
+  it('backtracks when a candidate changes grouping role but retains the same dependency edges', () => {
+    const items = [
+      ...providers.map((value) => ({ descriptor: value, virtual: false })),
+      { descriptor: descriptor('profile', '1.0.0', { b: '*' }), virtual: true },
+      { descriptor: descriptor('profile', '2.0.0', { b: '*' }), virtual: false },
+    ];
+    for (const order of [items, [...items].reverse()]) {
+      const result = selectDescriptorsWithProviders({
+        items: order,
+        getDescriptor: (item) => item.descriptor,
+        withDescriptor: (item, descriptor) => ({ ...item, descriptor }),
+        getSelectionGroupMembers: (item) =>
+          item.virtual ? Object.keys(item.descriptor.dependencies ?? {}) : undefined,
+        seed: { selected: ['app', 'profile'], selectionSeed: false },
+      });
+      expect(
+        result.items.find((item) => item.descriptor.id === 'profile')?.descriptor.version,
+      ).toBe('1.0.0');
+      expect(result.providerSelection.slots[0]).toMatchObject({
+        selectedProviderId: 'b',
+        mode: 'explicit',
+      });
+    }
+  });
+  it.each([{ members: [] }, { members: ['feature'] }])(
+    'retains ordinary provider dependencies outside group members $members',
+    ({ members }) => {
+      const items = [
+        ...providers.slice(0, 3),
+        descriptor('feature'),
+        descriptor('profile', '1.0.0', { a: '*', feature: '*' }),
+      ];
+      const result = selectDescriptorsWithProviders({
+        items,
+        getDescriptor: (x) => x,
+        withDescriptor: (_, x) => x,
+        getSelectionGroupMembers: (item) => (item.id === 'profile' ? members : undefined),
+        seed: { selected: ['profile'], selectionSeed: false },
+      });
+      expect(result.providerSelection.slots[0]).toMatchObject({
+        selectedProviderId: 'a',
+        mode: 'dependency',
+      });
+    },
+  );
+  it('includes custom membership edges in activation and version backtracking', () => {
+    const items = [
+      descriptor('profile'),
+      descriptor('feature', '1.0.0'),
+      descriptor('feature', '2.0.0', { missing: '*' }),
+    ];
+    const result = selectDescriptorsWithProviders({
+      items,
+      getDescriptor: (x) => x,
+      withDescriptor: (_, x) => x,
+      getSelectionGroupMembers: (item) => (item.id === 'profile' ? ['feature'] : undefined),
+      seed: { selected: ['profile'], selectionSeed: false },
+    });
+    expect(identities(result.items)).toEqual(['feature@1.0.0', 'profile@1.0.0']);
+  });
+});

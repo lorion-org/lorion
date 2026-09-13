@@ -303,6 +303,9 @@ export function getTransitiveTargets(input: {
 export function parseDescriptorIds(input?: unknown): DescriptorId[];
 
 // @public (undocumented)
+export function readDescriptorSelectionSeed(input?: DescriptorSelectionSeedInput): string | string[] | undefined;
+
+// @public (undocumented)
 export function readRelationTargets(descriptor: Descriptor, relationDescriptor: RelationDescriptor): DescriptorId[];
 
 // @public (undocumented)
@@ -334,7 +337,28 @@ export function resolveContributions(descriptors: readonly Descriptor[], options
 export function resolveDescriptorSelectionSeed(input?: DescriptorSelectionSeedInput): DescriptorId[];
 
 // @public (undocumented)
+export function resolveVersionedContributions(descriptors: readonly Descriptor[], options?: ContributionRelationOptions): VersionedContributionRelations;
+
+// @public (undocumented)
 export type VersionConstraintMap = Record<DescriptorId, string>;
+
+// @public (undocumented)
+export interface VersionedContributionEdge extends ContributionEdge {
+    // (undocumented)
+    fromVersion: string;
+    // (undocumented)
+    toVersion: string;
+}
+
+// @public (undocumented)
+export interface VersionedContributionRelations {
+    // (undocumented)
+    edges: readonly VersionedContributionEdge[];
+    // (undocumented)
+    points: (descriptor: Pick<Descriptor, 'id' | 'version'>) => readonly string[];
+    // (undocumented)
+    project: (selected: readonly Descriptor[]) => ContributionRelations;
+}
 
 // (No @packageDocumentation comment for this package)
 

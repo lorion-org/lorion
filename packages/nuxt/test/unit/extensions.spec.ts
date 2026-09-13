@@ -84,6 +84,29 @@ describe('Nuxt extension bootstrap', () => {
     });
   });
 
+  it.each([
+    { selected: ['coffee@1'], selectionSeed: false as const },
+    { selectionSeed: { argv: ['--capabilities=coffee@>=1 <2'], env: {} } },
+    { selectionSeed: { argv: [], env: { LORION_CAPABILITIES: 'coffee@~1.0.0' } } },
+    { defaultSelection: ['coffee@1'], selectionSeed: false as const },
+    { baseDescriptors: ['coffee@1'], defaultSelection: [], selectionSeed: false as const },
+  ])('preserves seed version constraints through the Nuxt bootstrap: %j', (options) => {
+    const root = createTempRoot();
+    for (const [folder, version] of [
+      ['coffee-old', '1.0.0'],
+      ['coffee-new', '2.0.0'],
+    ]) {
+      createExtension(root, folder!, { id: 'coffee', version }, ['app']);
+      writeFileSync(join(root, 'extensions', folder!, 'nuxt.config.ts'), 'export default {};');
+    }
+    const result = createNuxtExtensionBootstrap({ rootDir: root, options });
+    expect(result.resolvedExtensions.map((entry) => entry.descriptor.version)).toEqual(['1.0.0']);
+    expect(result.versionSelection).toMatchObject([
+      { id: 'coffee', version: '1.0.0', source: join(root, 'extensions/coffee-old') },
+    ]);
+    expect(createNuxtExtensionLayerPaths(result)).toEqual([join(root, 'extensions/coffee-old')]);
+  });
+
   it('uses configured selection before default selection', () => {
     expect(
       resolveExtensionSelection({
@@ -478,7 +501,7 @@ describe('Nuxt extension bootstrap', () => {
               state: 'selected',
               required: true,
               candidateProviderIds: ['payment-provider-invoice', 'payment-provider-stripe'],
-              mode: 'dependency',
+              mode: 'explicit',
               overriddenProviderIds: [],
               selectedProviderId: 'payment-provider-stripe',
             },
