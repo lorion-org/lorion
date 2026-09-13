@@ -187,19 +187,36 @@ describe('createCompositionRun', () => {
     ]);
   });
 
-  it('names a resolved package the given package set does not carry', () => {
+  it('rejects a missing selected package when the run is created', () => {
     const input = runInput(['storefront']);
-    const run = createCompositionRun({
-      ...input,
-      packageSources: (input.packageSources ?? []).filter(
-        (source) => source.name !== '@acme/checkout',
-      ),
-    });
-
-    expect(() => run.selectedPackageSources()).toThrow(
-      /Selected package "@acme\/checkout" is missing from the package sources/,
-    );
+    expect(() =>
+      createCompositionRun({
+        ...input,
+        packageSources: (input.packageSources ?? []).filter(
+          (source) => source.name !== '@acme/checkout',
+        ),
+      }),
+    ).toThrow(/Selected package "@acme\/checkout" is missing from the package sources/);
   });
+
+  it.each(['directory', 'version', 'id'] as const)(
+    'rejects a selected source with a different %s even without a matching descriptor path',
+    (difference) => {
+      const input = runInput(['storefront']);
+      const packageSources = input.packageSources!.map((source) =>
+        source.name === '@acme/checkout'
+          ? {
+              ...source,
+              descriptorPath: join(root, 'other/capability.json'),
+              ...(difference === 'directory' ? { root: join(root, 'other') } : {}),
+              ...(difference === 'version' ? { descriptorVersion: '2.0.0' } : {}),
+              ...(difference === 'id' ? { descriptorId: 'other' } : {}),
+            }
+          : source,
+      );
+      expect(() => createCompositionRun({ ...input, packageSources })).toThrow(/does not match/);
+    },
+  );
 
   it('states what a run without package sources cannot answer', () => {
     const { packageSources, ...withoutSources } = runInput(['storefront']);
@@ -809,11 +826,20 @@ it('selects the versioned source consistently for capabilities, surfaces, import
     join(root, 'prototypes/shop-coffee/src/web.ts'),
     "export const shopCoffeeWebPlugin = { id: 'legacy-coffee' };\n",
   );
-  const load = createPackageSourceLoad(snapshot.packageSources);
+  expect(run.selectedPackageSources().map((source) => source.name)).toEqual([
+    '@prototype/shop-coffee',
+  ]);
   expect(entries[0]!.entryPath).toBe(join(root, 'prototypes/shop-coffee/src/web.ts'));
-  await expect(load(entries[0]!.specifier)).resolves.toMatchObject({
-    shopCoffeeWebPlugin: { id: 'legacy-coffee' },
+  const registered: unknown[] = [];
+  await run.compose({
+    surface: 'web',
+    activation,
+    register: (value, capability) => {
+      registered.push(value);
+      expect(capability.descriptor.version).toBe('0.9.0');
+    },
   });
+  expect(registered).toEqual([{ id: 'legacy-coffee' }]);
 });
 
 it('reports the resolved physical source when a losing version is virtual', () => {

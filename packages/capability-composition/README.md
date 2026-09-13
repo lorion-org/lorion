@@ -162,8 +162,10 @@ that mutate them also mutate the values they hold.
 
 `createCompositionRun({ workspaceRoot, descriptorPaths, packageSources?, seed })`
 is the lower-level entry for an already prepared input. It also seals immediately.
-When package sources are supplied, a selected descriptor whose id, version or
-directory disagrees with its source fails before source projection. Without
+When package sources are supplied, creation validates that every selected physical
+descriptor has a source with matching id, version and directory. A missing or
+inconsistent source aborts creation. Selected source projection, surface entries
+and the default loader all use that validated selection. Without
 `packageSources` a run still resolves and reports; entry points that address
 packages say what they are missing.
 
