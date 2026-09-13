@@ -214,6 +214,7 @@ function createProviderCapabilitiesById(
 function createDependencyProviderRequests(input: {
   descriptors: readonly Descriptor[];
   explicitGroupingMembers: ReadonlyMap<DescriptorId, ReadonlySet<DescriptorId>>;
+  groupMembers: (id: DescriptorId) => readonly DescriptorId[];
   providerCapabilitiesById: ReadonlyMap<DescriptorId, DescriptorId[]>;
   resolvedIds: ReadonlySet<DescriptorId>;
 }): ProviderSelectionRequest[] {
@@ -221,7 +222,10 @@ function createDependencyProviderRequests(input: {
 
   for (const descriptor of input.descriptors) {
     if (!input.resolvedIds.has(descriptor.id)) continue;
-    for (const dependencyId of Object.keys(descriptor.dependencies ?? {})) {
+    for (const dependencyId of new Set([
+      ...Object.keys(descriptor.dependencies ?? {}),
+      ...input.groupMembers(descriptor.id),
+    ])) {
       if (input.explicitGroupingMembers.get(descriptor.id)?.has(dependencyId)) continue;
       for (const capabilityId of input.providerCapabilitiesById.get(dependencyId) ?? []) {
         requests.push({ capabilityId, providerId: dependencyId, sourceId: descriptor.id });
@@ -440,6 +444,15 @@ function selectSingleVersionDescriptors<T>(
   const providerIds = new Set(providerCapabilitiesById.keys());
   const descriptorsById = new Map(descriptors.map((descriptor) => [descriptor.id, descriptor]));
   const itemsByDescriptorId = new Map(enabled.map((item) => [getDescriptor(item).id, item]));
+  const membership = new Map<DescriptorId, readonly DescriptorId[]>();
+  const groupMembers = (id: DescriptorId): readonly DescriptorId[] => {
+    const cached = membership.get(id);
+    if (cached) return cached;
+    const item = itemsByDescriptorId.get(id);
+    const members = item === undefined ? [] : [...(input.getSelectionGroupMembers?.(item) ?? [])];
+    membership.set(id, members);
+    return members;
+  };
   const explicitlySelectedIds = new Set(seedRoots);
   const explicitGroupingMembers = new Map<DescriptorId, ReadonlySet<DescriptorId>>();
   if (input.getSelectionGroupMembers) {
@@ -449,12 +462,9 @@ function selectSingleVersionDescriptors<T>(
       const groupId = pending.shift()!;
       if (visitedGroups.has(groupId)) continue;
       visitedGroups.add(groupId);
-      const group = itemsByDescriptorId.get(groupId);
-      if (!group) continue;
-      const members = input.getSelectionGroupMembers(group);
-      if (!members) continue;
-      explicitGroupingMembers.set(groupId, new Set(members));
+      const members = groupMembers(groupId);
       assertKnownDescriptorIds(descriptorsById, [...members], `members of grouping "${groupId}"`);
+      explicitGroupingMembers.set(groupId, new Set(members));
       for (const memberId of members) {
         explicitlySelectedIds.add(memberId);
         pending.push(memberId);
@@ -500,6 +510,40 @@ function selectSingleVersionDescriptors<T>(
     descriptors: strippedItems.map(getDescriptor),
     relationDescriptors,
   });
+  // Membership activates logical ids without inventing dependency version ranges.
+  // Rebuild each closure from its roots so an overridden provider leaves no members behind.
+  const resolveWithMembers = (
+    catalog: DescriptorCatalog,
+    roots: readonly DescriptorId[],
+    includeProvider: (id: DescriptorId) => boolean,
+    validateMembers = false,
+  ) => {
+    const selectedIds = new Set(roots);
+    for (;;) {
+      const selection = createCompositionSelection({
+        catalog,
+        selected: [...selectedIds],
+        baseDescriptors: [...baseDescriptors],
+        policy,
+      });
+      const resolved = new Set(selection.getResolved());
+      let added = false;
+      for (const id of resolved) {
+        const members = groupMembers(id);
+        if (validateMembers) {
+          assertKnownDescriptorIds(descriptorsById, [...members], `members of grouping "${id}"`);
+        }
+        for (const member of members) {
+          if (!descriptorsById.has(member)) continue;
+          if (providerIds.has(member) && !includeProvider(member)) continue;
+          if (resolved.has(member) || selectedIds.has(member)) continue;
+          selectedIds.add(member);
+          added = true;
+        }
+      }
+      if (!added) return selection;
+    }
+  };
   const providerRoots = new Set(explicitRequests.map((request) => request.providerId));
   let providerSelection: ProviderSelectionResolution = {
     slots: [],
@@ -508,16 +552,16 @@ function selectSingleVersionDescriptors<T>(
   let iterativeResolvedIds = new Set<DescriptorId>();
 
   for (let iteration = 0; iteration <= descriptors.length + 1; iteration += 1) {
-    const closure = createCompositionSelection({
-      catalog: strippedCatalog,
-      selected: [...explicitlySelectedIds, ...implicitSelected, ...providerRoots],
-      baseDescriptors: [...baseDescriptors],
-      policy,
-    });
+    const closure = resolveWithMembers(
+      strippedCatalog,
+      [...explicitlySelectedIds, ...implicitSelected, ...providerRoots],
+      () => false,
+    );
     const nextResolvedIds = new Set(closure.getResolved());
     const dependencyRequests = createDependencyProviderRequests({
       descriptors,
       explicitGroupingMembers,
+      groupMembers,
       providerCapabilitiesById,
       resolvedIds: nextResolvedIds,
     });
@@ -567,12 +611,12 @@ function selectSingleVersionDescriptors<T>(
     descriptors: selectionItems.map(getDescriptor),
     relationDescriptors,
   });
-  const selection = createCompositionSelection({
+  const selection = resolveWithMembers(
     catalog,
-    selected: [...explicitlySelectedIds, ...implicitSelected],
-    baseDescriptors: [...baseDescriptors],
-    policy,
-  });
+    [...explicitlySelectedIds, ...implicitSelected],
+    (id) => providerRoots.has(id),
+    true,
+  );
   // Ordered by id, which is what `getResolved` returns. It is stable for a given
   // input and independent of discovery order, so two hosts reading the same
   // workspace agree; it is NOT dependency order, and a host that needs its

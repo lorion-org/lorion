@@ -79,6 +79,127 @@ describe('resolveDescriptorSelection', () => {
 });
 
 describe('selectDescriptors', () => {
+  describe('callback-only grouping membership', () => {
+    const items: Descriptor[] = [
+      { id: 'app', version: '1.0.0', dependencies: { group: '*' } },
+      { id: 'group', version: '1.0.0' },
+      { id: 'nested', version: '1.0.0' },
+      { id: 'feature', version: '1.0.0' },
+      { id: 'auth', version: '1.0.0' },
+      { id: 'session', version: '1.0.0', providesFor: 'auth' },
+      { id: 'oidc', version: '1.0.0', providesFor: 'auth' },
+      { id: 'losing-member', version: '1.0.0' },
+      { id: 'inactive', version: '1.0.0' },
+    ];
+    const selectGroups = (groups: Record<string, string[]>, selected = ['app']) =>
+      selectDescriptorsWithProviders({
+        items,
+        getDescriptor: (item) => item,
+        withDescriptor: (_, item) => item,
+        getSelectionGroupMembers: (item) => groups[item.id],
+        seed: { selected, selectionSeed: false },
+      });
+
+    it('activates nested indirect members, terminates cycles and ignores inactive groups', () => {
+      const result = selectGroups({
+        group: ['nested'],
+        nested: ['group', 'feature'],
+        inactive: ['missing'],
+      });
+      expect(result.items.map((item) => item.id)).toEqual(['app', 'feature', 'group', 'nested']);
+    });
+
+    it('does not request providers from inactive callback-only groups', () => {
+      const result = selectGroups({ group: ['feature'], inactive: ['session'] });
+      expect(result.items.map((item) => item.id)).toEqual(['app', 'feature', 'group']);
+      expect(result.providerSelection.slots).toEqual([]);
+    });
+
+    it.each([
+      { selected: ['app'], mode: 'dependency' },
+      { selected: ['group'], mode: 'explicit' },
+    ])('gives provider membership $mode precedence', ({ selected, mode }) => {
+      const result = selectGroups({ group: ['session'] }, selected);
+      expect(result.items.map((item) => item.id)).toContain('session');
+      expect(result.providerSelection.slots).toMatchObject([
+        { capabilityId: 'auth', selectedProviderId: 'session', mode },
+      ]);
+    });
+
+    it('lets explicit providers override indirect members without activating their descendants', () => {
+      const result = selectGroups({ group: ['session'], session: ['losing-member'] }, [
+        'app',
+        'oidc',
+      ]);
+      expect(result.items.map((item) => item.id)).toEqual(['app', 'group', 'oidc']);
+      expect(result.providerSelection.slots).toMatchObject([
+        { selectedProviderId: 'oidc', mode: 'explicit' },
+      ]);
+    });
+
+    it('rejects conflicting indirect provider members', () => {
+      expect(() => selectGroups({ group: ['session', 'nested'], nested: ['oidc'] })).toThrow(
+        /provider/i,
+      );
+    });
+
+    it.each([['app'], ['group']])(
+      'keeps callback-only capability membership optional for %s',
+      (selected) => {
+        const result = selectGroups({ group: ['auth'] }, [selected]);
+        expect(result.items.map((item) => item.id)).toContain('auth');
+        expect(result.providerSelection.slots).toMatchObject([
+          { capabilityId: 'auth', state: 'unfilled', required: false },
+        ]);
+      },
+    );
+
+    it.each(['ghost', 'missing'])(
+      'drops transient default-provider membership %s after an indirect override',
+      (member) => {
+        const result = selectDescriptorsWithProviders<Descriptor>({
+          items: [
+            { id: 'app', version: '1.0.0', dependencies: { auth: '*', transport: '*' } },
+            { id: 'auth', version: '1.0.0' },
+            { id: 'transport', version: '1.0.0' },
+            { id: 'session', version: '1.0.0', providesFor: 'auth', defaultFor: 'auth' },
+            { id: 'oidc', version: '1.0.0', providesFor: 'auth' },
+            {
+              id: 'http',
+              version: '1.0.0',
+              providesFor: 'transport',
+              defaultFor: 'transport',
+              dependencies: { group: '*' },
+            },
+            { id: 'group', version: '1.0.0' },
+            { id: 'ghost', version: '1.0.0' },
+          ],
+          getDescriptor: (item) => item,
+          withDescriptor: (_, item) => item,
+          getSelectionGroupMembers: (item) =>
+            item.id === 'group' ? ['oidc'] : item.id === 'session' ? [member] : undefined,
+          seed: { selected: ['app'], selectionSeed: false },
+        });
+        expect(result.items.map((item) => item.id)).toEqual([
+          'app',
+          'auth',
+          'group',
+          'http',
+          'oidc',
+          'transport',
+        ]);
+        expect(result.providerSelection.slots).toMatchObject([
+          { capabilityId: 'auth', selectedProviderId: 'oidc', mode: 'dependency' },
+          { capabilityId: 'transport', selectedProviderId: 'http', mode: 'default' },
+        ]);
+      },
+    );
+
+    it('rejects an unknown member when its indirect grouping participates', () => {
+      expect(() => selectGroups({ group: ['missing'] })).toThrow(/missing/);
+    });
+  });
+
   it('gives providers named through a directly selected grouping explicit precedence', () => {
     type Item = { descriptor: Descriptor; grouping?: boolean };
     const items: Item[] = [
