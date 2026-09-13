@@ -47,7 +47,9 @@ const { workspaceRoot, packageSources, descriptorPaths } = resolvePackageSources
 - The workspace root is the nearest directory at or above `from` whose manifest
   declares workspace patterns, in either spelling (`workspaces` as a list, or as an
   object carrying `packages`). `root` names it directly, `patterns` replaces the
-  declared patterns.
+  declared patterns. Package-directory matching uses `tinyglobby`, including `**`,
+  braces and `!` exclusions evaluated together. `node_modules` is excluded.
+  The same matched directories govern package and orphan-descriptor discovery.
 - `descriptorPaths` is relative to the workspace root and can go straight into
   `discoverDescriptors({ cwd, descriptorPaths })`. Each descriptor-bearing
   `PackageSource` also retains the exact `descriptorDocument` read by the snapshot;
@@ -57,8 +59,9 @@ const { workspaceRoot, packageSources, descriptorPaths } = resolvePackageSources
   product does when it composes its own packages with those of a core it consumes.
   The asking workspace wins a package-name collision, because it is the one being
   asked; two packages claiming the same descriptor id and version abort with both paths.
-- A pattern whose literal prefix leaves its root names another checkout, and a
-  missing one aborts here rather than as a composition that is quietly incomplete.
+- A positive pattern whose literal prefix leaves its root names another checkout.
+  That prefix must exist; for a literal directory pattern, the entire directory
+  must exist. Exclusions do not require their targets to exist.
 - `cache` is a map a host passes to read one snapshot per root within a run. Without
   it every call reads the workspace again.
 

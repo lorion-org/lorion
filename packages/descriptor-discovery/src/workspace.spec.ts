@@ -79,6 +79,79 @@ describe('resolvePackageSources', () => {
     ]);
   });
 
+  it('applies recursive patterns and exclusions to manifests and orphan descriptors alike', () => {
+    writePackage(
+      'packages/nested/deep/feature',
+      { name: '@acme/feature' },
+      { id: 'feature', version: '1.0.0' },
+    );
+    writePackage(
+      'packages/excluded/feature',
+      { name: '@acme/excluded' },
+      { id: 'excluded', version: '1.0.0' },
+    );
+    write('packages/excluded/orphan/capability.json', { id: 'orphan', version: '1.0.0' });
+    writePackage('packages/nested/node_modules/foreign', { name: '@acme/foreign' });
+    const snapshot = resolvePackageSources({
+      root,
+      patterns: ['packages/**', '!packages/excluded/**'],
+    });
+    expect(snapshot.packageSources.map((source) => source.name)).toEqual(['@acme/feature']);
+    expect(snapshot.descriptorPaths).toEqual([
+      join('packages', 'nested', 'deep', 'feature', 'capability.json'),
+    ]);
+  });
+
+  it('supports braces, overlapping patterns and literal package directories', () => {
+    writeShopWorkspace();
+    expect(
+      resolvePackageSources({
+        root,
+        patterns: ['packages/{checkout,payments}', 'packages/checkout'],
+      }).packageSources.map((source) => source.name),
+    ).toEqual(['@acme/checkout', '@acme/payments']);
+  });
+
+  it.each([['packages/checkout'], ['packages/{checkout,payments}']])(
+    'keeps literal directory matches shallow for %s',
+    (pattern) => {
+      writeShopWorkspace();
+      writePackage('packages/checkout/fixtures/example', { name: '@acme/fixture' });
+      write('packages/checkout/fixtures/orphan/capability.json', {
+        id: 'orphan',
+        version: '1.0.0',
+      });
+      const sources = resolvePackageSources({ root, patterns: [pattern] }).packageSources;
+      expect(sources.map((source) => source.name)).toEqual(
+        pattern.includes('{') ? ['@acme/checkout', '@acme/payments'] : ['@acme/checkout'],
+      );
+    },
+  );
+
+  it('still rejects an included orphan below a recursive pattern', () => {
+    write('packages/nested/deep/orphan/capability.json', { id: 'orphan', version: '1.0.0' });
+    expect(() => resolvePackageSources({ root, patterns: ['packages/**'] })).toThrow(
+      /no "package.json" beside this descriptor/,
+    );
+  });
+
+  it.each(['', '/*', '/**', '/{one,two}'])(
+    'rejects a missing external checkout with suffix %s',
+    (suffix) => {
+      const missing = `${root}-missing`;
+      expect(() => resolvePackageSources({ root, patterns: [`${missing}${suffix}`] })).toThrow(
+        /names the checkout .*which does not exist/,
+      );
+    },
+  );
+
+  it('allows exclusions of absent external directories', () => {
+    writeShopWorkspace();
+    expect(
+      resolvePackageSources({ root, patterns: ['packages/*', `!${root}-missing`] }).packageSources,
+    ).toHaveLength(3);
+  });
+
   it('reads the object form of the workspaces field', () => {
     writeShopWorkspace();
     write('package.json', {
