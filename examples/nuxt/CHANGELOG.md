@@ -1,5 +1,25 @@
 # @lorion-examples/nuxt
 
+## 0.0.1-beta.5
+
+### Patch Changes
+
+- Updated dependencies [e59fc86]
+- Updated dependencies [9f66d1a]
+- Updated dependencies [b8c954e]
+- Updated dependencies [5788936]
+- Updated dependencies [c25cc9f]
+- Updated dependencies [b35ebc9]
+- Updated dependencies [29154da]
+- Updated dependencies [51c49ab]
+- Updated dependencies [6190e20]
+- Updated dependencies [b8c954e]
+  - @lorion-org/descriptor-discovery@1.0.0-beta.9
+  - @lorion-org/nuxt@1.0.0-beta.9
+  - @lorion-org/capability-composition@1.0.0-beta.9
+  - @lorion-org/composition-graph@1.0.0-beta.9
+  - @lorion-org/registry-hub@1.0.0-beta.9
+
 ## 0.0.1-beta.4
 
 ### Patch Changes

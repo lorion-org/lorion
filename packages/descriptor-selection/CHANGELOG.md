@@ -1,5 +1,112 @@
 # @lorion-org/descriptor-selection
 
+## 1.0.0-beta.9
+
+### Major Changes
+
+- 29154da: Resolve one compatible version per capability id across workspace sources.
+
+  Different versions of an id can coexist in discovery. Selection considers newer
+  versions first and backtracks to satisfy active transitive dependency constraints,
+  preserving provider precedence and each candidate's package and directory.
+  Duplicate id/version identities and unsatisfiable requirements fail explicitly.
+  Composition reports, React virtual modules and Nuxt runtime selection expose the
+  resolved versions.
+
+  Dependency ranges that were previously ignored are now enforced, even with a
+  single available candidate. Correct mismatched manifests before upgrading. The
+  shared schema requires concrete descriptor versions and accepts npm SemVer
+  dependency ranges, including partial, wildcard, comparator, union and hyphen
+  ranges. Its `semver-range` format is registered by Lorion loaders; hosts using
+  the exported schema directly must register it in their validator.
+  Package names must remain distinct for candidates in the same workspace.
+
+  Custom dependency relation overrides retain their host-defined value semantics.
+  Inactive providers do not multiply version search work. Origin reports derive
+  grouping status and provider alternatives from the resolved source and catalog.
+
+  Use locale-independent candidate ordering. Resolve fixed dependency/provider
+  relations before choosing versions so impossible provider requirements do not
+  multiply independent active version choices. Include generated React module
+  execution tests in the regular package test command.
+
+- 51c49ab: Accept `id@<SemVer range>` in explicit, default, base and CLI/env seeds. Seed
+  constraints intersect with active dependency requirements; incompatible requests
+  fail with their sources and available versions. Unqualified roots now require a
+  stable version, replacing the previous behavior that could select a prerelease.
+  Select prereleases with an explicit matching version range.
+
+  Capture the seed with the composition result and forward selected source and
+  requirement provenance to reports. React and Nuxt retain version constraints
+  through loading and layer selection. Preserve ordinary provider dependencies
+  outside grouping membership and consider membership in version backtracking.
+  Treat an empty contribution dependency range as the npm wildcard.
+
+### Minor Changes
+
+- b8c954e: State a composition run once, and let every projection read that one resolution.
+  - `createCompositionRun(input)` resolves immediately when created and reuses the result for the
+    report, the origins, the package sources it selected, the surface projection and
+    the runtime composition. A host that resolves per entry point states its run twice,
+    and the second statement is free to differ: a build then emits one selection while
+    the server start reports another, and nothing in either says so.
+  - `resolveCapabilitySelection` additionally returns `discoveredDescriptors`, the
+    descriptors behind the ids it already reported. A report that says why a descriptor
+    is in a composition needs the ones that are not, above all the providers that lost
+    a slot, and reading the workspace a second time would answer for a different one.
+  - `resolveRequestedSelection(seed)` in `@lorion-org/descriptor-selection` returns the
+    requested specs, retaining version ranges, or null when none were named.
+    `resolveDescriptorSelection` returns logical ids and falls back to `defaultSelection`. A report says what was asked for, and a run that
+    named nothing is a different statement than one that named what its host defaults to.
+  - `describeCompositionOrigins(input)` and `formatCompositionOrigins(origins)` sort one
+    resolution into where each descriptor came from: named by the run, from the base,
+    from a grouping it runs, a slot filling with the candidates it beat, brought by a
+    grouping, or pulled in behind something named.
+
+- 5788936: Let a host register a relation without replacing the ones a composition already
+  walks, and read the declared contribution relation.
+  - `RelationDescriptor` carries optional `roles` (`resolution`, `provenance`,
+    `inspection`), and `extendCompositionPolicy(policy, relationDescriptors)` appends
+    each registered relation to the lists its roles name. A relation without roles is
+    registered and walked by nothing, which is what happened before.
+  - `providerRelationDescriptors` declares those roles, and
+    `selectDescriptorsWithProviders` extends the policy with the relations it carries.
+    A policy that named `resolutionRelationIds` to add an edge of its own used to drop
+    the provider relation with it, and every default provider lost its slot.
+  - `resolveContributions(descriptors, options?)`, `contributionRelationDescriptor()`
+    and the descriptor fields `contributionPoints` / `contributesTo`: a descriptor
+    offers named points, others declare which of them they fill. A contribution to an
+    unknown descriptor, to a point its owner does not declare, or to the contributor
+    itself aborts while the declaring descriptor can still be named. Resolution does
+    not walk the relation.
+  - `assertKnownReferences({ descriptors, relationDescriptors? })` reports a name no
+    descriptor declares together with the descriptor that declared it and the relation
+    it declared it under. A relation resolves only for a target the descriptor map
+    holds, so such a name otherwise shrinks the composition in silence.
+
+- c25cc9f: Add a workspace composition run that seals package and descriptor filesystem
+  observation, plus a versioned candidate inventory and source consistency checks.
+  The returned JavaScript values remain mutable. Directly selected groupings now give
+  their provider members explicit precedence after grouping-version selection. Add
+  version-aware contribution catalog validation and active projection, and let the
+  React Vite loader consume an existing composition run without rediscovery.
+  Descriptor discovery retains the exact descriptor documents in package snapshots,
+  so the workspace run validates and expands them without another filesystem read.
+
+### Patch Changes
+
+- 3658f36: Activate callback-only members of indirectly reached selection groups. Provider
+  members retain dependency precedence; explicitly selected groups retain explicit
+  precedence. Membership does not introduce dependency version ranges. Including a
+  capability only as a member leaves its provider slot optional; including a provider
+  requests that provider. Inactive or overridden providers contribute no members.
+- Updated dependencies [5788936]
+- Updated dependencies [c25cc9f]
+- Updated dependencies [29154da]
+- Updated dependencies [51c49ab]
+  - @lorion-org/composition-graph@1.0.0-beta.9
+  - @lorion-org/provider-selection@1.0.0-beta.9
+
 ## 1.0.0-beta.8
 
 ### Major Changes
