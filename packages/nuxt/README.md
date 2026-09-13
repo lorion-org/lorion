@@ -629,3 +629,11 @@ all candidates in `discoveredExtensions`, selects one version per id in
 entry-map helpers with one descriptor per id, after version selection.
 `getNuxtExtensionSelection` exposes `resolvedExtensionVersions` from the public
 runtime configuration, including virtual grouping versions.
+
+Versioned seeds use the shared
+[selection contract](../descriptor-selection/README.md#capability-versions).
+`selected`, `defaultSelection`, `baseDescriptors`, and CLI/env requests preserve
+ranges through layer selection. For example, `--capabilities=shop-coffee@1`
+selects a compatible 1.x implementation. Bootstrap `versionSelection` retains
+chosen sources and requirements for the server-side composition log; public
+runtime selection continues to contain logical ids and resolved versions.

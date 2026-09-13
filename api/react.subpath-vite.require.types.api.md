@@ -140,6 +140,8 @@ interface CompositionReport {
     resolvedVersions?: Readonly<Record<DescriptorId, string>>;
     // (undocumented)
     selected: readonly DescriptorId[];
+    // (undocumented)
+    versionSelection?: readonly DescriptorVersionSelection[];
 }
 
 // @public (undocumented)
@@ -258,6 +260,28 @@ interface DescriptorSelectionSeed {
         cliKeys?: string[];
         envKeys?: string[];
     };
+}
+
+// @public (undocumented)
+interface DescriptorVersionRequirement {
+    // (undocumented)
+    id: DescriptorId;
+    // (undocumented)
+    range: string;
+    // (undocumented)
+    source: string;
+}
+
+// @public (undocumented)
+interface DescriptorVersionSelection {
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    requirements: readonly DescriptorVersionRequirement[];
+    // (undocumented)
+    source?: string;
+    // (undocumented)
+    version: string;
 }
 
 // @public (undocumented)

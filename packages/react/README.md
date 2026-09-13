@@ -600,3 +600,12 @@ exports `resolvedCapabilityVersions: Record<string, string>` alongside
 `resolvedCapabilityIds`; add it to the host's virtual-module declaration to
 inspect the selected versions. `describeCapabilityComposition` carries the same
 mapping as `resolvedVersions`.
+
+Versioned seeds use the shared
+[selection contract](../descriptor-selection/README.md#capability-versions),
+including `selected: ['shop-coffee@1']` and CLI/env ranges. Both loader models
+preserve the requested ranges while emitting logical `selectedCapabilityIds`
+and the chosen `resolvedCapabilityVersions`. The options-only loader captures
+selection during `configResolved`; the run-backed loader uses the run's captured
+selection. `describeCapabilityComposition` includes source and requirement
+provenance in `versionSelection`.

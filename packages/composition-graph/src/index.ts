@@ -3,6 +3,7 @@ export {
   buildDescriptorMap,
   parseDescriptorIds,
   resolveDescriptorSelectionSeed,
+  readDescriptorSelectionSeed,
 } from './descriptorMap';
 export {
   buildDescriptorGraph,

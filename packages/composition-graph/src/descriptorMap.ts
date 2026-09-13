@@ -123,13 +123,18 @@ function resolveEnvKeys(input: DescriptorSelectionSeedInput): string[] {
 export function resolveDescriptorSelectionSeed(
   input: DescriptorSelectionSeedInput = {},
 ): DescriptorId[] {
-  return parseDescriptorIds(
-    firstNonEmptyValue([
-      ...resolveCliKeys(input).map((key) => readCliValue(input.argv ?? [], key)),
-      ...resolveEnvKeys(input).map((key) => input.env?.[key]),
-      input.defaultValue,
-    ]),
-  );
+  return parseDescriptorIds(readDescriptorSelectionSeed(input));
+}
+
+// Preserve a host's seed syntax until its owning parser interprets the value.
+export function readDescriptorSelectionSeed(
+  input: DescriptorSelectionSeedInput = {},
+): string | string[] | undefined {
+  return firstNonEmptyValue([
+    ...resolveCliKeys(input).map((key) => readCliValue(input.argv ?? [], key)),
+    ...resolveEnvKeys(input).map((key) => input.env?.[key]),
+    input.defaultValue,
+  ]);
 }
 
 export function assertKnownDescriptorIds(

@@ -257,9 +257,10 @@ export function resolveVersionedContributions(
           `Descriptor "${descriptor.id}@${descriptor.version}" has invalid dependency range ${JSON.stringify(ownerRange)} for contribution owner "${to}".`,
         );
       }
-      const compatibleOwners = ownerRange
-        ? owners.filter((owner) => satisfies(owner.version, ownerRange))
-        : owners;
+      const compatibleOwners =
+        ownerRange !== undefined
+          ? owners.filter((owner) => satisfies(owner.version, ownerRange))
+          : owners;
       if (!compatibleOwners.length) {
         throw new Error(
           `Descriptor "${descriptor.id}@${descriptor.version}" contributes to "${to}", but no owner version satisfies "${ownerRange}".`,

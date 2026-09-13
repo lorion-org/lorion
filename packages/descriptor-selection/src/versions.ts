@@ -4,6 +4,14 @@ import {
   type RelationDescriptor,
 } from '@lorion-org/composition-graph';
 import { rcompare, satisfies, valid, validRange } from 'semver';
+import type { DescriptorVersionRequirement } from './seed';
+
+export interface DescriptorVersionSelection {
+  id: string;
+  version: string;
+  source?: string;
+  requirements: readonly DescriptorVersionRequirement[];
+}
 
 // Version candidates keep their host-owned source. Only one candidate per logical
 // id enters the provider resolver and the graph, whose identities remain ids.
@@ -15,7 +23,9 @@ export function selectVersions<T, R extends { items: T[] }>(input: {
   resolveDependencies: boolean;
   roots: readonly string[];
   resolutionRelations: readonly RelationDescriptor[];
-}): R {
+  requirements: readonly DescriptorVersionRequirement[];
+  getSelectionGroupMembers?: (item: T) => readonly string[] | undefined;
+}): R & { versions: DescriptorVersionSelection[] } {
   const groups = new Map<string, T[]>();
   const identities = new Map<string, string>();
   for (const item of input.items) {
@@ -48,6 +58,33 @@ export function selectVersions<T, R extends { items: T[] }>(input: {
     }
     if (descriptor.disabled === true) continue;
     groups.set(id, [...(groups.get(id) ?? []), item]);
+  }
+  const availableById = new Map(groups);
+  const conflict = (target: string, sources: readonly Descriptor[]): Error => {
+    const requirements = [
+      ...input.requirements
+        .filter((entry) => entry.id === target)
+        .map((entry) => `${entry.source} requires ${target}@${entry.range}`),
+      ...sources.flatMap((source) =>
+        source.dependencies?.[target] === undefined
+          ? []
+          : [`${source.id}@${source.version} requires ${target}@${source.dependencies[target]}`],
+      ),
+    ].sort();
+    const available = (availableById.get(target) ?? [])
+      .map((item) => input.getDescriptor(item).version)
+      .sort(rcompare);
+    return new Error(
+      `No compatible version for "${target}": ${requirements.join('; ') || 'stable version required'}. Available: ${available.join(', ') || 'none'}.`,
+    );
+  };
+  for (const id of new Set(input.requirements.map((entry) => entry.id))) {
+    const ranges = input.requirements.filter((entry) => entry.id === id);
+    const matching = (groups.get(id) ?? []).filter((item) =>
+      ranges.every((entry) => satisfies(input.getDescriptor(item).version, entry.range)),
+    );
+    if (!matching.length) throw conflict(id, []);
+    groups.set(id, matching);
   }
   const compareText = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
   const candidates = [...groups.entries()].sort(([a], [b]) => compareText(a, b));
@@ -97,6 +134,14 @@ export function selectVersions<T, R extends { items: T[] }>(input: {
       }
     }
   }
+  for (const [, items] of candidates) {
+    for (const item of items) {
+      const id = input.getDescriptor(item).id;
+      const targets = outgoing.get(id) ?? new Set<string>();
+      for (const member of input.getSelectionGroupMembers?.(item) ?? []) targets.add(member);
+      outgoing.set(id, targets);
+    }
+  }
   for (const id of possible) for (const target of outgoing.get(id) ?? []) possible.add(target);
   // Single-version and irrelevant ids need no search frame. Their source remains
   // available to catalog inspection, at the highest discovered version.
@@ -105,18 +150,52 @@ export function selectVersions<T, R extends { items: T[] }>(input: {
     .map(([, items]) => items[0]!);
   const choices = candidates.filter(([id, items]) => items.length > 1 && possible.has(id));
   let firstFailure: unknown;
-  const conflict = (target: string, sources: Descriptor[]): Error => {
-    const requirements = sources
-      .flatMap((source) =>
-        source.dependencies?.[target] === undefined
-          ? []
-          : [`${source.id}@${source.version} requires ${target}@${source.dependencies[target]}`],
-      )
-      .sort();
-    const available = (groups.get(target) ?? []).map((item) => input.getDescriptor(item).version);
-    return new Error(
-      `No compatible version for "${target}": ${requirements.join('; ')}. Available: ${available.join(', ') || 'none'}.`,
-    );
+  const requirementsFor = (
+    id: string,
+    resolved: readonly Descriptor[],
+  ): DescriptorVersionRequirement[] => {
+    const requirements = [
+      ...input.requirements.filter((entry) => entry.id === id),
+      ...(input.resolveDependencies
+        ? resolved.flatMap((descriptor) =>
+            descriptor.dependencies?.[id] === undefined
+              ? []
+              : [
+                  {
+                    id,
+                    range: descriptor.dependencies[id],
+                    source: `${descriptor.id}@${descriptor.version}`,
+                  },
+                ],
+          )
+        : []),
+    ];
+    return requirements.length ? requirements : [{ id, range: '*', source: 'implicit selection' }];
+  };
+  const finish = (result: R): R & { versions: DescriptorVersionSelection[] } => {
+    const resolved = result.items.map(input.getDescriptor);
+    // Validate effective dependency targets as well as selected roots. Provider
+    // rewriting has already removed only the losing choices and their constraints.
+    const byId = new Map(resolved.map((descriptor) => [descriptor.id, descriptor]));
+    for (const descriptor of input.resolveDependencies ? resolved : []) {
+      for (const target of Object.keys(descriptor.dependencies ?? {})) {
+        if (!byId.has(target)) throw conflict(target, resolved);
+      }
+    }
+    const versions = result.items.map((item) => {
+      const descriptor = input.getDescriptor(item);
+      const requirements = requirementsFor(descriptor.id, resolved);
+      if (!requirements.every((entry) => satisfies(descriptor.version, entry.range)))
+        throw conflict(descriptor.id, input.resolveDependencies ? resolved : []);
+      const source = input.getSource?.(item) ?? descriptor.location;
+      return {
+        id: descriptor.id,
+        version: descriptor.version,
+        ...(source !== undefined ? { source } : {}),
+        requirements,
+      };
+    });
+    return { ...result, versions };
   };
 
   // When only versions and host metadata vary, provider precedence and the active
@@ -128,6 +207,7 @@ export function selectVersions<T, R extends { items: T[] }>(input: {
       descriptor.dependencies,
       descriptor.providesFor,
       descriptor.defaultFor,
+      input.getSelectionGroupMembers?.(item),
       input.resolutionRelations.map((relation) => readRelationTargets(descriptor, relation)),
     ]);
   };
@@ -138,25 +218,18 @@ export function selectVersions<T, R extends { items: T[] }>(input: {
   ) {
     const representative = input.resolve(candidates.map(([, items]) => items[0]!));
     const resolved = representative.items.map(input.getDescriptor);
-    const resolvedIds = new Set(resolved.map((descriptor) => descriptor.id));
-    const requirements = new Map<string, string[]>();
-    for (const source of resolved) {
-      for (const [target, range] of Object.entries(source.dependencies ?? {}))
-        requirements.set(target, [...(requirements.get(target) ?? []), range]);
-    }
     const selected = new Map(candidates.map(([id, items]) => [id, items[0]!]));
-    for (const [id, ranges] of requirements) {
-      const match =
-        resolvedIds.has(id) &&
-        groups
-          .get(id)
-          ?.find((item) =>
-            ranges.every((range) => satisfies(input.getDescriptor(item).version, range)),
-          );
-      if (!match) throw conflict(id, resolved);
-      selected.set(id, match);
+    for (const descriptor of resolved) {
+      const requirements = requirementsFor(descriptor.id, resolved);
+      const match = groups
+        .get(descriptor.id)
+        ?.find((item) =>
+          requirements.every((entry) => satisfies(input.getDescriptor(item).version, entry.range)),
+        );
+      if (!match) throw conflict(descriptor.id, resolved);
+      selected.set(descriptor.id, match);
     }
-    return input.resolve([...selected.values()]);
+    return finish(input.resolve([...selected.values()]));
   }
 
   // Propagate only mandatory ordinary dependencies. Provider edges can be removed
@@ -199,7 +272,10 @@ export function selectVersions<T, R extends { items: T[] }>(input: {
         throw conflict(target, sources);
     }
   };
-  const search = (index: number, chosen: T[]): R | undefined => {
+  const search = (
+    index: number,
+    chosen: T[],
+  ): (R & { versions: DescriptorVersionSelection[] }) | undefined => {
     try {
       checkMandatory(chosen);
       if (index < choices.length) {
@@ -209,17 +285,7 @@ export function selectVersions<T, R extends { items: T[] }>(input: {
         }
         return undefined;
       }
-      const result = input.resolve([...fixed, ...chosen]);
-      const resolved = result.items.map(input.getDescriptor);
-      const byId = new Map(resolved.map((descriptor) => [descriptor.id, descriptor]));
-      for (const descriptor of input.resolveDependencies ? resolved : []) {
-        for (const [target, range] of Object.entries(descriptor.dependencies ?? {})) {
-          const dependency = byId.get(target);
-          if (!dependency || !satisfies(dependency.version, range))
-            throw conflict(target, resolved);
-        }
-      }
-      return result;
+      return finish(input.resolve([...fixed, ...chosen]));
     } catch (error) {
       firstFailure ??= error;
       return undefined;

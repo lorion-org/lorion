@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Descriptor } from '@lorion-org/composition-graph';
 import {
@@ -12,6 +12,7 @@ import {
   createPackageSourceLoad,
   fileSurfaceConvention,
   formatCompositionOrigins,
+  formatCompositionReport,
   resolvePackageSources,
   resolveSurfaceEntries,
   type CompositionRunInput,
@@ -120,6 +121,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   rmSync(root, { force: true, recursive: true });
 });
 
@@ -845,4 +847,52 @@ it('uses the resolved provider catalog for origins regardless of candidate disco
       { capability: 'a', chosen: [], named: false, alternatives: ['provider'] },
     ]);
   }
+});
+
+describe('captured versioned run selection', () => {
+  it('keeps CLI/env selection and its provenance after the environment changes', () => {
+    vi.stubEnv('LORION_RUN_SELECTION', 'shop-coffee@1');
+    const run = createWorkspaceCompositionRun({
+      root,
+      seed: { selectionSeed: { argv: [], envKeys: ['LORION_RUN_SELECTION'] } },
+    });
+    const report = run.report();
+    const origins = run.origins();
+    vi.stubEnv('LORION_RUN_SELECTION', 'checkout@99');
+    expect(run.report()).toEqual(report);
+    expect(run.origins()).toEqual(origins);
+    expect(report.requested).toEqual(['shop-coffee@1']);
+    expect(report.selected).toEqual(['shop-coffee']);
+    const formatted = formatCompositionReport(report).join('\n');
+    expect(formatted).toContain(`shop-coffee@1.0.0 from ${join(root, 'packages/shop-coffee')}`);
+    expect(formatted).toContain('seed.selectionSeed requires shop-coffee@1');
+    expect(report.versionSelection?.find((entry) => entry.id === 'shop-coffee')).toEqual({
+      id: 'shop-coffee',
+      version: '1.0.0',
+      source: join(root, 'packages/shop-coffee'),
+      requirements: [{ id: 'shop-coffee', range: '1', source: 'seed.selectionSeed' }],
+    });
+  });
+  it('selects a version directly from a seed and retains each candidate source', () => {
+    writeCapability(join(root, 'prototypes'), {
+      id: 'shop-coffee',
+      scope: '@prototype',
+      version: '2.0.0',
+    });
+    const run = createWorkspaceCompositionRun({
+      root,
+      patterns: ['packages/*', 'prototypes/*'],
+      seed: { selected: ['shop-coffee@1'], selectionSeed: false },
+    });
+    expect(run.report().resolvedVersions?.['shop-coffee']).toBe('1.0.0');
+    expect(
+      run
+        .descriptors()
+        .filter((entry) => entry.descriptor.id === 'shop-coffee')
+        .map((entry) => entry.selected),
+    ).toEqual([true, false]);
+    expect(
+      run.selectedPackageSources().find((source) => source.descriptorId === 'shop-coffee')?.name,
+    ).toBe('@acme/shop-coffee');
+  });
 });

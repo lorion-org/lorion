@@ -303,6 +303,9 @@ export function getTransitiveTargets(input: {
 export function parseDescriptorIds(input?: unknown): DescriptorId[];
 
 // @public (undocumented)
+export function readDescriptorSelectionSeed(input?: DescriptorSelectionSeedInput): string | string[] | undefined;
+
+// @public (undocumented)
 export function readRelationTargets(descriptor: Descriptor, relationDescriptor: RelationDescriptor): DescriptorId[];
 
 // @public (undocumented)

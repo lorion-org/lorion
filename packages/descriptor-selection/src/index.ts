@@ -1,11 +1,26 @@
-import { selectVersions } from './versions';
+import {
+  resolveDescriptorSeed,
+  type DescriptorSelectionSeed,
+  type ResolvedDescriptorSeed,
+} from './seed';
+export {
+  resolveDescriptorSeed,
+  resolveDescriptorSelection,
+  resolveRequestedSelection,
+} from './seed';
+export type {
+  DescriptorSelectionSeed,
+  DescriptorVersionRequirement,
+  ResolvedDescriptorSeed,
+} from './seed';
+export type { DescriptorVersionSelection } from './versions';
+import { selectVersions, type DescriptorVersionSelection } from './versions';
 import {
   assertKnownDescriptorIds,
   createCompositionSelection,
   createDescriptorCatalog,
   defaultRelationDescriptors,
   extendCompositionPolicy,
-  resolveDescriptorSelectionSeed,
   type CompositionPolicy,
   type Descriptor,
   type DescriptorCatalog,
@@ -60,84 +75,6 @@ export function descriptorSelectionPolicy(
     provenanceRelationIds: policy?.provenanceRelationIds ?? [...defaultResolutionRelations],
     resolutionRelationIds: policy?.resolutionRelationIds ?? [...defaultResolutionRelations],
   };
-}
-
-export interface DescriptorSelectionSeed {
-  baseDescriptors?: readonly DescriptorId[];
-  defaultSelection?: readonly DescriptorId[];
-  selected?: readonly DescriptorId[];
-  selectionSeed?:
-    | false
-    | {
-        argv?: string[];
-        env?: Record<string, string | undefined>;
-        key?: string;
-        cliKeys?: string[];
-        envKeys?: string[];
-      };
-}
-
-// Normalises a descriptor id list, and reports the two mistakes that otherwise pass
-// as data. A string reads as a list and is not: spreading `'shop'` yields four
-// one-character ids that name nothing, and the host would then be told those ids
-// are unknown rather than what it actually did wrong. An empty id names nothing
-// either, and dropping it silently turns `selected: ['']` — the shape an unset
-// environment variable produces — into a composition of nothing.
-//
-// Duplicates are removed and the result is sorted, so a host's own ordering never
-// leaks into the composition and every caller sees one normalisation.
-function toDescriptorIds(
-  value: readonly DescriptorId[] | undefined,
-  field: string,
-): DescriptorId[] {
-  if (value === undefined) return [];
-
-  // Widened deliberately: the declared type already excludes a string, so this
-  // guard exists for the untyped caller a published package always has.
-  const given: unknown = value;
-  if (typeof given === 'string') {
-    throw new TypeError(
-      `Descriptor selection field "${field}" takes a list of ids, but got the string "${given}". Pass ["${given}"].`,
-    );
-  }
-
-  const ids = [...value];
-  if (ids.some((id) => typeof id !== 'string' || !id.trim())) {
-    throw new TypeError(
-      `Descriptor selection field "${field}" contains an empty id: ${JSON.stringify(ids)}.`,
-    );
-  }
-
-  return [...new Set(ids)].sort();
-}
-
-// The ids a run named, or null when it named none: explicit `selected` wins, otherwise
-// the CLI/env seed is parsed. The host's `defaultSelection` is not among them, because
-// a run that named nothing and a run that named what the host defaults to are
-// different statements, and a report that says what was asked for shows the difference.
-export function resolveRequestedSelection(seed: DescriptorSelectionSeed): DescriptorId[] | null {
-  const selectedIds = toDescriptorIds(seed.selected, 'selected');
-  if (selectedIds.length) return selectedIds;
-  if (seed.selectionSeed === false) return null;
-
-  const options = seed.selectionSeed ?? {};
-  const named = resolveDescriptorSelectionSeed({
-    argv: options.argv ?? process.argv,
-    env: options.env ?? process.env,
-    key: options.key ?? 'capability',
-    ...(options.cliKeys ? { cliKeys: options.cliKeys } : {}),
-    ...(options.envKeys ? { envKeys: options.envKeys } : {}),
-  });
-
-  return named.length ? named : null;
-}
-
-// The active selection ids from a seed: what the run named, falling back to
-// `defaultSelection`. Base descriptors are resolved separately by the graph and are
-// not part of this list.
-export function resolveDescriptorSelection(seed: DescriptorSelectionSeed): DescriptorId[] {
-  const defaultIds = toDescriptorIds(seed.defaultSelection, 'defaultSelection');
-  return resolveRequestedSelection(seed) ?? defaultIds;
 }
 
 // A capability a descriptor provides for must be declared: some descriptor in the
@@ -276,7 +213,7 @@ function createProviderCapabilitiesById(
 
 function createDependencyProviderRequests(input: {
   descriptors: readonly Descriptor[];
-  explicitGroupingIds: ReadonlySet<DescriptorId>;
+  explicitGroupingMembers: ReadonlyMap<DescriptorId, ReadonlySet<DescriptorId>>;
   providerCapabilitiesById: ReadonlyMap<DescriptorId, DescriptorId[]>;
   resolvedIds: ReadonlySet<DescriptorId>;
 }): ProviderSelectionRequest[] {
@@ -284,8 +221,8 @@ function createDependencyProviderRequests(input: {
 
   for (const descriptor of input.descriptors) {
     if (!input.resolvedIds.has(descriptor.id)) continue;
-    if (input.explicitGroupingIds.has(descriptor.id)) continue;
     for (const dependencyId of Object.keys(descriptor.dependencies ?? {})) {
+      if (input.explicitGroupingMembers.get(descriptor.id)?.has(dependencyId)) continue;
       for (const capabilityId of input.providerCapabilitiesById.get(dependencyId) ?? []) {
         requests.push({ capabilityId, providerId: dependencyId, sourceId: descriptor.id });
       }
@@ -399,13 +336,22 @@ export interface DescriptorSelectionInput<T> {
   policy?: Partial<CompositionPolicy>;
 }
 
+export interface DescriptorSelectionResult<T> {
+  items: T[];
+  providerSelection: ProviderSelectionResolution;
+  catalog: DescriptorCatalog;
+  seed: ResolvedDescriptorSeed;
+  versions: DescriptorVersionSelection[];
+}
+
 // Resolve the active subset of items and report which provider won each contested
 // capability: apply provider selection, build the descriptor graph, resolve the
 // seed + base + transitive dependencies, and return the items whose descriptor is
 // in the resolved set, ordered by id.
 export function selectDescriptorsWithProviders<T>(
   input: DescriptorSelectionInput<T>,
-): ReturnType<typeof selectSingleVersionDescriptors<T>> {
+): DescriptorSelectionResult<T> {
+  const seed = resolveDescriptorSeed(input.seed);
   assertNoRemovedProviderPreferences(input.items.map(input.getDescriptor));
   assertKnownProviderCapabilities({
     declared: input.items.map(input.getDescriptor),
@@ -419,16 +365,8 @@ export function selectDescriptorsWithProviders<T>(
       .filter((descriptor) => descriptor.disabled !== true)
       .map((descriptor) => [descriptor.id, descriptor]),
   );
-  assertKnownDescriptorIds(
-    enabledById,
-    resolveDescriptorSelection(input.seed),
-    'selected descriptors',
-  );
-  assertKnownDescriptorIds(
-    enabledById,
-    toDescriptorIds(input.seed.baseDescriptors, 'baseDescriptors'),
-    'base descriptors',
-  );
+  assertKnownDescriptorIds(enabledById, [...seed.selected], 'selected descriptors');
+  assertKnownDescriptorIds(enabledById, [...seed.baseDescriptors], 'base descriptors');
   const relations = [
     ...new Map(
       [
@@ -454,28 +392,33 @@ export function selectDescriptorsWithProviders<T>(
     dependencyRelation.direction !== 'incoming' &&
     dependencyRelation.targetMode !== 'values',
   );
-  return selectVersions({
+  const result = selectVersions({
     items: input.items,
     getDescriptor: input.getDescriptor,
     ...(input.getSource ? { getSource: input.getSource } : {}),
-    resolve: (items) => selectSingleVersionDescriptors({ ...input, items }),
+    resolve: (items) => selectSingleVersionDescriptors({ ...input, items }, seed),
+    requirements: seed.requirements,
+    ...(input.getSelectionGroupMembers
+      ? { getSelectionGroupMembers: input.getSelectionGroupMembers }
+      : {}),
     resolveDependencies,
     resolutionRelations,
-    roots: [
-      ...resolveDescriptorSelection(input.seed),
-      ...toDescriptorIds(input.seed.baseDescriptors, 'baseDescriptors'),
-    ],
+    roots: [...seed.selected, ...seed.baseDescriptors],
   });
+  return { ...result, seed };
 }
 
-function selectSingleVersionDescriptors<T>(input: DescriptorSelectionInput<T>): {
+function selectSingleVersionDescriptors<T>(
+  input: DescriptorSelectionInput<T>,
+  seed: ResolvedDescriptorSeed,
+): {
   items: T[];
   providerSelection: ProviderSelectionResolution;
   // The graph the selection resolved against. A host that inspects the composition
   // reads it here instead of rebuilding a second catalog from the same descriptors.
   catalog: DescriptorCatalog;
 } {
-  const { items, getDescriptor, withDescriptor, seed } = input;
+  const { items, getDescriptor, withDescriptor } = input;
 
   const declared = items.map(getDescriptor);
   assertNoRemovedProviderPreferences(declared);
@@ -483,8 +426,8 @@ function selectSingleVersionDescriptors<T>(input: DescriptorSelectionInput<T>): 
   const descriptors = enabled.map(getDescriptor);
   assertSingleDefaultProvider(descriptors);
 
-  const selected = resolveDescriptorSelection(seed);
-  const baseDescriptors = toDescriptorIds(seed.baseDescriptors, 'baseDescriptors');
+  const selected = seed.selected;
+  const baseDescriptors = seed.baseDescriptors;
   const seedRoots = [...new Set([...selected, ...baseDescriptors])].sort();
   assertSingleSelectedProvider(descriptors, seedRoots);
 
@@ -498,7 +441,7 @@ function selectSingleVersionDescriptors<T>(input: DescriptorSelectionInput<T>): 
   const descriptorsById = new Map(descriptors.map((descriptor) => [descriptor.id, descriptor]));
   const itemsByDescriptorId = new Map(enabled.map((item) => [getDescriptor(item).id, item]));
   const explicitlySelectedIds = new Set(seedRoots);
-  const explicitGroupingIds = new Set<DescriptorId>();
+  const explicitGroupingMembers = new Map<DescriptorId, ReadonlySet<DescriptorId>>();
   if (input.getSelectionGroupMembers) {
     const pending = [...seedRoots];
     const visitedGroups = new Set<DescriptorId>();
@@ -510,7 +453,8 @@ function selectSingleVersionDescriptors<T>(input: DescriptorSelectionInput<T>): 
       if (!group) continue;
       const members = input.getSelectionGroupMembers(group);
       if (!members) continue;
-      explicitGroupingIds.add(groupId);
+      explicitGroupingMembers.set(groupId, new Set(members));
+      assertKnownDescriptorIds(descriptorsById, [...members], `members of grouping "${groupId}"`);
       for (const memberId of members) {
         explicitlySelectedIds.add(memberId);
         pending.push(memberId);
@@ -566,14 +510,14 @@ function selectSingleVersionDescriptors<T>(input: DescriptorSelectionInput<T>): 
   for (let iteration = 0; iteration <= descriptors.length + 1; iteration += 1) {
     const closure = createCompositionSelection({
       catalog: strippedCatalog,
-      selected: [...selected, ...implicitSelected, ...providerRoots],
+      selected: [...explicitlySelectedIds, ...implicitSelected, ...providerRoots],
       baseDescriptors: [...baseDescriptors],
       policy,
     });
     const nextResolvedIds = new Set(closure.getResolved());
     const dependencyRequests = createDependencyProviderRequests({
       descriptors,
-      explicitGroupingIds,
+      explicitGroupingMembers,
       providerCapabilitiesById,
       resolvedIds: nextResolvedIds,
     });
@@ -625,7 +569,7 @@ function selectSingleVersionDescriptors<T>(input: DescriptorSelectionInput<T>): 
   });
   const selection = createCompositionSelection({
     catalog,
-    selected: [...selected, ...implicitSelected],
+    selected: [...explicitlySelectedIds, ...implicitSelected],
     baseDescriptors: [...baseDescriptors],
     policy,
   });

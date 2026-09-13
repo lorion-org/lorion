@@ -54,9 +54,10 @@ provider slot. An unfilled slot is reported positively instead of disappearing;
 each descriptor set hangs below its own heading, because a list of
 hundreds of ids is a block and not one row's value.
 
-The report is stated in descriptor ids alone. Whether a descriptor is a package on
-disk, a mounted layer or a manifest grouping is a host's own view, so a host that
-reports on that filters before it describes. Every id list is deduplicated and
+Selection lists use logical descriptor ids. Version selection details retain the
+chosen version, source and effective requirements; requested seeds retain their
+original version specifications. Host-specific categories such as package or
+mounted layer remain the host's view. Every id list is deduplicated and
 sorted, so two reports of one run compare as equal text, and `discovered` is
 required: defaulting it to `resolved` would make the count claim that nothing was
 left out. A provider whose winner is not part of the composition is reported as
@@ -220,4 +221,8 @@ Versioned inventories are resolved by the shared
 `run.descriptors()` retains every discovered candidate; `run.capabilities()`
 contains the selected version and its physical source. Use the resolved set for
 active contribution validation and activation. `run.report().resolvedVersions`
-maps resolved ids to their versions, and the formatted report prints `id@version`.
+maps resolved ids to their versions. `run.report().versionSelection` carries each
+chosen version, source and effective requirements; the formatted report includes
+these values. Seed entries accept `id@<SemVer range>` through the shared contract.
+The run captures the seed once, including CLI/env values, and reports its original
+requests even if the environment changes later.

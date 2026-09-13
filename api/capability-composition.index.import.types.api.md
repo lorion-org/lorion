@@ -141,6 +141,8 @@ export interface CompositionReport {
     resolvedVersions?: Readonly<Record<DescriptorId, string>>;
     // (undocumented)
     selected: readonly DescriptorId[];
+    // (undocumented)
+    versionSelection?: readonly DescriptorVersionSelection[];
 }
 
 // @public (undocumented)
@@ -274,6 +276,8 @@ export interface DescribeCompositionInput {
     resolvedDescriptors?: readonly Pick<Descriptor, 'id' | 'version'>[];
     // (undocumented)
     selected?: readonly DescriptorId[];
+    // (undocumented)
+    versionSelection?: readonly DescriptorVersionSelection[];
 }
 
 // @public (undocumented)
@@ -337,6 +341,28 @@ interface DescriptorSelectionSeed {
         cliKeys?: string[];
         envKeys?: string[];
     };
+}
+
+// @public (undocumented)
+interface DescriptorVersionRequirement {
+    // (undocumented)
+    id: DescriptorId;
+    // (undocumented)
+    range: string;
+    // (undocumented)
+    source: string;
+}
+
+// @public (undocumented)
+interface DescriptorVersionSelection {
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    requirements: readonly DescriptorVersionRequirement[];
+    // (undocumented)
+    source?: string;
+    // (undocumented)
+    version: string;
 }
 
 // @public (undocumented)
@@ -476,6 +502,8 @@ export function resolveCapabilitySelection(options: CapabilitySelectionInput & {
 }): {
     capabilities: ResolvedCapability[];
     providerSelection: ProviderSelectionResolution;
+    seed: ResolvedDescriptorSeed;
+    versions: DescriptorVersionSelection[];
     discovered: DescriptorId[];
     discoveredDescriptors: DiscoveredCapabilityDescriptor[];
 };
@@ -484,6 +512,18 @@ export function resolveCapabilitySelection(options: CapabilitySelectionInput & {
 export interface ResolvedCapability extends SurfaceCapability {
     // (undocumented)
     descriptor: Descriptor;
+}
+
+// @public (undocumented)
+interface ResolvedDescriptorSeed {
+    // (undocumented)
+    baseDescriptors: readonly DescriptorId[];
+    // (undocumented)
+    requested: readonly string[] | null;
+    // (undocumented)
+    requirements: readonly DescriptorVersionRequirement[];
+    // (undocumented)
+    selected: readonly DescriptorId[];
 }
 
 // @public (undocumented)

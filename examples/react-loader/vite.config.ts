@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   createWorkspaceCompositionRun,
-  formatCompositionOrigins,
+  formatCompositionReport,
 } from '@lorion-org/capability-composition';
 import {
   assertKnownReferences,
@@ -93,7 +93,7 @@ console.log(
   [
     '',
     'Composed capabilities:',
-    ...formatCompositionOrigins(run.origins()),
+    ...formatCompositionReport(run.report()),
     '',
     '  Contributions:',
     ...contributions.edges.map((edge) => `    ${edge.from} -> ${edge.to} (${edge.point})`),

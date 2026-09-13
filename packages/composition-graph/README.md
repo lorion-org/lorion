@@ -343,3 +343,9 @@ selection layer; graph relations continue to address logical ids.
 the graph's field and target-mode semantics. Inventory-level validation and
 selection can inspect relation declarations before one candidate per id enters
 the catalog. Direction determines edge orientation after this read.
+
+For a host whose seed carries syntax beyond logical ids,
+`readDescriptorSelectionSeed` returns the raw CLI/env/default value using the
+same key and precedence rules as `resolveDescriptorSelectionSeed`. The latter
+continues to parse plain descriptor-id lists. Versioned seed parsing belongs to
+[`descriptor-selection`](../descriptor-selection/README.md#capability-versions).

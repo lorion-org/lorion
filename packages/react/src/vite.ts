@@ -14,6 +14,7 @@ import {
   virtualDescriptorDirectory,
   type DiscoveredDescriptor,
 } from '@lorion-org/descriptor-discovery';
+import type { DescriptorSelectionResult } from '@lorion-org/descriptor-selection';
 import type {
   CapabilitySelectionInput,
   CapabilitySelectionSeed,
@@ -22,7 +23,6 @@ import type {
 } from '@lorion-org/capability-composition';
 import { describeComposition } from '@lorion-org/capability-composition';
 import {
-  resolveDescriptorSelection,
   selectDescriptorsWithProviders,
   type ProviderSelectionResolution,
 } from '@lorion-org/descriptor-selection';
@@ -225,6 +225,7 @@ export function capabilityLoader(
   const options = resolveBundleOptions(rawOptions);
   let config: ViteResolvedConfig;
   let capabilities: DiscoveredCapability[] = [];
+  let selected: readonly DescriptorId[] = [];
   let providerSelection: ProviderSelectionResolution = { slots: [], excludedProviderIds: [] };
   let runtimeConfig: ReactRuntimeConfig = { private: {}, public: {} };
 
@@ -238,6 +239,7 @@ export function capabilityLoader(
         options,
       );
       capabilities = selection.items;
+      selected = selection.seed.selected;
       providerSelection = selection.providerSelection;
       runtimeConfig = createReactRuntimeConfig(
         capabilities,
@@ -266,7 +268,7 @@ export function capabilityLoader(
       }
       if (id !== resolvedVirtualModuleId) return null;
 
-      return renderCapabilityModule(capabilities, resolveSelectionSeed(options), providerSelection);
+      return renderCapabilityModule(capabilities, selected, providerSelection);
     },
   };
 }
@@ -451,21 +453,13 @@ export function describeCapabilityComposition(
   const options = resolveBundleOptions(rawOptions);
   // Groupings included: a count that leaves them out claims the workspace holds
   // fewer descriptors than the selection can reach.
-  const { discovered, items, providerSelection } = resolveDiscoveredCapabilitySelection(
-    workspaceRoot,
-    options,
-  );
-  // What the run asked for, resolved without the default so the two stay apart: a
-  // report that calls the default an explicit request cannot be checked against it.
-  const requested = resolveDescriptorSelection({
-    ...(options.selected ? { selected: options.selected } : {}),
-    ...(options.selectionSeed === undefined ? {} : { selectionSeed: options.selectionSeed }),
-  });
-
+  const { discovered, items, providerSelection, seed, versions } =
+    resolveDiscoveredCapabilitySelection(workspaceRoot, options);
   return describeComposition({
-    requested: requested.length ? requested : null,
-    selected: resolveSelectionSeed(options),
-    ...(options.baseDescriptors ? { base: options.baseDescriptors } : {}),
+    requested: seed.requested,
+    selected: seed.selected,
+    base: seed.baseDescriptors,
+    versionSelection: versions,
     resolved: items.map((capability) => capability.id),
     resolvedDescriptors: items.map((capability) => capability.manifest),
     discovered: discovered.map((capability) => capability.id),
@@ -513,11 +507,7 @@ function toVirtualCapabilities(
 function resolveDiscoveredCapabilitySelection(
   workspaceRoot: string,
   options: CapabilityLoaderOptions = {},
-): {
-  discovered: DiscoveredCapability[];
-  items: DiscoveredCapability[];
-  providerSelection: ProviderSelectionResolution;
-} {
+): DescriptorSelectionResult<DiscoveredCapability> & { discovered: DiscoveredCapability[] } {
   const discovered = [
     ...discoverCapabilities(workspaceRoot, options),
     ...toVirtualCapabilities(workspaceRoot, options),
@@ -535,12 +525,6 @@ function resolveDiscoveredCapabilitySelection(
   });
 
   return { discovered, ...selection };
-}
-
-function resolveSelectionSeed(
-  options: Pick<CapabilityLoaderOptions, 'defaultSelection' | 'selected' | 'selectionSeed'>,
-): DescriptorId[] {
-  return resolveDescriptorSelection(options);
 }
 
 export function createCapabilityRouteConfig(

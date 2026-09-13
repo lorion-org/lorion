@@ -499,3 +499,27 @@ describe('resolveVersionedContributions', () => {
     expect(relations.project([ownerV2, ownerV2]).points('owner')).toEqual(['current']);
   });
 });
+
+describe('npm wildcard contribution constraints', () => {
+  it('treats an empty dependency range like a wildcard and excludes prereleases', () => {
+    const owners = [
+      { id: 'owner', version: '1.0.0', contributionPoints: ['panel'] },
+      { id: 'owner', version: '2.0.0-beta.1', contributionPoints: [] },
+    ];
+    for (const range of ['', '*']) {
+      expect(
+        resolveVersionedContributions([
+          ...owners,
+          {
+            id: 'guest',
+            version: '1.0.0',
+            dependencies: { owner: range },
+            contributesTo: { owner: 'panel' },
+          },
+        ]).edges,
+      ).toEqual([
+        { from: 'guest', fromVersion: '1.0.0', to: 'owner', toVersion: '1.0.0', point: 'panel' },
+      ]);
+    }
+  });
+});

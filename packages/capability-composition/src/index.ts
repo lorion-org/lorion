@@ -28,8 +28,8 @@ import {
 import {
   type DescriptorSelectionSeed,
   type ProviderSelectionResolution,
-  resolveDescriptorSelection,
-  resolveRequestedSelection,
+  type ResolvedDescriptorSeed,
+  type DescriptorVersionSelection,
   selectDescriptorsWithProviders,
 } from '@lorion-org/descriptor-selection';
 import {
@@ -193,6 +193,8 @@ export function resolveCapabilitySelection(
 ): {
   capabilities: ResolvedCapability[];
   providerSelection: ProviderSelectionResolution;
+  seed: ResolvedDescriptorSeed;
+  versions: DescriptorVersionSelection[];
   // Everything discovery knew about, selected or not: files, nested descriptors
   // and manifest groupings alike. Counting directories instead misses the last two.
   discovered: DescriptorId[];
@@ -242,7 +244,12 @@ export function resolveCapabilitySelection(
     virtual: true,
   }));
 
-  const { items: selected, providerSelection } = selectDescriptorsWithProviders({
+  const {
+    items: selected,
+    providerSelection,
+    seed: resolvedSeed,
+    versions,
+  } = selectDescriptorsWithProviders({
     items: [...discovered, ...virtual],
     getDescriptor: (item) => item.descriptor,
     getSource: (item) => item.directory,
@@ -281,6 +288,8 @@ export function resolveCapabilitySelection(
   return {
     capabilities,
     providerSelection,
+    seed: resolvedSeed,
+    versions,
     discovered: [...discovered, ...virtual].map((item) => item.id),
     discoveredDescriptors: [...discovered, ...virtual].map((item) => {
       const source =
@@ -692,9 +701,10 @@ export function createCompositionRun(input: CompositionRunInput): CompositionRun
     report: () => {
       const { capabilities, providerSelection, discovered } = resolution;
       return describeComposition({
-        requested: resolveRequestedSelection(input.seed),
-        selected: resolveDescriptorSelection(input.seed),
-        base: input.seed.baseDescriptors ?? [],
+        requested: resolution.seed.requested,
+        selected: resolution.seed.selected,
+        base: resolution.seed.baseDescriptors,
+        versionSelection: resolution.versions,
         resolved: capabilities.map((capability) => capability.id),
         resolvedDescriptors: capabilities.map((capability) => capability.descriptor),
         discovered,
@@ -704,8 +714,8 @@ export function createCompositionRun(input: CompositionRunInput): CompositionRun
     origins: () => {
       const { capabilities, providerSelection } = resolution;
       return describeCompositionOrigins({
-        selected: resolveDescriptorSelection(input.seed),
-        base: input.seed.baseDescriptors ?? [],
+        selected: resolution.seed.selected,
+        base: resolution.seed.baseDescriptors,
         resolved: capabilities.map((capability) => capability.id),
         descriptors: capabilities.map((entry) => entry.descriptor),
         groupings: capabilities.filter((entry) => !entry.packageName).map((entry) => entry.id),

@@ -257,6 +257,28 @@ type DescriptorSelectionSeedInput = {
 };
 
 // @public (undocumented)
+interface DescriptorVersionRequirement {
+    // (undocumented)
+    id: DescriptorId;
+    // (undocumented)
+    range: string;
+    // (undocumented)
+    source: string;
+}
+
+// @public (undocumented)
+interface DescriptorVersionSelection {
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    requirements: readonly DescriptorVersionRequirement[];
+    // (undocumented)
+    source?: string;
+    // (undocumented)
+    version: string;
+}
+
+// @public (undocumented)
 export function discoverNuxtExtensionEntries(input: {
     projectRootDir: string;
     options: NuxtExtensionModuleOptions;
@@ -296,6 +318,7 @@ type NormalizeRuntimeConfigFragmentOptions = {
 
 // @public (undocumented)
 export type NuxtExtensionBootstrap = {
+    versionSelection?: readonly DescriptorVersionSelection[];
     activeExtensions: NuxtExtensionEntry[];
     baseExtensionIds: string[];
     catalog: DescriptorCatalog;
