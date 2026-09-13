@@ -35,7 +35,7 @@
     "publish:check": "pnpm package:check",
     "changeset": "changeset",
     "release:status": "changeset status --verbose",
-    "version-packages": "changeset version",
+    "version-packages": "changeset version && prettier --write \"packages/*/CHANGELOG.md\"",
     "release": "changeset publish",
     "release:beta": "changeset publish --tag beta",
     "runtime:check": "node tools/dist-consumer/check-package-runtime.mjs node",
