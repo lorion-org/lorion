@@ -1,3 +1,5 @@
+import { createContributionRuntime } from '@lorion-org/react/contributions';
+import { contributionPlan, contributionModules } from 'virtual:lorion-contributions';
 import { createRouter as createTanStackRouter } from '@tanstack/react-router';
 import { createCapabilityRuntime, type CapabilityRuntime } from '@lorion-org/react';
 import { capabilityModules } from 'virtual:capabilities';
@@ -6,6 +8,11 @@ import { routeTree } from './routeTree.gen';
 export type RouterContext = {
   capabilityRuntime: CapabilityRuntime;
 };
+
+export const contributionRuntime = createContributionRuntime({
+  plan: contributionPlan,
+  modules: contributionModules,
+});
 
 export const capabilityRuntime = createCapabilityRuntime(capabilityModules);
 

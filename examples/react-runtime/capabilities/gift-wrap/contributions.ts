@@ -1,0 +1,17 @@
+import {
+  defineContribution,
+  defineContributionPoint,
+  type ContributionModule,
+} from '@lorion-org/react/contributions';
+import type { CheckoutAction } from '../checkout/contracts';
+import Action from './Action';
+const point = defineContributionPoint<CheckoutAction>({ owner: 'checkout', point: 'actions' });
+export const contributionModule: ContributionModule = {
+  id: 'gift-wrap',
+  version: '1.0.0',
+  create: () => ({
+    contributions: [
+      defineContribution(point, [{ id: 'gift-wrap', order: 10, value: { component: Action } }]),
+    ],
+  }),
+};

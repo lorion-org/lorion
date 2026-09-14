@@ -1,50 +1,23 @@
-import {
-  createContributionContract,
-  useCapabilityRuntime,
-  type CapabilityContribution,
-  type CapabilityRuntime,
-} from '@lorion-org/react';
-
-export type CheckoutInput = {
-  shopId: string;
-};
-
-export type PaymentCheckoutProvider = {
-  createCheckoutPath: (input: CheckoutInput) => string;
-  id: string;
-  label: string;
-};
-
-export const PAYMENT_PROVIDER_CONTRACT = createContributionContract<PaymentCheckoutProvider>(
-  'acme.payment-checkout-providers',
-);
-export const PAYMENT_PROVIDER_EXTENSION = PAYMENT_PROVIDER_CONTRACT.extensionPoint;
-
-export function definePaymentCheckoutProviders(
+import { useContributions, type ContributionRuntime } from '@lorion-org/react/contributions';
+import { providerSelection } from 'virtual:capabilities';
+import { point } from '../contributions';
+import type { PaymentCheckoutProvider } from '../contracts';
+export type { CheckoutInput, PaymentCheckoutProvider } from '../contracts';
+function selected(
   providers: readonly PaymentCheckoutProvider[],
-): CapabilityContribution<PaymentCheckoutProvider> {
-  return PAYMENT_PROVIDER_CONTRACT.define(providers);
-}
-
-export function getPaymentProviders(runtime: CapabilityRuntime): PaymentCheckoutProvider[] {
-  return PAYMENT_PROVIDER_CONTRACT.get(runtime);
-}
-
-export function getPaymentProvider(
-  runtime: CapabilityRuntime,
 ): PaymentCheckoutProvider | undefined {
-  const providers = getPaymentProviders(runtime);
-  if (providers.length > 1) {
-    throw new Error(
-      `Expected at most one active checkout provider, received: ${providers
-        .map((provider) => provider.id)
-        .join(', ')}.`,
-    );
-  }
-
-  return providers[0];
+  const slot = providerSelection.slots.find((entry) => entry.capabilityId === 'checkout');
+  const id = slot?.state === 'selected' ? slot.selectedProviderId : undefined;
+  return providers.find((provider) => provider.id === id);
 }
-
+export function getPaymentProviders(runtime: ContributionRuntime): PaymentCheckoutProvider[] {
+  return runtime.get(point).map(({ value }) => value);
+}
+export function getPaymentProvider(
+  runtime: ContributionRuntime,
+): PaymentCheckoutProvider | undefined {
+  return selected(getPaymentProviders(runtime));
+}
 export function usePaymentProvider(): PaymentCheckoutProvider | undefined {
-  return getPaymentProvider(useCapabilityRuntime());
+  return selected(useContributions(point).map(({ value }) => value));
 }

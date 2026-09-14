@@ -1,3 +1,4 @@
+import { CheckoutActions } from '../../../checkout/src/CheckoutActions';
 import { Link, createFileRoute } from '@tanstack/react-router';
 import type { ReactElement } from 'react';
 
@@ -14,6 +15,7 @@ function StripeCheckoutPage(): ReactElement {
       <Link to="/">Back to shops</Link>
       <h1>Stripe checkout</h1>
       <p>Shop: {shopId}</p>
+      <CheckoutActions shopId={shopId} />
       <p>This page is contributed by the Stripe provider capability.</p>
     </main>
   );

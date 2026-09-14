@@ -9,3 +9,5 @@ coverage
 .nuxt
 .output
 .todos/
+test-results
+playwright-report

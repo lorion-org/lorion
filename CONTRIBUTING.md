@@ -36,6 +36,8 @@ Run commands from the LORION repository root:
   behavior with Node.js
 - `pnpm bun:check` requires Bun and verifies package tests and built package output
   with the runtime version recorded in `.bun-version`
+- `pnpm examples:test` builds both contribution playgrounds against published exports and
+  runs their browser profiles; install Chromium first with `pnpm exec playwright install chromium`
 - `pnpm package:check` validates package contents and publish shape
 - `pnpm attw` verifies published types resolve across module resolvers
 - `pnpm mutants <source.ts>` measures test effectiveness for one source file: it

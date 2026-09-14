@@ -1,0 +1,8 @@
+{
+  "name": "@lorion-fixtures/nuxt-factory",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./contributions": "./contributions.ts"
+  }
+}

@@ -1,35 +1,18 @@
-import type { PaymentCheckoutProvider } from '../../types';
-
-const paymentProviderRegistryName = 'payment-checkout-providers';
-
+import { getNuxtProviderSelection } from '@lorion-org/nuxt/runtime-config';
+import { point } from '../../contributions';
 export default defineNuxtPlugin({
   name: 'payment-checkout-providers',
-  enforce: 'pre',
-  setup: () => {
+  dependsOn: ['lorion-contributions'],
+  setup() {
     const nuxtApp = useNuxtApp();
-
-    const getProvider = (providerId?: string): PaymentCheckoutProvider | undefined => {
-      const paymentConfig = usePublicRuntimeConfigScope<{ configuredProvider?: string }>(
-        'payments',
-      );
-      const id = providerId ?? paymentConfig.configuredProvider;
-
-      return id
-        ? nuxtApp.$registryHub.get<PaymentCheckoutProvider>(paymentProviderRegistryName, id)
-        : undefined;
-    };
-
-    nuxtApp.hooks.hook('app:created', () => {
-      void nuxtApp.hooks.callHook('payment-checkout:created', {
-        registerProvider: (provider) =>
-          nuxtApp.$registryHub.register(paymentProviderRegistryName, provider),
-      });
-    });
-
+    const selection = getNuxtProviderSelection(useRuntimeConfig());
+    const slot = selection?.slots.find((entry) => entry.capabilityId === 'checkout');
+    const id = slot?.state === 'selected' ? slot.selectedProviderId : undefined;
     return {
       provide: {
         payment: {
-          getProvider,
+          getProvider: () =>
+            nuxtApp.$contributions.get(point).find(({ value }) => value.id === id)?.value,
         },
       },
     };
