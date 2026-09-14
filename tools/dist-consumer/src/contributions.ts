@@ -5,6 +5,7 @@ import {
   type ContributionModule,
   type ContributionPlan,
 } from '@lorion-org/contributions';
+import { ContributionProvider, useContributions } from '@lorion-org/react/contributions';
 const point = defineContributionPoint<{ label: string }>({ owner: 'checkout', point: 'actions' });
 defineContribution(point, [{ id: 'x', value: { label: 'x' } }]);
 // @ts-expect-error The point, not the item, fixes the payload type.
@@ -28,7 +29,7 @@ const invalid: ContributionPlan = {
   // @ts-expect-error Inactive edges have no selected owner version.
   edges: [{ source: { id: 'x', version: '1' }, target: point, active: false, ownerVersion: '1' }],
 };
-export { asynchronous, invalid };
+export { ContributionProvider, useContributions, asynchronous, invalid };
 
 type ActionValue = { kind: 'label'; label: string } | { kind: 'count'; count: number };
 const unionPoint = defineContributionPoint<ActionValue>({ owner: 'checkout', point: 'variants' });

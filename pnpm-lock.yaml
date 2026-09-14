@@ -247,6 +247,9 @@ importers:
       '@lorion-org/composition-graph':
         specifier: workspace:^
         version: link:../composition-graph
+      '@lorion-org/contributions':
+        specifier: workspace:^
+        version: link:../contributions
       '@lorion-org/descriptor-discovery':
         specifier: workspace:^
         version: link:../descriptor-discovery
@@ -292,6 +295,9 @@ importers:
       '@lorion-org/composition-graph':
         specifier: workspace:^
         version: link:../composition-graph
+      '@lorion-org/contributions':
+        specifier: workspace:^
+        version: link:../contributions
       '@lorion-org/descriptor-discovery':
         specifier: workspace:^
         version: link:../descriptor-discovery

@@ -513,7 +513,7 @@ the `explicit` tier. Provider reports forward the provenance contract owned by
 `@lorion-org/provider-selection` unchanged. The removed `providerPreferences`
 field is rejected; migrate the choice to the descriptor's `dependencies` map.
 
-The React example's `commerce` bundle selects Stripe through a dependency.
+The React example's `commerce` bundle selects checkout, whose provider defaults to Stripe.
 Selecting `web payment-provider-invoice` explicitly switches checkout to
 Invoice and leaves Stripe out of the resolved capabilities.
 
@@ -609,3 +609,29 @@ and the chosen `resolvedCapabilityVersions`. The options-only loader captures
 selection during `configResolved`; the run-backed loader uses the run's captured
 selection. `describeCapabilityComposition` includes source and requirement
 provenance in `versionSelection`.
+
+## Composition-bound contributions
+
+Opt in with `lorionReact({ contributions: true, ... })` or
+`capabilityLoader({ run, contributions: true })`. Each selected physical capability
+may expose a named `contributionModule` through its package's `./contributions` export.
+Omitting that export is valid; a declared export must resolve. The adapter binds each
+module to its originating descriptor ID and exact version before any factory runs.
+A module cannot impersonate another selected layer.
+
+The generated `virtual:lorion-contributions` module exports `contributionPlan` and
+`contributionModules`. Create one runtime outside React render/effects and pass it to
+`ContributionProvider` from `@lorion-org/react/contributions`. Inside the provider,
+`useContributions(point)` reads the typed collection. Outside it, the hook throws.
+A new application root or SSR request gets its own runtime. Use ordinary keyed JSX,
+props and local component state to render values; the binding adds no component lifecycle.
+
+The opt-in `lorionReact` setup projects routes and module imports from the same selection.
+The sealed-run loader uses that run's descriptor and package snapshot. With the option
+disabled, the legacy virtual modules, runtime and contribution contracts retain their
+existing behavior. This opt-in entry point re-exports the framework-free
+[contribution contract](../contributions/README.md); it is distinct from the legacy
+root entry's `defineContribution` function.
+
+The [React runtime example](../../examples/react-runtime/) demonstrates type-only
+owner contracts, version selection, provider selection and native action rendering.
