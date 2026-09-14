@@ -38,6 +38,12 @@ export interface CapabilityCompositionInput extends CapabilitySelectionInput {
 }
 
 // @public (undocumented)
+type CapabilityIdentity = Readonly<{
+    id: string;
+    version: string;
+}>;
+
+// @public (undocumented)
 export interface CapabilitySelectionInput {
     // (undocumented)
     bundles?: {
@@ -210,6 +216,12 @@ export interface CompositionRunInput extends CapabilitySelectionInput {
 }
 
 // @public (undocumented)
+type ContributionAddress = Readonly<{
+    owner: string;
+    point: string;
+}>;
+
+// @public (undocumented)
 interface ContributionEdge {
     // (undocumented)
     from: DescriptorId;
@@ -218,6 +230,30 @@ interface ContributionEdge {
     // (undocumented)
     to: DescriptorId;
 }
+
+// @public (undocumented)
+type ContributionPlan = Readonly<{
+    selected: readonly CapabilityIdentity[];
+    points: readonly ContributionPlanPoint[];
+    edges: readonly ContributionPlanEdge[];
+}>;
+
+// @public (undocumented)
+type ContributionPlanEdge = Readonly<{
+    source: CapabilityIdentity;
+    target: ContributionAddress;
+}> & (Readonly<{
+    active: true;
+    ownerVersion: string;
+}> | Readonly<{
+    active: false;
+    ownerVersion?: never;
+}>);
+
+// @public (undocumented)
+type ContributionPlanPoint = ContributionAddress & Readonly<{
+    ownerVersion: string;
+}>;
 
 // @public (undocumented)
 interface ContributionRelationOptions {
@@ -473,6 +509,12 @@ export interface PackageSourceSnapshot {
     // (undocumented)
     workspaceRoot: string;
 }
+
+// @public (undocumented)
+export function projectContributionPlan(input: {
+    catalog: readonly Descriptor[];
+    selected: readonly Descriptor[];
+}): ContributionPlan;
 
 export { ProviderSelectionMode }
 

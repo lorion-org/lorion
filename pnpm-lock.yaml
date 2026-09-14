@@ -92,7 +92,7 @@ importers:
     devDependencies:
       nuxt:
         specifier: ^4.4.2
-        version: 4.4.2(@babel/core@8.0.1)(@babel/plugin-syntax-jsx@7.28.6(@babel/core@8.0.1))(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@parcel/watcher@2.5.6)(@types/node@22.19.17)(@vue/compiler-sfc@3.5.33)(cac@6.7.14)(db0@0.3.4)(eslint@9.39.4(jiti@2.6.1))(ioredis@5.10.1)(magicast@0.5.2)(optionator@0.9.4)(rollup-plugin-visualizer@7.0.1(rollup@4.60.2))(rollup@4.60.2)(terser@5.46.2)(typescript@5.9.3)(vite@7.3.2(@types/node@22.19.17)(jiti@2.6.1)(terser@5.46.2)(yaml@2.8.3))(vue-tsc@3.3.7(typescript@5.9.3))(yaml@2.8.3)
+        version: 4.4.2(@babel/core@8.0.1)(@babel/plugin-syntax-jsx@7.28.6(@babel/core@8.0.1))(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@parcel/watcher@2.5.6)(@types/node@22.19.17)(@vue/compiler-sfc@3.5.33)(cac@6.7.14)(db0@0.3.4)(eslint@9.39.4(jiti@2.6.1))(ioredis@5.10.1)(magicast@0.5.2)(optionator@0.9.4)(rollup-plugin-visualizer@7.0.1(rollup@4.60.2))(rollup@4.60.2)(srvx@0.11.15)(terser@5.46.2)(typescript@5.9.3)(vite@7.3.2(@types/node@22.19.17)(jiti@2.6.1)(terser@5.46.2)(yaml@2.8.3))(vue-tsc@3.3.7(typescript@5.9.3))(yaml@2.8.3)
 
   examples/react-loader:
     dependencies:
@@ -173,6 +173,9 @@ importers:
       '@lorion-org/composition-graph':
         specifier: workspace:^
         version: link:../composition-graph
+      '@lorion-org/contributions':
+        specifier: workspace:^
+        version: link:../contributions
       '@lorion-org/descriptor-discovery':
         specifier: workspace:^
         version: link:../descriptor-discovery
@@ -195,6 +198,8 @@ importers:
       '@types/semver':
         specifier: ^7.8.0
         version: 7.8.0
+
+  packages/contributions: {}
 
   packages/descriptor-discovery:
     dependencies:
@@ -361,12 +366,18 @@ importers:
 
   tools/dist-consumer:
     dependencies:
+      '@lorion-fixtures/contribution-owner':
+        specifier: file:./fixtures/contribution-owner
+        version: file:tools/dist-consumer/fixtures/contribution-owner(@lorion-org/contributions@packages+contributions)
       '@lorion-org/capability-composition':
         specifier: workspace:^
         version: link:../../packages/capability-composition
       '@lorion-org/composition-graph':
         specifier: workspace:^
         version: link:../../packages/composition-graph
+      '@lorion-org/contributions':
+        specifier: workspace:*
+        version: link:../../packages/contributions
       '@lorion-org/descriptor-discovery':
         specifier: workspace:^
         version: link:../../packages/descriptor-discovery
@@ -397,7 +408,7 @@ importers:
     devDependencies:
       nuxt:
         specifier: ^4.4.2
-        version: 4.4.2(@babel/core@8.0.1)(@babel/plugin-syntax-jsx@7.28.6(@babel/core@8.0.1))(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@parcel/watcher@2.5.6)(@types/node@22.19.17)(@vue/compiler-sfc@3.5.33)(cac@6.7.14)(db0@0.3.4)(eslint@9.39.4(jiti@2.6.1))(ioredis@5.10.1)(magicast@0.5.2)(optionator@0.9.4)(rollup-plugin-visualizer@7.0.1(rollup@4.60.2))(rollup@4.60.2)(srvx@0.11.15)(terser@5.46.2)(typescript@5.9.3)(vite@7.3.2(@types/node@22.19.17)(jiti@2.6.1)(terser@5.46.2)(yaml@2.8.3))(vue-tsc@3.3.7(typescript@5.9.3))(yaml@2.8.3)
+        version: 4.4.2(@babel/core@8.0.1)(@babel/plugin-syntax-jsx@7.28.6(@babel/core@8.0.1))(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@parcel/watcher@2.5.6)(@types/node@22.19.17)(@vue/compiler-sfc@3.5.33)(cac@6.7.14)(db0@0.3.4)(eslint@9.39.4(jiti@2.6.1))(ioredis@5.10.1)(magicast@0.5.2)(optionator@0.9.4)(rollup-plugin-visualizer@7.0.1(rollup@4.60.2))(rollup@4.60.2)(terser@5.46.2)(typescript@5.9.3)(vite@7.3.2(@types/node@22.19.17)(jiti@2.6.1)(terser@5.46.2)(yaml@2.8.3))(vue-tsc@3.3.7(typescript@5.9.3))(yaml@2.8.3)
 
 packages:
 
@@ -1254,6 +1265,11 @@ packages:
 
   '@loaderkit/resolve@1.0.6':
     resolution: {integrity: sha512-G8FdIoF5CypfwmD9rl8BXod5HDn8JqB0CCNBXDTaRZ+yRYhARrrSToX1zg1zy9jX3zLqigsELwhT4gNtkdQAUg==}
+
+  '@lorion-fixtures/contribution-owner@file:tools/dist-consumer/fixtures/contribution-owner':
+    resolution: {directory: tools/dist-consumer/fixtures/contribution-owner, type: directory}
+    peerDependencies:
+      '@lorion-org/contributions': '*'
 
   '@manypkg/find-root@1.1.0':
     resolution: {integrity: sha512-mki5uBvhHzO8kYYix/WRy2WX8S3B5wdVSc9D6KcU5lQNglP2yt58/VfLuAK49glRXChosY8ap2oJ1qgma3GUVA==}
@@ -6709,6 +6725,10 @@ snapshots:
   '@loaderkit/resolve@1.0.6':
     dependencies:
       '@braidai/lang': 1.1.2
+
+  '@lorion-fixtures/contribution-owner@file:tools/dist-consumer/fixtures/contribution-owner(@lorion-org/contributions@packages+contributions)':
+    dependencies:
+      '@lorion-org/contributions': link:packages/contributions
 
   '@manypkg/find-root@1.1.0':
     dependencies:

@@ -19,7 +19,8 @@
       "@lorion-org/nuxt": ["./packages/nuxt/src/index.ts"],
       "@lorion-org/nuxt/composables": ["./packages/nuxt/src/runtime-composables.ts"],
       "@lorion-org/nuxt/runtime-config": ["./packages/nuxt/src/runtime-config.ts"],
-      "@lorion-org/nuxt/runtime-config-node": ["./packages/nuxt/src/runtime-config-node.ts"]
+      "@lorion-org/nuxt/runtime-config-node": ["./packages/nuxt/src/runtime-config-node.ts"],
+      "@lorion-org/contributions": ["./packages/contributions/src/index.ts"]
     }
   },
   "include": ["snippets-globals.d.ts", "packages/*/snippets/**/*.ts"]

@@ -1,14 +1,14 @@
 {
-  "name": "@lorion-org/capability-composition",
+  "name": "@lorion-org/contributions",
   "version": "1.0.0-beta.8",
-  "description": "Framework-free capability composition: on-disk descriptor selection and runtime/build-time composition, built on the surface-activation convention.",
+  "description": "Typed contributions bound to a selected layer composition.",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/lorion-org/lorion.git",
-    "directory": "packages/capability-composition"
+    "directory": "packages/contributions"
   },
-  "homepage": "https://github.com/lorion-org/lorion/tree/main/packages/capability-composition#readme",
+  "homepage": "https://github.com/lorion-org/lorion/tree/main/packages/contributions#readme",
   "bugs": {
     "url": "https://github.com/lorion-org/lorion/issues"
   },
@@ -47,22 +47,14 @@
     "clean": "rimraf coverage dist tsconfig.tsbuildinfo",
     "lint": "eslint src --ext .ts",
     "prepack": "pnpm build",
-    "test": "vitest run --root ../.. --config vitest.config.mts packages/capability-composition/src",
-    "coverage": "node -e \"require('node:fs').mkdirSync('../../coverage/.tmp', { recursive: true })\" && vitest run --coverage --coverage.include=packages/capability-composition/src/**/*.ts --root ../.. --config vitest.config.mts packages/capability-composition/src",
+    "test": "vitest run --root ../.. --config vitest.config.mts packages/contributions/src/index.spec.ts",
+    "coverage": "vitest run --coverage --coverage.include=packages/contributions/src/index.ts --root ../.. --config vitest.config.mts packages/contributions/src/index.spec.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "package:check": "pnpm build && pnpm pack --dry-run && publint"
   },
-  "dependencies": {
-    "@lorion-org/composition-graph": "workspace:^",
-    "@lorion-org/descriptor-discovery": "workspace:^",
-    "@lorion-org/descriptor-selection": "workspace:^",
-    "@lorion-org/runtime-config": "workspace:^",
-    "@lorion-org/surface-activation": "workspace:^",
-    "@lorion-org/contributions": "workspace:^"
-  },
   "keywords": [
     "lorion",
-    "capability",
+    "contributions",
     "composition",
     "typescript"
   ],

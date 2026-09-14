@@ -806,3 +806,5 @@ export function createWorkspaceCompositionRun(input: WorkspaceCompositionRunInpu
     packageSources: snapshot.packageSources,
   });
 }
+
+export { projectContributionPlan } from './contributions';
