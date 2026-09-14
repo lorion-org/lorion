@@ -3,6 +3,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./capability": "./src/capability.ts"
+    "./capability": "./src/capability.ts",
+    "./contracts": "./contracts.ts",
+    "./contributions": "./contributions.ts"
   }
 }

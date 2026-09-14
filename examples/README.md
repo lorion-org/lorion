@@ -88,3 +88,65 @@ The loader example prints requested specifications, chosen versions, source path
 and their effective requirements from its single composition run. The shared
 [selection contract](../packages/descriptor-selection/README.md#capability-versions)
 owns range syntax, stable defaults and explicit prerelease opt-in.
+
+## Composition-bound contribution playgrounds
+
+React Model A and Nuxt opt into the same contribution contract. Shops publish typed
+values at `shops/shop`; payment implementations contribute at `payments/payment-method`.
+The existing provider selection result determines which checkout provider is used.
+The collection does not choose another provider. Providers depend on checkout because their routes render its action surface.
+The commerce/web grouping selects checkout;
+Stripe is its `defaultFor` provider. Keeping Stripe out of explicit grouping membership lets
+an explicit invoice seed override that default without two competing explicit providers. Model B continues to demonstrate an
+independent host runtime.
+
+Optional `gift-wrap` and `order-note` layers contribute ordinary components to
+`checkout/actions`, receiving `shopId` through native props. The owner renders them in
+explicit order, with native local click state, keyed identity and a fallback when empty.
+React uses `ComponentType<CheckoutActionProps>`; Nuxt uses Vue
+`DefineComponent<CheckoutActionProps, any>`, leaving setup bindings opaque while checking
+required props. Both contracts reject components that require props the owner does not supply.
+These layers have no required checkout dependency. Their public contract imports are
+type-only, so an absent checkout implementation is not imported just to author an item.
+These local capabilities are not workspace packages; their public contract files are
+therefore imported by relative type-only paths and exposed through `./contracts`.
+
+`/tech` displays structural contribution identities, addresses, order and active/inactive
+status. It does not display payloads or private configuration. React's monitor route is
+host-owned so it remains available without selecting the shop UI.
+
+| Browser profile     | React selection                        | Nuxt selection                     | Expected observation                                       |
+| ------------------- | -------------------------------------- | ---------------------------------- | ---------------------------------------------------------- |
+| `normal`            | `storefront`                           | `default`                          | Coffee v2 and stationery, Stripe checkout, action fallback |
+| `actions`           | `storefront,gift-wrap,order-note`      | `default,gift-wrap,order-note`     | Two ordered, interactive checkout actions                  |
+| `legacy`            | `storefront-legacy`                    | `storefront-legacy`                | Coffee v1 route, item and provenance agree                 |
+| `inactive`          | `gift-wrap` with commerce base omitted | `gift-wrap`                        | Checkout stays absent; action is inspectable and inactive  |
+| `invoice`           | `storefront,payment-provider-invoice`  | `default,payment-provider-invoice` | The explicitly selected invoice provider owns checkout     |
+| `legacy-cli`        | `storefront,shop-coffee@1`             | `default,shop-coffee@1`            | CLI selects coffee v1                                      |
+| `provider-only`     | `payment-provider-stripe`              | `payment-provider-stripe`          | Provider dependency selects checkout and its fallback      |
+| `failure-duplicate` | `storefront,failure-duplicate`         | `default,failure-duplicate`        | Native startup rejects duplicate items                     |
+| `failure-factory`   | `storefront,failure-factory`           | `default,failure-factory`          | Native startup reports a factory failure                   |
+
+`LORION_FEATURES` selects React capabilities; `LORION_CAPABILITIES` selects Nuxt extensions.
+The `legacy-cli` profile verifies the corresponding `--features` and `--capabilities`
+arguments. React's `inactive` and `provider-only` test/demo profiles omit its otherwise
+always-on commerce base so required descriptor dependencies determine the selected owners. This is host seed policy, not a runtime selection switch.
+Create a new app composition to change a profile.
+
+After `pnpm build` and `pnpm exec playwright install chromium`, run `pnpm examples:test`.
+Playwright builds and serves both apps using published `dist` exports, with no source
+condition or source aliases, and runs the same browser assertions against each. The command
+runs every profile in the table sequentially using Playwright's native web-server lifecycle,
+then checks Nuxt's documented CLI and environment inputs reject conflicting version requirements.
+For one profile, set `LORION_EXAMPLE_PROFILE=actions` and run
+`pnpm exec playwright test --config examples/playwright.config.ts`.
+
+The browser suite checks selection, route/item consistency, provider identity, ordering,
+props, interaction, unmount/reset and Nuxt SSR/hydration, including warning and error
+console messages. Failure profiles require structural error codes and no mounted application.
+Nuxt exposes test diagnostics through a test-only `app:error` observer; its production SSR
+error page must exclude private fixture values. These profiles opt into fixture descriptors
+and the observer; normal example selections do not include them. Core and adapter fixtures cover
+invalid identities, undeclared addresses, duplicate items, missing point implementations,
+factory failure and malformed inputs. Nuxt's integration suite additionally mutates a
+factory-created payload in parallel SSR requests to detect shared request state.

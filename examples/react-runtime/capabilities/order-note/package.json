@@ -1,0 +1,9 @@
+{
+  "name": "@acme/order-note",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./contributions": "./contributions.ts",
+    "./capability": "./src/capability.ts"
+  }
+}

@@ -1,24 +1,12 @@
-import type { Shop } from '../../types';
-
-const shopRegistryName = 'shops';
-
+import { point } from '../../contributions';
 export default defineNuxtPlugin({
   name: 'shops',
-  enforce: 'pre',
-  setup: () => {
+  dependsOn: ['lorion-contributions'],
+  setup() {
     const nuxtApp = useNuxtApp();
-
-    nuxtApp.hooks.hook('app:created', () => {
-      void nuxtApp.hooks.callHook('shops:created', {
-        registerShop: (shop) => nuxtApp.$registryHub.register(shopRegistryName, shop),
-      });
-    });
-
     return {
       provide: {
-        shops: {
-          list: () => nuxtApp.$registryHub.list<Shop>(shopRegistryName),
-        },
+        shops: { list: () => nuxtApp.$contributions.get(point).map(({ value }) => value) },
       },
     };
   },

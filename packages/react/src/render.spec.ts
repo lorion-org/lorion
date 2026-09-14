@@ -39,6 +39,7 @@ it('executes the generated module with exactly the activated registrations and r
         'selected',
         {
           selectedCapabilityIds: ['group'],
+          discoveredCapabilityIds: items.map(({ id }) => id).sort(),
           resolvedCapabilityIds: items.map(({ id }) => id),
           resolvedCapabilityVersions: Object.fromEntries(items.map(({ id }) => [id, '1.2.0'])),
           providerSelection,
@@ -49,6 +50,7 @@ it('executes the generated module with exactly the activated registrations and r
         'empty',
         {
           selectedCapabilityIds: [],
+          discoveredCapabilityIds: [],
           resolvedCapabilityIds: [],
           resolvedCapabilityVersions: {},
           providerSelection: { slots: [], excludedProviderIds: [] },

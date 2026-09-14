@@ -1,0 +1,7 @@
+{
+  "id": "gift-wrap",
+  "version": "1.0.0",
+  "contributesTo": {
+    "checkout": "actions"
+  }
+}

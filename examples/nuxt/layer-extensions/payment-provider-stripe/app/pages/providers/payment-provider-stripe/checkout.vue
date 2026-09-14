@@ -7,6 +7,7 @@ const route = useRoute();
     <NuxtLink :to="`/shops/${route.query.shop ?? 'coffee'}`"> Back to shop </NuxtLink>
     <h1>Stripe checkout</h1>
     <p>Shop: {{ route.query.shop }}</p>
+    <CheckoutActions :shop-id="String(route.query.shop ?? 'coffee')" />
     <p>This page is contributed by the Stripe provider layer.</p>
   </main>
 </template>

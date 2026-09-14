@@ -48,6 +48,20 @@
         "types": "./dist/vite.d.cts",
         "default": "./dist/vite.cjs"
       }
+    },
+    "./contributions": {
+      "lorion-source": {
+        "types": "./src/contributions.ts",
+        "default": "./src/contributions.ts"
+      },
+      "import": {
+        "types": "./dist/contributions.d.ts",
+        "default": "./dist/contributions.js"
+      },
+      "require": {
+        "types": "./dist/contributions.d.cts",
+        "default": "./dist/contributions.cjs"
+      }
     }
   },
   "files": [
@@ -57,7 +71,7 @@
     "!src/**/*.spec.ts"
   ],
   "scripts": {
-    "build": "tsup src/index.ts src/vite.ts --format esm,cjs --dts",
+    "build": "tsup src/index.ts src/contributions.ts src/vite.ts --format esm,cjs --dts",
     "clean": "rimraf coverage dist tsconfig.tsbuildinfo",
     "lint": "eslint src --ext .ts",
     "prepack": "pnpm build",
@@ -73,7 +87,8 @@
     "@lorion-org/provider-selection": "workspace:^",
     "@lorion-org/runtime-config": "workspace:^",
     "@lorion-org/runtime-config-node": "workspace:^",
-    "@lorion-org/surface-activation": "workspace:^"
+    "@lorion-org/surface-activation": "workspace:^",
+    "@lorion-org/contributions": "workspace:^"
   },
   "peerDependencies": {
     "react": "^19.0.0",

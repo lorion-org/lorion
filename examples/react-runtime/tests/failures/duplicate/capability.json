@@ -1,0 +1,10 @@
+{
+  "id": "failure-duplicate",
+  "version": "1.0.0",
+  "dependencies": {
+    "checkout": "^1.0.0"
+  },
+  "contributesTo": {
+    "checkout": "actions"
+  }
+}

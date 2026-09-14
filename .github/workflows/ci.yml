@@ -89,6 +89,12 @@ jobs:
       - name: Verify examples (dev-only; not part of the package build/typecheck gates)
         run: pnpm run examples:verify
 
+      - name: Install browser for contribution acceptance
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Verify contribution playgrounds against built exports
+        run: pnpm run examples:test
+
       - name: Require a changeset for package changes
         if: github.event_name == 'pull_request' && !startsWith(github.head_ref, 'changeset-release/')
         run: pnpm run changeset:check

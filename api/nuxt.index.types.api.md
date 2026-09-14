@@ -296,6 +296,7 @@ export default lorionNuxtModule;
 
 // @public (undocumented)
 export type LorionNuxtModuleOptions = {
+    contributions?: boolean;
     extensionBootstrap?: NuxtExtensionBootstrap;
     extensions?: NuxtExtensionModuleOptions;
     logging?: boolean | {

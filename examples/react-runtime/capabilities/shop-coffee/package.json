@@ -2,6 +2,7 @@
   "name": "@acme/shop-coffee",
   "type": "module",
   "exports": {
-    "./capability": "./src/capability.ts"
+    "./capability": "./src/capability.ts",
+    "./contributions": "./contributions.ts"
   }
 }

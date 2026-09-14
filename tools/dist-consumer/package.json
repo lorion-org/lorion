@@ -17,7 +17,9 @@
     "@lorion-org/registry-hub": "workspace:^",
     "@lorion-org/runtime-config": "workspace:^",
     "@lorion-org/runtime-config-node": "workspace:^",
-    "@lorion-org/surface-activation": "workspace:^"
+    "@lorion-org/surface-activation": "workspace:^",
+    "@lorion-org/contributions": "workspace:*",
+    "@lorion-fixtures/contribution-owner": "file:./fixtures/contribution-owner"
   },
   "devDependencies": {
     "nuxt": "^4.4.2"

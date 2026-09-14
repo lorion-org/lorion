@@ -1,0 +1,9 @@
+{
+  "name": "@lorion-fixtures/react-runtime-duplicate",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./contributions": "./contributions.ts",
+    "./capability": "./capability.ts"
+  }
+}

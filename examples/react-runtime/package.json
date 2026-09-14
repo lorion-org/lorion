@@ -7,11 +7,14 @@
     "dev": "node ../../tools/run-source-condition.mjs vite dev --config vite.config.ts --host 0.0.0.0 --",
     "build": "node ../../tools/run-source-condition.mjs vite build --config vite.config.ts --",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint . --ext .ts,.tsx"
+    "lint": "eslint . --ext .ts,.tsx",
+    "build:dist": "vite build --config vite.config.ts --",
+    "serve:dist": "vite preview --host 127.0.0.1 --port 4320"
   },
   "dependencies": {
     "@lorion-org/react": "workspace:*",
-    "@lorion-org/provider-selection": "workspace:*"
+    "@lorion-org/provider-selection": "workspace:*",
+    "@lorion-org/contributions": "workspace:*"
   },
   "devDependencies": {
     "@tanstack/react-router": "^1.168.25",

@@ -279,6 +279,7 @@ type JsonSchemaObject = Record<string, unknown>;
 
 // @public (undocumented)
 export type LorionNuxtModuleOptions = {
+    contributions?: boolean;
     extensionBootstrap?: NuxtExtensionBootstrap;
     extensions?: NuxtExtensionModuleOptions;
     logging?: boolean | {

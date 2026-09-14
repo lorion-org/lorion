@@ -1,0 +1,18 @@
+{
+  "name": "@lorion-fixtures/contribution-owner",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./contracts": {
+      "types": "./contracts.d.ts"
+    },
+    "./contributions": {
+      "types": "./contributions.d.ts",
+      "default": "./contributions.js"
+    }
+  },
+  "peerDependencies": {
+    "@lorion-org/contributions": "*"
+  }
+}
