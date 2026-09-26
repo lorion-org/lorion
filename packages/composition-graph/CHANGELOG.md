@@ -1,5 +1,76 @@
 # @lorion-org/composition-graph
 
+## 1.0.0-beta.9
+
+### Minor Changes
+
+- 5788936: Let a host register a relation without replacing the ones a composition already
+  walks, and read the declared contribution relation.
+  - `RelationDescriptor` carries optional `roles` (`resolution`, `provenance`,
+    `inspection`), and `extendCompositionPolicy(policy, relationDescriptors)` appends
+    each registered relation to the lists its roles name. A relation without roles is
+    registered and walked by nothing, which is what happened before.
+  - `providerRelationDescriptors` declares those roles, and
+    `selectDescriptorsWithProviders` extends the policy with the relations it carries.
+    A policy that named `resolutionRelationIds` to add an edge of its own used to drop
+    the provider relation with it, and every default provider lost its slot.
+  - `resolveContributions(descriptors, options?)`, `contributionRelationDescriptor()`
+    and the descriptor fields `contributionPoints` / `contributesTo`: a descriptor
+    offers named points, others declare which of them they fill. A contribution to an
+    unknown descriptor, to a point its owner does not declare, or to the contributor
+    itself aborts while the declaring descriptor can still be named. Resolution does
+    not walk the relation.
+  - `assertKnownReferences({ descriptors, relationDescriptors? })` reports a name no
+    descriptor declares together with the descriptor that declared it and the relation
+    it declared it under. A relation resolves only for a target the descriptor map
+    holds, so such a name otherwise shrinks the composition in silence.
+
+- c25cc9f: Add a workspace composition run that seals package and descriptor filesystem
+  observation, plus a versioned candidate inventory and source consistency checks.
+  The returned JavaScript values remain mutable. Directly selected groupings now give
+  their provider members explicit precedence after grouping-version selection. Add
+  version-aware contribution catalog validation and active projection, and let the
+  React Vite loader consume an existing composition run without rediscovery.
+  Descriptor discovery retains the exact descriptor documents in package snapshots,
+  so the workspace run validates and expands them without another filesystem read.
+- 29154da: Resolve one compatible version per capability id across workspace sources.
+
+  Different versions of an id can coexist in discovery. Selection considers newer
+  versions first and backtracks to satisfy active transitive dependency constraints,
+  preserving provider precedence and each candidate's package and directory.
+  Duplicate id/version identities and unsatisfiable requirements fail explicitly.
+  Composition reports, React virtual modules and Nuxt runtime selection expose the
+  resolved versions.
+
+  Dependency ranges that were previously ignored are now enforced, even with a
+  single available candidate. Correct mismatched manifests before upgrading. The
+  shared schema requires concrete descriptor versions and accepts npm SemVer
+  dependency ranges, including partial, wildcard, comparator, union and hyphen
+  ranges. Its `semver-range` format is registered by Lorion loaders; hosts using
+  the exported schema directly must register it in their validator.
+  Package names must remain distinct for candidates in the same workspace.
+
+  Custom dependency relation overrides retain their host-defined value semantics.
+  Inactive providers do not multiply version search work. Origin reports derive
+  grouping status and provider alternatives from the resolved source and catalog.
+
+  Use locale-independent candidate ordering. Resolve fixed dependency/provider
+  relations before choosing versions so impossible provider requirements do not
+  multiply independent active version choices. Include generated React module
+  execution tests in the regular package test command.
+
+- 51c49ab: Accept `id@<SemVer range>` in explicit, default, base and CLI/env seeds. Seed
+  constraints intersect with active dependency requirements; incompatible requests
+  fail with their sources and available versions. Unqualified roots now require a
+  stable version, replacing the previous behavior that could select a prerelease.
+  Select prereleases with an explicit matching version range.
+
+  Capture the seed with the composition result and forward selected source and
+  requirement provenance to reports. React and Nuxt retain version constraints
+  through loading and layer selection. Preserve ordinary provider dependencies
+  outside grouping membership and consider membership in version backtracking.
+  Treat an empty contribution dependency range as the npm wildcard.
+
 ## 1.0.0-beta.8
 
 ### Major Changes

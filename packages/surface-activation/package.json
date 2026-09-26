@@ -1,6 +1,6 @@
 {
   "name": "@lorion-org/surface-activation",
-  "version": "1.0.0-beta.8",
+  "version": "1.0.0-beta.9",
   "description": "Framework-free surface-activation convention: which module and export provides a capability's surface, and the import specifier to reach it.",
   "license": "MIT",
   "repository": {
