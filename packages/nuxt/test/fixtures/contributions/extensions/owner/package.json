@@ -1,0 +1,8 @@
+{
+  "name": "@fixture/owner",
+  "private": true,
+  "exports": {
+    "./contributions": "./contributions.ts",
+    "./contracts": "./contracts.ts"
+  }
+}

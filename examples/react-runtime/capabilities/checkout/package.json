@@ -2,6 +2,8 @@
   "name": "@acme/checkout",
   "type": "module",
   "exports": {
-    "./capability": "./src/capability.ts"
+    "./capability": "./src/capability.ts",
+    "./contracts": "./contracts.ts",
+    "./contributions": "./contributions.ts"
   }
 }

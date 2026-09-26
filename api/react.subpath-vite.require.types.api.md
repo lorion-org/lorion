@@ -26,6 +26,7 @@ export function capabilityLoader(rawOptions?: CapabilityLoaderOptions | Composit
 
 // @public (undocumented)
 export type CapabilityLoaderOptions = Partial<Omit<CapabilitySelectionInput, 'seed' | 'relationDescriptors'>> & CapabilitySelectionSeed & {
+    contributions?: boolean;
     activation?: ResolveCapabilityActivation;
     surface?: {
         name: string;
@@ -178,6 +179,7 @@ interface CompositionRun {
 // @public (undocumented)
 export type CompositionRunCapabilityLoaderOptions = {
     run: CompositionRun;
+    contributions?: boolean;
     activation?: ResolveCapabilityActivation;
     surface?: {
         name: string;

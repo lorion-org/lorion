@@ -6,13 +6,9 @@ import {
   describeCompositionOrigins,
   formatCompositionOrigins,
   loadBundleManifest,
+  projectContributionPlan,
 } from '@lorion-org/capability-composition';
-import {
-  assertKnownReferences,
-  contributionRelationDescriptor,
-  defaultRelationDescriptors,
-  resolveContributions,
-} from '@lorion-org/composition-graph';
+import { contributionRelationDescriptor } from '@lorion-org/composition-graph';
 import { resolvePackageSources } from '@lorion-org/descriptor-discovery';
 
 // The same grouping model the React examples use: a bundles.json declares the
@@ -42,7 +38,12 @@ const extensionBootstrap = createNuxtExtensionBootstrap({
     defaultSelection: [defaultBundle],
     // Discovery follows the snapshot instead of a pattern of its own, so the second
     // root takes part like any other and nothing is discovered twice.
-    descriptorPaths: [...snapshot.descriptorPaths],
+    descriptorPaths: [
+      ...snapshot.descriptorPaths,
+      ...(process.env.LORION_EXAMPLE_PROFILE?.startsWith('failure-')
+        ? ['tests/failures/*/extension.json']
+        : []),
+    ],
     // The declared contribution relation: an extension offers named points and others
     // declare which of them they fill. Registered so the graph carries the edge; it is
     // walked for inspection and changes nothing about what resolves.
@@ -52,13 +53,10 @@ const extensionBootstrap = createNuxtExtensionBootstrap({
 
 const descriptors = extensionBootstrap.resolvedExtensions.map((entry) => entry.descriptor);
 
-// A name no descriptor declares resolves to nothing at all, in either relation.
-assertKnownReferences({
-  descriptors,
-  relationDescriptors: [...defaultRelationDescriptors, contributionRelationDescriptor()],
+const contributions = projectContributionPlan({
+  catalog: extensionBootstrap.discoveredExtensions.map((entry) => entry.descriptor),
+  selected: descriptors,
 });
-
-const contributions = resolveContributions(descriptors);
 
 // Why each extension is in this composition. The bootstrap already resolved it; these
 // rows are a projection of that one resolution and re-resolve nothing.
@@ -78,19 +76,69 @@ console.log(
     ...formatCompositionOrigins(origins),
     '',
     '  Contributions:',
-    ...contributions.edges.map((edge) => `    ${edge.from} -> ${edge.to} (${edge.point})`),
+    ...contributions.edges.map(
+      (edge) =>
+        `    ${edge.source.id} -> ${edge.target.owner} (${edge.target.point}, ${edge.active ? 'active' : 'owner-not-selected'})`,
+    ),
     '',
   ].join('\n'),
 );
 
 export default defineNuxtConfig({
+  ...(process.env.LORION_EXAMPLE_PROFILE?.startsWith('failure-')
+    ? {
+        plugins: [`${__dirname}/tests/failures/observe.ts`],
+        nitro: {
+          handlers: [
+            { route: '/__contribution-health', handler: `${__dirname}/tests/failures/health.ts` },
+          ],
+        },
+      }
+    : {}),
   extends: createNuxtExtensionLayerPaths(extensionBootstrap),
+  runtimeConfig: { contributionPrivateProbe: 'LORION_PRIVATE_CONFIG_PROBE' },
+  vite: {
+    plugins: [
+      {
+        name: 'contribution-acceptance-boundaries',
+        generateBundle(_options, bundle) {
+          if (!process.env.LORION_EXAMPLE_PROFILE) return;
+          const profile = process.env.LORION_EXAMPLE_PROFILE;
+          const chunks = Object.values(bundle).filter((entry) => entry.type === 'chunk');
+          const modules = chunks
+            .flatMap((chunk) => Object.keys(chunk.modules))
+            .map((id) => id.replaceAll('\\', '/'));
+          const code = chunks.map((chunk) => chunk.code).join('\n');
+          if (code.includes('LORION_PRIVATE_CONFIG_PROBE'))
+            throw new Error('Private configuration entered an application bundle.');
+          const forbidden =
+            profile === 'inactive'
+              ? [
+                  '/layer-extensions/checkout/',
+                  '/layer-extensions/payments/',
+                  '/layer-extensions/shops/',
+                  '/layer-extensions/shop-coffee/',
+                  '/prototypes/shop-coffee/',
+                ]
+              : profile.startsWith('legacy')
+                ? ['/layer-extensions/shop-coffee/']
+                : ['/prototypes/shop-coffee/'];
+          for (const fragment of forbidden)
+            if (modules.some((id) => id.includes(fragment)))
+              throw new Error(
+                `Unselected implementation entered an application bundle: ${fragment}`,
+              );
+        },
+      },
+    ],
+  },
   modules: [
     [
       LorionNuxtModule,
       {
         extensionBootstrap,
         logging: true,
+        contributions: true,
       },
     ],
   ],

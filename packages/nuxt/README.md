@@ -532,11 +532,10 @@ examples/nuxt/
 ```
 
 The root app lives under `examples/nuxt/app`. It owns normal Nuxt application
-code. The `shops` layer extension provides the shop home route at `/`, the tiny
-Registry Hub plugin backed by `@lorion-org/registry-hub`, and the shop registry
-item type. Shop extensions depend on `shops`, register small shop entries
-through that registry, and contribute their own pages, plugins, and server
-routes. The `admin` layer extension provides the admin home route at
+code. The `shops` layer extension provides the shop home route at `/`, its public
+shop contract and the `shops/shop` contribution point. Shop extensions depend on
+`shops`, contribute typed entries through their `./contributions` modules, and
+provide their own pages. The `admin` layer extension provides the admin home route at
 `/` for admin profiles. The technical integration monitor lives at `/tech`.
 
 The default profile points to a neutral `web` profile. It starts the shop home
@@ -589,12 +588,13 @@ The example app also shows how the wider package set can work together:
 - `@lorion-org/descriptor-discovery` discovers `extension.json` files.
 - `@lorion-org/composition-graph` resolves selected profiles to active extensions.
 - `@lorion-org/provider-selection` selects one payment provider from the active provider candidates.
-- `@lorion-org/registry-hub` lets extensions register the small UI entries rendered by the root app.
+- `@lorion-org/contributions` collects selected layer entries and native checkout actions.
 - `@lorion-org/runtime-config-node` loads runtime config fragments from disk.
 
-The pages read public runtime config in the browser. The server API only returns
-minimal booleans that prove private runtime config is available server-side
-without returning secret values to the client.
+The overview API returns public composition and provider metadata. The `/tech` page
+reads the current application's structural contribution inspection. Runtime objects
+remain in Nuxt context; the browser acceptance build checks that the private
+configuration fixture is absent from emitted application code.
 
 ## Testing
 
@@ -637,3 +637,28 @@ ranges through layer selection. For example, `--capabilities=shop-coffee@1`
 selects a compatible 1.x implementation. Bootstrap `versionSelection` retains
 chosen sources and requirements for the server-side composition log; public
 runtime selection continues to contain logical ids and resolved versions.
+
+## Composition-bound contributions
+
+Enable `contributions: true` on the Lorion module alongside `extensionBootstrap` or
+configured `extensions`. Enabling it without a composition bootstrap fails; an explicit
+empty bootstrap is valid. Each selected physical layer can export a named
+`contributionModule` through `./contributions`. An omitted export means no runtime
+contribution module. A declared export must resolve, and its ID/version must match
+that exact selected physical layer.
+
+Lorion generates a universal Nuxt plugin named `lorion-contributions`. Its setup
+constructs a fresh runtime for each server application and for browser hydration,
+providing `$contributions`. Native plugins consuming it declare
+`dependsOn: ['lorion-contributions']` and access `useNuxtApp().$contributions` in setup.
+The generated auto-import `useLorionContributions(point)` returns the typed collection
+in the current application. Both use ordinary Nuxt application context; disabled
+contributions register neither plugin nor composable.
+
+Use native keyed Vue components, props and component-local state to render contributions.
+The runtime, functions and components are never placed in Nuxt payload or runtime config.
+Only the serializable selection plan is generated into application code. The runtime
+imports no Nuxt Kit or filesystem APIs. There is no published Nuxt `/contributions`
+runtime subpath; its generated bindings need Nuxt application context. Shared authoring
+uses `@lorion-org/contributions` and type-only owner `./contracts` imports. See the
+[common contract](../contributions/README.md) for activation, failure and ordering rules.

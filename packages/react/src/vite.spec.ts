@@ -57,6 +57,7 @@ describe('React capability Vite helpers', () => {
     const source = moduleId ? plugin.load(moduleId) : null;
 
     expect(source).toContain('selectedCapabilityIds = ["profile"]');
+    expect(source).toContain('discoveredCapabilityIds = ["home","profile"]');
     expect(run.report().requested).toEqual(['profile@1']);
     expect(source).toContain('"home":"0.1.0"');
     expect(source).toContain('"profile":"1.0.0"');

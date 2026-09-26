@@ -1,0 +1,590 @@
+[
+  {
+    "name": "ties and IDs scoped by address",
+    "descriptors": [
+      {
+        "id": "owner",
+        "version": "1.0.0",
+        "contributionPoints": ["items", "other"]
+      },
+      {
+        "id": "a",
+        "version": "1.0.0",
+        "contributesTo": {
+          "owner": ["items", "other"]
+        }
+      },
+      {
+        "id": "b",
+        "version": "1.0.0",
+        "contributesTo": {
+          "owner": "items"
+        }
+      }
+    ],
+    "selected": ["owner", "a", "b"],
+    "modules": {
+      "owner": {
+        "points": [
+          {
+            "owner": "owner",
+            "point": "items"
+          },
+          {
+            "owner": "owner",
+            "point": "other"
+          }
+        ]
+      },
+      "a": {
+        "contributions": [
+          {
+            "target": {
+              "owner": "owner",
+              "point": "items"
+            },
+            "items": [
+              {
+                "id": "z",
+                "value": "az"
+              },
+              {
+                "id": "a",
+                "value": "aa"
+              }
+            ]
+          },
+          {
+            "target": {
+              "owner": "owner",
+              "point": "other"
+            },
+            "items": [
+              {
+                "id": "a",
+                "value": "other"
+              }
+            ]
+          }
+        ]
+      },
+      "b": {
+        "contributions": [
+          {
+            "target": {
+              "owner": "owner",
+              "point": "items"
+            },
+            "items": [
+              {
+                "id": "b",
+                "value": "b"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "ids": ["a", "z", "b"],
+    "error": null
+  },
+  {
+    "name": "duplicate active items",
+    "descriptors": [
+      {
+        "id": "owner",
+        "version": "1.0.0",
+        "contributionPoints": ["items", "other"]
+      },
+      {
+        "id": "a",
+        "version": "1.0.0",
+        "contributesTo": {
+          "owner": ["items", "other"]
+        }
+      },
+      {
+        "id": "b",
+        "version": "1.0.0",
+        "contributesTo": {
+          "owner": "items"
+        }
+      }
+    ],
+    "selected": ["owner", "a", "b"],
+    "modules": {
+      "owner": {
+        "points": [
+          {
+            "owner": "owner",
+            "point": "items"
+          },
+          {
+            "owner": "owner",
+            "point": "other"
+          }
+        ]
+      },
+      "a": {
+        "contributions": [
+          {
+            "target": {
+              "owner": "owner",
+              "point": "items"
+            },
+            "items": [
+              {
+                "id": "z",
+                "value": "az"
+              },
+              {
+                "id": "a",
+                "value": "aa"
+              }
+            ]
+          },
+          {
+            "target": {
+              "owner": "owner",
+              "point": "other"
+            },
+            "items": [
+              {
+                "id": "a",
+                "value": "other"
+              }
+            ]
+          }
+        ]
+      },
+      "b": {
+        "contributions": [
+          {
+            "target": {
+              "owner": "owner",
+              "point": "items"
+            },
+            "items": [
+              {
+                "id": "a",
+                "value": "b"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "ids": ["a", "z", "b"],
+    "error": "DUPLICATE_ITEM"
+  },
+  {
+    "name": "selected missing point",
+    "descriptors": [
+      {
+        "id": "owner",
+        "version": "1.0.0",
+        "contributionPoints": ["items", "other"]
+      },
+      {
+        "id": "a",
+        "version": "1.0.0",
+        "contributesTo": {
+          "owner": ["items", "other"]
+        }
+      },
+      {
+        "id": "b",
+        "version": "1.0.0",
+        "contributesTo": {
+          "owner": "items"
+        }
+      }
+    ],
+    "selected": ["owner", "a", "b"],
+    "modules": {
+      "owner": {},
+      "a": {
+        "contributions": [
+          {
+            "target": {
+              "owner": "owner",
+              "point": "items"
+            },
+            "items": [
+              {
+                "id": "z",
+                "value": "az"
+              },
+              {
+                "id": "a",
+                "value": "aa"
+              }
+            ]
+          },
+          {
+            "target": {
+              "owner": "owner",
+              "point": "other"
+            },
+            "items": [
+              {
+                "id": "a",
+                "value": "other"
+              }
+            ]
+          }
+        ]
+      },
+      "b": {
+        "contributions": [
+          {
+            "target": {
+              "owner": "owner",
+              "point": "items"
+            },
+            "items": [
+              {
+                "id": "b",
+                "value": "b"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "ids": ["a", "z", "b"],
+    "error": "MISSING_POINT_IMPLEMENTATION"
+  },
+  {
+    "name": "undeclared runtime target",
+    "descriptors": [
+      {
+        "id": "owner",
+        "version": "1.0.0",
+        "contributionPoints": ["items", "other"]
+      },
+      {
+        "id": "a",
+        "version": "1.0.0",
+        "contributesTo": {
+          "owner": ["items", "other"]
+        }
+      },
+      {
+        "id": "b",
+        "version": "1.0.0",
+        "contributesTo": {
+          "owner": "items"
+        }
+      }
+    ],
+    "selected": ["owner", "a", "b"],
+    "modules": {
+      "owner": {
+        "points": [
+          {
+            "owner": "owner",
+            "point": "items"
+          },
+          {
+            "owner": "owner",
+            "point": "other"
+          }
+        ]
+      },
+      "a": {
+        "contributions": [
+          {
+            "target": {
+              "owner": "owner",
+              "point": "typo"
+            },
+            "items": [
+              {
+                "id": "z",
+                "value": "az"
+              },
+              {
+                "id": "a",
+                "value": "aa"
+              }
+            ]
+          },
+          {
+            "target": {
+              "owner": "owner",
+              "point": "other"
+            },
+            "items": [
+              {
+                "id": "a",
+                "value": "other"
+              }
+            ]
+          }
+        ]
+      },
+      "b": {
+        "contributions": [
+          {
+            "target": {
+              "owner": "owner",
+              "point": "items"
+            },
+            "items": [
+              {
+                "id": "b",
+                "value": "b"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "ids": ["a", "z", "b"],
+    "error": "UNDECLARED_CONTRIBUTION"
+  },
+  {
+    "name": "factory failure",
+    "descriptors": [
+      {
+        "id": "owner",
+        "version": "1.0.0",
+        "contributionPoints": ["items", "other"]
+      },
+      {
+        "id": "a",
+        "version": "1.0.0",
+        "contributesTo": {
+          "owner": ["items", "other"]
+        }
+      },
+      {
+        "id": "b",
+        "version": "1.0.0",
+        "contributesTo": {
+          "owner": "items"
+        }
+      }
+    ],
+    "selected": ["owner", "a", "b"],
+    "modules": {
+      "owner": {
+        "points": [
+          {
+            "owner": "owner",
+            "point": "items"
+          },
+          {
+            "owner": "owner",
+            "point": "other"
+          }
+        ]
+      },
+      "a": {
+        "failure": true
+      },
+      "b": {
+        "contributions": [
+          {
+            "target": {
+              "owner": "owner",
+              "point": "items"
+            },
+            "items": [
+              {
+                "id": "b",
+                "value": "b"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "ids": ["a", "z", "b"],
+    "error": "MODULE_FACTORY_FAILED"
+  },
+  {
+    "name": "inactive owner with two known versions",
+    "descriptors": [
+      {
+        "id": "owner",
+        "version": "1.0.0",
+        "contributionPoints": ["items", "other"]
+      },
+      {
+        "id": "a",
+        "version": "1.0.0",
+        "contributesTo": {
+          "owner": ["items", "other"]
+        }
+      },
+      {
+        "id": "b",
+        "version": "1.0.0",
+        "contributesTo": {
+          "owner": "items"
+        }
+      },
+      {
+        "id": "owner",
+        "version": "2.0.0",
+        "contributionPoints": ["items", "other"]
+      }
+    ],
+    "selected": ["a", "b"],
+    "modules": {
+      "owner": {
+        "points": [
+          {
+            "owner": "owner",
+            "point": "items"
+          },
+          {
+            "owner": "owner",
+            "point": "other"
+          }
+        ]
+      },
+      "a": {
+        "contributions": [
+          {
+            "target": {
+              "owner": "owner",
+              "point": "items"
+            },
+            "items": [
+              {
+                "id": "z",
+                "value": "az"
+              },
+              {
+                "id": "a",
+                "value": "aa"
+              }
+            ]
+          },
+          {
+            "target": {
+              "owner": "owner",
+              "point": "other"
+            },
+            "items": [
+              {
+                "id": "a",
+                "value": "other"
+              }
+            ]
+          }
+        ]
+      },
+      "b": {
+        "contributions": [
+          {
+            "target": {
+              "owner": "owner",
+              "point": "items"
+            },
+            "items": [
+              {
+                "id": "b",
+                "value": "b"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "ids": [],
+    "error": null
+  },
+  {
+    "name": "duplicate metadata normalizes",
+    "descriptors": [
+      {
+        "id": "owner",
+        "version": "1.0.0",
+        "contributionPoints": ["items", "other", "items", "other"]
+      },
+      {
+        "id": "a",
+        "version": "1.0.0",
+        "contributesTo": {
+          "owner": ["items", "other", "items", "other"]
+        }
+      },
+      {
+        "id": "b",
+        "version": "1.0.0",
+        "contributesTo": {
+          "owner": "items"
+        }
+      }
+    ],
+    "selected": ["owner", "a", "b"],
+    "modules": {
+      "owner": {
+        "points": [
+          {
+            "owner": "owner",
+            "point": "items"
+          },
+          {
+            "owner": "owner",
+            "point": "other"
+          }
+        ]
+      },
+      "a": {
+        "contributions": [
+          {
+            "target": {
+              "owner": "owner",
+              "point": "items"
+            },
+            "items": [
+              {
+                "id": "z",
+                "value": "az"
+              },
+              {
+                "id": "a",
+                "value": "aa"
+              }
+            ]
+          },
+          {
+            "target": {
+              "owner": "owner",
+              "point": "other"
+            },
+            "items": [
+              {
+                "id": "a",
+                "value": "other"
+              }
+            ]
+          }
+        ]
+      },
+      "b": {
+        "contributions": [
+          {
+            "target": {
+              "owner": "owner",
+              "point": "items"
+            },
+            "items": [
+              {
+                "id": "b",
+                "value": "b"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "ids": ["a", "z", "b"],
+    "error": null
+  }
+]

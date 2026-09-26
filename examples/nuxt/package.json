@@ -6,16 +6,19 @@
   "scripts": {
     "dev": "node ../../tools/run-source-condition.mjs nuxi dev .",
     "build": "node ../../tools/run-source-condition.mjs nuxi build .",
-    "typecheck": "node ../../tools/run-source-condition.mjs nuxi typecheck ."
+    "typecheck": "node ../../tools/run-source-condition.mjs nuxi typecheck . && vue-tsc -p tests/contracts/tsconfig.json --noEmit",
+    "build:dist": "nuxi build .",
+    "serve:dist": "node .output/server/index.mjs"
   },
   "dependencies": {
     "@lorion-org/capability-composition": "workspace:*",
     "@lorion-org/composition-graph": "workspace:*",
     "@lorion-org/descriptor-discovery": "workspace:*",
     "@lorion-org/nuxt": "workspace:*",
-    "@lorion-org/registry-hub": "workspace:*"
+    "@lorion-org/contributions": "workspace:*"
   },
   "devDependencies": {
-    "nuxt": "^4.4.2"
+    "nuxt": "^4.4.2",
+    "vue": "^3.5.33"
   }
 }

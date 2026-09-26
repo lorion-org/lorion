@@ -1,0 +1,9 @@
+{
+  "name": "@acme/gift-wrap",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./contributions": "./contributions.ts",
+    "./capability": "./src/capability.ts"
+  }
+}

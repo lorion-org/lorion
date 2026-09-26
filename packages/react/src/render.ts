@@ -10,6 +10,7 @@ export function renderCapabilityModule(
   capabilities: readonly DiscoveredCapability[],
   selected: readonly DescriptorId[] = [],
   providerSelection: ProviderSelectionResolution = { slots: [], excludedProviderIds: [] },
+  discovered: readonly DescriptorId[] = capabilities.map((capability) => capability.id),
 ): string {
   // Only capabilities with a resolved activation entry are imported and
   // registered. Graph-only capabilities take part in dependency resolution and
@@ -27,6 +28,8 @@ export function renderCapabilityModule(
   const capabilityIds = capabilities.map((capability) => capability.id);
 
   return `${imports}
+
+export const discoveredCapabilityIds = ${JSON.stringify([...new Set(discovered)].sort())}
 
 export const selectedCapabilityIds = ${JSON.stringify([...selected])}
 

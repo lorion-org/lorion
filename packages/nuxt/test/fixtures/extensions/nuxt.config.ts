@@ -10,7 +10,7 @@ const extensionBootstrap = createNuxtExtensionBootstrap({
 
 export default defineNuxtConfig({
   extends: createNuxtExtensionLayerPaths(extensionBootstrap),
-  modules: [[LorionNuxtModule, { extensionBootstrap }]],
+  modules: [[LorionNuxtModule, { extensionBootstrap, contributions: false }]],
   nitro: {
     externals: {
       inline: ['vue', '@vue/server-renderer', 'unhead'],

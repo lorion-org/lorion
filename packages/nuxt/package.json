@@ -100,7 +100,8 @@
     "@lorion-org/descriptor-selection": "workspace:^",
     "@lorion-org/provider-selection": "workspace:^",
     "@lorion-org/runtime-config": "workspace:^",
-    "@lorion-org/runtime-config-node": "workspace:^"
+    "@lorion-org/runtime-config-node": "workspace:^",
+    "@lorion-org/contributions": "workspace:^"
   },
   "peerDependencies": {
     "@nuxt/kit": "^4.0.0",

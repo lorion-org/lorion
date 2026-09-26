@@ -9,13 +9,13 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as TechRouteImport } from './../capabilities/web/src/routes/tech'
+import { Route as techRouteImport } from './routes/tech'
 import { Route as IndexRouteImport } from './../capabilities/shops/src/routes/index'
 import { Route as ShopsDotstationeryRouteImport } from './../capabilities/shop-stationery/src/routes/shops.stationery'
 import { Route as ShopsDotcoffeeRouteImport } from './../capabilities/shop-coffee/src/routes/shops.coffee'
 import { Route as ProvidersDotpaymentProviderStripeDotcheckoutRouteImport } from './../capabilities/payment-provider-stripe/src/routes/providers.payment-provider-stripe.checkout'
 
-const TechRoute = TechRouteImport.update({
+const techRoute = techRouteImport.update({
   id: '/tech',
   path: '/tech',
   getParentRoute: () => rootRouteImport,
@@ -44,14 +44,14 @@ const ProvidersDotpaymentProviderStripeDotcheckoutRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/tech': typeof TechRoute
+  '/tech': typeof techRoute
   '/shops/coffee': typeof ShopsDotcoffeeRoute
   '/shops/stationery': typeof ShopsDotstationeryRoute
   '/providers/payment-provider-stripe/checkout': typeof ProvidersDotpaymentProviderStripeDotcheckoutRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/tech': typeof TechRoute
+  '/tech': typeof techRoute
   '/shops/coffee': typeof ShopsDotcoffeeRoute
   '/shops/stationery': typeof ShopsDotstationeryRoute
   '/providers/payment-provider-stripe/checkout': typeof ProvidersDotpaymentProviderStripeDotcheckoutRoute
@@ -59,7 +59,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/tech': typeof TechRoute
+  '/tech': typeof techRoute
   '/shops/coffee': typeof ShopsDotcoffeeRoute
   '/shops/stationery': typeof ShopsDotstationeryRoute
   '/providers/payment-provider-stripe/checkout': typeof ProvidersDotpaymentProviderStripeDotcheckoutRoute
@@ -90,7 +90,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  TechRoute: typeof TechRoute
+  techRoute: typeof techRoute
   ShopsDotcoffeeRoute: typeof ShopsDotcoffeeRoute
   ShopsDotstationeryRoute: typeof ShopsDotstationeryRoute
   ProvidersDotpaymentProviderStripeDotcheckoutRoute: typeof ProvidersDotpaymentProviderStripeDotcheckoutRoute
@@ -102,7 +102,7 @@ declare module '@tanstack/react-router' {
       id: '/tech'
       path: '/tech'
       fullPath: '/tech'
-      preLoaderRoute: typeof TechRouteImport
+      preLoaderRoute: typeof techRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -138,7 +138,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  TechRoute: TechRoute,
+  techRoute: techRoute,
   ShopsDotcoffeeRoute: ShopsDotcoffeeRoute,
   ShopsDotstationeryRoute: ShopsDotstationeryRoute,
   ProvidersDotpaymentProviderStripeDotcheckoutRoute:

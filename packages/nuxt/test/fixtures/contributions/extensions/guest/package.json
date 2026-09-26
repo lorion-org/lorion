@@ -1,0 +1,7 @@
+{
+  "name": "@fixture/guest",
+  "private": true,
+  "exports": {
+    "./contributions": "./contributions.ts"
+  }
+}

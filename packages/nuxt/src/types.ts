@@ -110,6 +110,7 @@ export type NuxtExtensionModuleOptions = Partial<
   };
 
 export type LorionNuxtModuleOptions = {
+  contributions?: boolean;
   extensionBootstrap?: NuxtExtensionBootstrap;
   extensions?: NuxtExtensionModuleOptions;
   logging?:

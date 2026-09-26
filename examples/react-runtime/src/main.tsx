@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import { RouterProvider } from '@tanstack/react-router';
-import { createRouter } from './router';
+import { ContributionProvider } from '@lorion-org/react/contributions';
+import { createRouter, contributionRuntime } from './router';
 import './styles.css';
 
 const rootElement = document.getElementById('root');
@@ -11,4 +12,8 @@ if (!rootElement) {
 
 const router = createRouter();
 
-createRoot(rootElement).render(<RouterProvider router={router} />);
+createRoot(rootElement).render(
+  <ContributionProvider runtime={contributionRuntime}>
+    <RouterProvider router={router} />
+  </ContributionProvider>,
+);

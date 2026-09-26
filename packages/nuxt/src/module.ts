@@ -1,3 +1,4 @@
+import { registerContributions } from './contributions';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -806,6 +807,12 @@ const lorionNuxtModule: NuxtModule<LorionNuxtModuleOptions> =
               rootDir: nuxt.options.rootDir,
               options: options.extensions,
             }));
+
+      if (options.contributions) {
+        if (!bootstrap)
+          throw new Error('Lorion contributions require an extension composition bootstrap.');
+        registerContributions(bootstrap);
+      }
 
       if (bootstrap) {
         const providerSelectionRuntimeConfig = createProviderSelectionRuntimeConfig(

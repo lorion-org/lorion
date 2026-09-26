@@ -228,3 +228,17 @@ chosen version, source and effective requirements; the formatted report includes
 these values. Seed entries accept `id@<SemVer range>` through the shared contract.
 The run captures the seed once, including CLI/env values, and reports its original
 requests even if the environment changes later.
+
+### Contribution plans
+
+`projectContributionPlan({ catalog, selected })` projects an already selected composition
+into the framework-free contribution runtime plan. It validates descriptor contribution
+relations against the complete catalogue and keeps only exact selected source versions.
+Selected identities must exist in the catalogue, with one version per ID. Repeated
+selected identities, point names and edge declarations normalize to one structural record.
+Copied selected metadata cannot replace catalogue-owned metadata.
+
+A known but unselected owner produces an inactive edge, including when several compatible
+owner versions are known. An active edge records the selected owner version. This operation
+performs no discovery, version solving, provider election or implicit dependency addition.
+It returns identities and addresses only, without filesystem paths or payloads.

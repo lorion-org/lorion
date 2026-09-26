@@ -2,5 +2,9 @@
   "name": "@acme/shops",
   "version": "1.0.0",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "exports": {
+    "./contracts": "./contracts.ts",
+    "./contributions": "./contributions.ts"
+  }
 }

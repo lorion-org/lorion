@@ -131,6 +131,7 @@ const lorion = lorionReact({
 | `@lorion-org/descriptor-selection`   | Provider-aware descriptor selection: resolve the active set from a seed.               |
 | `@lorion-org/provider-selection`     | Capability provider selection.                                                         |
 | `@lorion-org/react`                  | React capability runtime, contribution helpers, Vite discovery, and capability routes. |
+| `@lorion-org/contributions`          | Typed, addressed collections bound to a selected layer composition.                    |
 | `@lorion-org/registry-hub`           | Generic runtime registry for named entries.                                            |
 | `@lorion-org/runtime-config`         | Runtime config fragment projection, lookup, and environment helpers.                   |
 | `@lorion-org/runtime-config-node`    | File-system and loader helpers for runtime config.                                     |

@@ -1,3 +1,6 @@
+import { defineContributionPoint, defineContribution } from '@lorion-org/contributions';
+import type * as contributions from '@lorion-org/contributions';
+import type * as reactContributions from '@lorion-org/react/contributions';
 // The CommonJS half of the same check. Under `moduleResolution: Bundler` only the
 // `import` condition resolves, so the `.d.cts` files a package ships are never read.
 // This file is compiled with `module`/`moduleResolution: Node16`, which picks the
@@ -19,6 +22,8 @@ import type * as runtimeConfigNode from '@lorion-org/runtime-config-node';
 import type * as surfaceActivation from '@lorion-org/surface-activation';
 
 export type PublishedCommonJsEntryPoints = {
+  contributions: typeof contributions;
+  reactContributions: typeof reactContributions;
   capabilityComposition: typeof capabilityComposition;
   compositionGraph: typeof compositionGraph;
   descriptorDiscovery: typeof descriptorDiscovery;
@@ -35,3 +40,7 @@ export type PublishedCommonJsEntryPoints = {
 
 // A type-only re-export must not silently remove the constructible public value.
 export const validatorRegistry = new runtimeConfig.RuntimeConfigValidatorRegistry({});
+
+const point = defineContributionPoint<{ label: string }>({ owner: 'example', point: 'items' });
+// @ts-expect-error The CommonJS declarations retain the fixed payload contract.
+defineContribution(point, [{ id: 'x', value: { label: 1 } }]);

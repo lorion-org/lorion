@@ -57,7 +57,8 @@
     "@lorion-org/descriptor-discovery": "workspace:^",
     "@lorion-org/descriptor-selection": "workspace:^",
     "@lorion-org/runtime-config": "workspace:^",
-    "@lorion-org/surface-activation": "workspace:^"
+    "@lorion-org/surface-activation": "workspace:^",
+    "@lorion-org/contributions": "workspace:^"
   },
   "keywords": [
     "lorion",

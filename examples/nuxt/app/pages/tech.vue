@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const inspection = useNuxtApp().$contributions.inspect();
 const { data: overview } = await useFetch('/api/demo/overview');
 
 const extensionSelection = computed(() => overview.value?.extensionSelection);
@@ -21,10 +22,13 @@ const unfilledProviderCapabilities = computed(() =>
     <header class="intro">
       <p>Nuxt integration example</p>
       <h1>Tech monitor</h1>
-      <NuxtLink to="/">Back</NuxtLink>
+      <NuxtLink v-if="extensionSelection?.resolvedExtensionIds.includes('shops')" to="/">
+        Back
+      </NuxtLink>
       <p>Extension profile: {{ extensionSelection?.selectedExtensionIds[0] }}</p>
     </header>
 
+    <pre data-testid="contribution-inspection">{{ JSON.stringify(inspection) }}</pre>
     <section class="grid">
       <article>
         <h2>Resolved extensions</h2>

@@ -1,3 +1,4 @@
+import { createContributionSource } from './contribution-source';
 import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
@@ -51,6 +52,8 @@ import {
   renderServerRuntimeConfigModule,
 } from './render';
 
+const contributionModuleId = 'virtual:lorion-contributions';
+const resolvedContributionModuleId = `\0${contributionModuleId}`;
 const virtualModuleId = 'virtual:capabilities';
 const resolvedVirtualModuleId = `\0${virtualModuleId}`;
 const runtimeConfigModuleId = 'virtual:capability-runtime-config';
@@ -90,6 +93,7 @@ export type CapabilityLoaderOptions = Partial<
     // for a named surface directly (no per-host adapter), OR the richer `activation`
     // resolver that also sees the descriptor and package.json — not both. A nullish
     // result marks the capability graph-only.
+    contributions?: boolean;
     activation?: ResolveCapabilityActivation;
     // Reuse a `conventionActivation` resolver (from `@lorion-org/surface-activation`)
     // for a named surface, e.g. `{ name: 'web', resolver: conventionActivation({...}) }`.
@@ -102,6 +106,7 @@ export type CompositionRunCapabilityLoaderOptions = {
   // The already sealed workspace run. The loader reads its capabilities, provider
   // outcome and package sources and performs no discovery or selection of its own.
   run: CompositionRun;
+  contributions?: boolean;
   activation?: ResolveCapabilityActivation;
   surface?: { name: string; resolver: ActivationResolver };
   runtimeConfig?: false | ReactRuntimeConfigOptions;
@@ -221,11 +226,20 @@ function resolveBundleOptions(options: CapabilityLoaderOptions): CapabilityLoade
 export function capabilityLoader(
   rawOptions: CapabilityLoaderOptions | CompositionRunCapabilityLoaderOptions = {},
 ): VitePlugin {
+  return createCapabilityLoader(rawOptions);
+}
+
+function createCapabilityLoader(
+  rawOptions: CapabilityLoaderOptions | CompositionRunCapabilityLoaderOptions,
+  prepared?: ReturnType<typeof resolveDiscoveredCapabilitySelection>,
+): VitePlugin {
   if ('run' in rawOptions) return capabilityLoaderFromRun(rawOptions);
   const options = resolveBundleOptions(rawOptions);
+  let contributionSource: string | undefined;
   let config: ViteResolvedConfig;
   let capabilities: DiscoveredCapability[] = [];
   let selected: readonly DescriptorId[] = [];
+  let discovered: readonly DescriptorId[] = [];
   let providerSelection: ProviderSelectionResolution = { slots: [], excludedProviderIds: [] };
   let runtimeConfig: ReactRuntimeConfig = { private: {}, public: {} };
 
@@ -234,11 +248,16 @@ export function capabilityLoader(
     enforce: 'pre',
     configResolved(resolvedConfig) {
       config = resolvedConfig;
-      const selection = resolveDiscoveredCapabilitySelection(
-        resolveWorkspaceRoot(config.root, options),
-        options,
-      );
+      const selection =
+        prepared ??
+        resolveDiscoveredCapabilitySelection(resolveWorkspaceRoot(config.root, options), options);
       capabilities = selection.items;
+      discovered = selection.discovered.map((entry) => entry.id);
+      if (options.contributions)
+        contributionSource = createContributionSource(
+          capabilities,
+          selection.discovered.map((entry) => entry.manifest),
+        );
       selected = selection.seed.selected;
       providerSelection = selection.providerSelection;
       runtimeConfig = createReactRuntimeConfig(
@@ -249,6 +268,7 @@ export function capabilityLoader(
       );
     },
     resolveId(id) {
+      if (options.contributions && id === contributionModuleId) return resolvedContributionModuleId;
       if (id === virtualModuleId) return resolvedVirtualModuleId;
       if (id === runtimeConfigModuleId) return resolvedRuntimeConfigModuleId;
       if (id === serverRuntimeConfigModuleId) return resolvedServerRuntimeConfigModuleId;
@@ -256,6 +276,7 @@ export function capabilityLoader(
       return capabilities.find((capability) => capability.importSpecifier === id)?.entryFile;
     },
     load(id, loadOptions) {
+      if (id === resolvedContributionModuleId) return contributionSource ?? null;
       if (id === resolvedRuntimeConfigModuleId) return renderRuntimeConfigModule(runtimeConfig);
       if (id === resolvedServerRuntimeConfigModuleId) {
         if (!loadOptions?.ssr) {
@@ -268,7 +289,7 @@ export function capabilityLoader(
       }
       if (id !== resolvedVirtualModuleId) return null;
 
-      return renderCapabilityModule(capabilities, selected, providerSelection);
+      return renderCapabilityModule(capabilities, selected, providerSelection, discovered);
     },
   };
 }
@@ -311,6 +332,13 @@ function capabilityLoaderFromRun(options: CompositionRunCapabilityLoaderOptions)
       variableName: toVariableName(capability.id),
     };
   });
+  const contributionSource = options.contributions
+    ? createContributionSource(
+        capabilities,
+        run.descriptors().map((entry) => entry.descriptor),
+        run.selectedPackageSources(),
+      )
+    : undefined;
   let runtimeConfig: ReactRuntimeConfig = { private: {}, public: {} };
 
   return {
@@ -325,12 +353,14 @@ function capabilityLoaderFromRun(options: CompositionRunCapabilityLoaderOptions)
       );
     },
     resolveId(id) {
+      if (options.contributions && id === contributionModuleId) return resolvedContributionModuleId;
       if (id === virtualModuleId) return resolvedVirtualModuleId;
       if (id === runtimeConfigModuleId) return resolvedRuntimeConfigModuleId;
       if (id === serverRuntimeConfigModuleId) return resolvedServerRuntimeConfigModuleId;
       return capabilities.find((capability) => capability.importSpecifier === id)?.entryFile;
     },
     load(id, loadOptions) {
+      if (id === resolvedContributionModuleId) return contributionSource ?? null;
       if (id === resolvedRuntimeConfigModuleId) return renderRuntimeConfigModule(runtimeConfig);
       if (id === resolvedServerRuntimeConfigModuleId) {
         if (!loadOptions?.ssr) {
@@ -341,7 +371,12 @@ function capabilityLoaderFromRun(options: CompositionRunCapabilityLoaderOptions)
         return renderServerRuntimeConfigModule(runtimeConfig);
       }
       if (id !== resolvedVirtualModuleId) return null;
-      return renderCapabilityModule(capabilities, run.report().selected, run.providerSelection());
+      return renderCapabilityModule(
+        capabilities,
+        run.report().selected,
+        run.providerSelection(),
+        run.descriptors().map((entry) => entry.descriptor.id),
+      );
     },
   };
 }
@@ -390,6 +425,14 @@ export function createReactRuntimeConfig(
 }
 
 export function lorionReact(options: LorionReactViteOptions): LorionReactViteSetup {
+  if (options.contributions) {
+    const resolved = resolveBundleOptions(options);
+    const selection = resolveDiscoveredCapabilitySelection(options.workspaceRoot, resolved);
+    return {
+      capabilityLoader: createCapabilityLoader(resolved, selection),
+      routeConfig: routeConfigFromCapabilities(options, selection.items),
+    };
+  }
   return {
     capabilityLoader: capabilityLoader(options),
     routeConfig: createCapabilityRouteConfig(options),
@@ -538,8 +581,17 @@ export function createCapabilityRouteConfig(
     throw new Error('createCapabilityRouteConfig requires a routesDirectory option.');
   }
 
+  return routeConfigFromCapabilities(
+    options,
+    discoverSelectedCapabilities(options.workspaceRoot, options),
+  );
+}
+
+function routeConfigFromCapabilities(
+  options: CapabilityRouteConfigOptions,
+  capabilities: readonly DiscoveredCapability[],
+): VirtualRootRoute {
   const routesDirectory = resolve(options.routesDirectory);
-  const capabilities = discoverSelectedCapabilities(options.workspaceRoot, options);
   const capabilityRouteSubtrees = capabilities
     .filter(hasRouteDirectory)
     .filter((capability) => capability.disabled !== true)
