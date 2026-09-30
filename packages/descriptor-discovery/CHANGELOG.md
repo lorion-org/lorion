@@ -1,5 +1,114 @@
 # @lorion-org/descriptor-discovery
 
+## 1.0.0-beta.9
+
+### Major Changes
+
+- 29154da: Resolve one compatible version per capability id across workspace sources.
+
+  Different versions of an id can coexist in discovery. Selection considers newer
+  versions first and backtracks to satisfy active transitive dependency constraints,
+  preserving provider precedence and each candidate's package and directory.
+  Duplicate id/version identities and unsatisfiable requirements fail explicitly.
+  Composition reports, React virtual modules and Nuxt runtime selection expose the
+  resolved versions.
+
+  Dependency ranges that were previously ignored are now enforced, even with a
+  single available candidate. Correct mismatched manifests before upgrading. The
+  shared schema requires concrete descriptor versions and accepts npm SemVer
+  dependency ranges, including partial, wildcard, comparator, union and hyphen
+  ranges. Its `semver-range` format is registered by Lorion loaders; hosts using
+  the exported schema directly must register it in their validator.
+  Package names must remain distinct for candidates in the same workspace.
+
+  Custom dependency relation overrides retain their host-defined value semantics.
+  Inactive providers do not multiply version search work. Origin reports derive
+  grouping status and provider alternatives from the resolved source and catalog.
+
+  Use locale-independent candidate ordering. Resolve fixed dependency/provider
+  relations before choosing versions so impossible provider requirements do not
+  multiply independent active version choices. Include generated React module
+  execution tests in the regular package test command.
+
+### Minor Changes
+
+- 5788936: Let a host register a relation without replacing the ones a composition already
+  walks, and read the declared contribution relation.
+  - `RelationDescriptor` carries optional `roles` (`resolution`, `provenance`,
+    `inspection`), and `extendCompositionPolicy(policy, relationDescriptors)` appends
+    each registered relation to the lists its roles name. A relation without roles is
+    registered and walked by nothing, which is what happened before.
+  - `providerRelationDescriptors` declares those roles, and
+    `selectDescriptorsWithProviders` extends the policy with the relations it carries.
+    A policy that named `resolutionRelationIds` to add an edge of its own used to drop
+    the provider relation with it, and every default provider lost its slot.
+  - `resolveContributions(descriptors, options?)`, `contributionRelationDescriptor()`
+    and the descriptor fields `contributionPoints` / `contributesTo`: a descriptor
+    offers named points, others declare which of them they fill. A contribution to an
+    unknown descriptor, to a point its owner does not declare, or to the contributor
+    itself aborts while the declaring descriptor can still be named. Resolution does
+    not walk the relation.
+  - `assertKnownReferences({ descriptors, relationDescriptors? })` reports a name no
+    descriptor declares together with the descriptor that declared it and the relation
+    it declared it under. A relation resolves only for a target the descriptor map
+    holds, so such a name otherwise shrinks the composition in silence.
+
+- c25cc9f: Add a workspace composition run that seals package and descriptor filesystem
+  observation, plus a versioned candidate inventory and source consistency checks.
+  The returned JavaScript values remain mutable. Directly selected groupings now give
+  their provider members explicit precedence after grouping-version selection. Add
+  version-aware contribution catalog validation and active projection, and let the
+  React Vite loader consume an existing composition run without rediscovery.
+  Descriptor discovery retains the exact descriptor documents in package snapshots,
+  so the workspace run validates and expands them without another filesystem read.
+- b8c954e: Read the package set of a workspace once, and compose from it.
+  - `resolvePackageSources({ from | root, patterns?, additionalRoots?, descriptorFileName?, cache? })`
+    in `@lorion-org/descriptor-discovery`: the packages a workspace holds, each with its
+    name, root, manifest and the descriptor beside it, plus the `descriptorPaths`
+    `discoverDescriptors` takes. Workspace patterns are read in both spellings (a list,
+    or an object carrying `packages`), `additionalRoots` joins further checkouts into
+    one snapshot with the asking workspace winning a name collision, two packages
+    claiming the same descriptor id and exact version abort with both paths, while
+    different versions remain candidates. A descriptor with no manifest
+    beside it is named rather than dropped, and a pattern whose prefix names a checkout
+    that is not there aborts instead of resolving a composition that is quietly
+    incomplete. `findWorkspaceRoot(from)` and `readWorkspacePatterns(manifest)`
+    are the pieces it is built from.
+  - `resolvePackageExport(exports, subpath)` and `resolvePackageEntries(packageSources, subpaths)`
+    in `@lorion-org/descriptor-discovery`: one `exports` resolution (`import` before
+    `require` before `default`, conditions-only shorthand included, `types` never
+    followed), and the public entries of a package set projected onto the files they
+    resolve to. `createWorkspaceLoad` now uses that resolution instead of a second copy
+    of it.
+  - `createPackageSourceLoad(packageSources)` in `@lorion-org/capability-composition`:
+    the `load` callback over a resolved package set rather than one packages directory,
+    so packages of several roots and several directory layouts load through one
+    callback.
+  - `resolveSurfaceEntries({ capabilities, surface, activation, packageSources })` in
+    `@lorion-org/capability-composition`: one surface projected onto the files its
+    packages declare, for a build-time host that emits static imports. A capability
+    whose package is missing from the set, declares no such export, or exports a file
+    that is not there aborts by name.
+
+### Patch Changes
+
+- e59fc86: Match a file at the end of a descriptor path pattern, whatever the last segment is.
+
+  A pattern ending in a wildcard already matched files only. A pattern ending in a
+  literal segment asked whether the path exists, so a directory carrying the name of
+  the descriptor file counted as a match and the read that followed failed with
+  `EISDIR` instead of saying what was wrong. Both branches now name a file.
+
+- 6190e20: Use tinyglobby for workspace package-directory patterns, including recursive globs,
+  braces and exclusions. Apply exclusions to orphan-descriptor checks as well. Reject
+  missing external checkouts named by literal positive patterns as well as glob prefixes.
+- Updated dependencies [5788936]
+- Updated dependencies [c25cc9f]
+- Updated dependencies [29154da]
+- Updated dependencies [51c49ab]
+  - @lorion-org/composition-graph@1.0.0-beta.9
+  - @lorion-org/runtime-config@1.0.0-beta.9
+
 ## 1.0.0-beta.8
 
 ### Major Changes
