@@ -10,6 +10,11 @@ for (const profile of [
   'inactive',
   'invoice',
   'legacy-cli',
+  'beta',
+  'beta-compatible',
+  'beta-cli',
+  'curated',
+  'curated-compatible',
   'provider-only',
   'failure-duplicate',
   'failure-factory',
@@ -24,6 +29,27 @@ for (const profile of [
   );
   if (result.error) throw result.error;
   if (result.status !== 0) process.exit(result.status ?? 1);
+}
+
+for (const [host, key, seed] of [
+  ['react-loader', 'LORION_FEATURES', 'storefront-legacy,shop-coffee@beta'],
+  ['react-runtime', 'LORION_FEATURES', 'storefront-legacy,shop-coffee@beta'],
+  ['nuxt', 'LORION_CAPABILITIES', 'storefront-legacy,shop-coffee@beta'],
+]) {
+  const result = spawnSync('pnpm', ['--filter', `@lorion-examples/${host}`, 'build:dist'], {
+    encoding: 'utf8',
+    env: { ...process.env, [key]: seed },
+  });
+  if (result.error) throw result.error;
+  assert.notEqual(
+    result.status,
+    0,
+    `${host} must not escape the beta selector to a stable version.`,
+  );
+  assert.match(result.stdout + result.stderr, /shop-coffee/);
+  assert.match(result.stdout + result.stderr, /requires shop-coffee@beta/);
+  assert.match(result.stdout + result.stderr, /storefront-legacy@1\.0\.0 requires shop-coffee@1/);
+  console.log(`${host} rejected a selector incompatible with an active dependency.`);
 }
 
 for (const input of ['environment', 'CLI']) {

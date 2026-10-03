@@ -234,6 +234,8 @@ interface DescriptorSelectionSeed {
         cliKeys?: string[];
         envKeys?: string[];
     };
+    // (undocumented)
+    versionSelectors?: Readonly<Record<string, DescriptorVersionSelector>>;
 }
 
 // @public (undocumented)
@@ -247,13 +249,27 @@ type DescriptorSelectionSeedInput = {
 };
 
 // @public (undocumented)
+interface DescriptorVersionCandidate {
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly prerelease: readonly (string | number)[];
+    // (undocumented)
+    readonly version: string;
+}
+
+// @public (undocumented)
 interface DescriptorVersionRequirement {
     // (undocumented)
     id: DescriptorId;
     // (undocumented)
     range: string;
     // (undocumented)
+    selector?: string;
+    // (undocumented)
     source: string;
+    // (undocumented)
+    versions?: readonly string[];
 }
 
 // @public (undocumented)
@@ -267,6 +283,9 @@ interface DescriptorVersionSelection {
     // (undocumented)
     version: string;
 }
+
+// @public (undocumented)
+type DescriptorVersionSelector = (candidate: DescriptorVersionCandidate) => boolean;
 
 // @public (undocumented)
 export function discoverNuxtExtensionEntries(input: {
@@ -427,6 +446,7 @@ type ResolutionStep = {
 export function resolveExtensionSelection(input?: {
     defaultSelection?: readonly string[];
     selected?: readonly string[];
+    versionSelectors?: DescriptorSelectionSeed['versionSelectors'];
 }): string[];
 
 // @public (undocumented)

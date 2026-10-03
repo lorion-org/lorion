@@ -5,6 +5,11 @@ import {
 } from '@lorion-org/composition-graph';
 import { rcompare, satisfies, valid, validRange } from 'semver';
 import type { DescriptorVersionRequirement } from './seed';
+import {
+  resolveNamedVersionRequirements,
+  type DescriptorNamedVersionRequirement,
+  type DescriptorVersionSelector,
+} from './selectors';
 
 export interface DescriptorVersionSelection {
   id: string;
@@ -24,8 +29,13 @@ export function selectVersions<T, R extends { items: T[] }>(input: {
   roots: readonly string[];
   resolutionRelations: readonly RelationDescriptor[];
   requirements: readonly DescriptorVersionRequirement[];
+  namedRequirements?: readonly DescriptorNamedVersionRequirement[];
+  versionSelectors?: Readonly<Record<string, DescriptorVersionSelector>>;
   getSelectionGroupMembers?: (item: T) => readonly string[] | undefined;
-}): R & { versions: DescriptorVersionSelection[] } {
+}): R & {
+  versions: DescriptorVersionSelection[];
+  requirements: readonly DescriptorVersionRequirement[];
+} {
   const groups = new Map<string, T[]>();
   const identities = new Map<string, string>();
   for (const item of input.items) {
@@ -59,12 +69,27 @@ export function selectVersions<T, R extends { items: T[] }>(input: {
     if (descriptor.disabled === true) continue;
     groups.set(id, [...(groups.get(id) ?? []), item]);
   }
+  const seedRequirements = [
+    ...input.requirements,
+    ...resolveNamedVersionRequirements({
+      named: input.namedRequirements ?? [],
+      ...(input.versionSelectors ? { selectors: input.versionSelectors } : {}),
+      descriptors: input.items.map(input.getDescriptor),
+    }),
+  ];
+  const matches = (version: string, requirement: DescriptorVersionRequirement): boolean =>
+    requirement.versions
+      ? requirement.versions.includes(version)
+      : satisfies(version, requirement.range);
   const availableById = new Map(groups);
   const conflict = (target: string, sources: readonly Descriptor[]): Error => {
     const requirements = [
-      ...input.requirements
+      ...seedRequirements
         .filter((entry) => entry.id === target)
-        .map((entry) => `${entry.source} requires ${target}@${entry.range}`),
+        .map(
+          (entry) =>
+            `${entry.source} requires ${target}@${entry.selector ?? entry.range}${entry.selector ? ` (${entry.range})` : ''}`,
+        ),
       ...sources.flatMap((source) =>
         source.dependencies?.[target] === undefined
           ? []
@@ -78,10 +103,10 @@ export function selectVersions<T, R extends { items: T[] }>(input: {
       `No compatible version for "${target}": ${requirements.join('; ') || 'stable version required'}. Available: ${available.join(', ') || 'none'}.`,
     );
   };
-  for (const id of new Set(input.requirements.map((entry) => entry.id))) {
-    const ranges = input.requirements.filter((entry) => entry.id === id);
+  for (const id of new Set(seedRequirements.map((entry) => entry.id))) {
+    const ranges = seedRequirements.filter((entry) => entry.id === id);
     const matching = (groups.get(id) ?? []).filter((item) =>
-      ranges.every((entry) => satisfies(input.getDescriptor(item).version, entry.range)),
+      ranges.every((entry) => matches(input.getDescriptor(item).version, entry)),
     );
     if (!matching.length) throw conflict(id, []);
     groups.set(id, matching);
@@ -155,7 +180,7 @@ export function selectVersions<T, R extends { items: T[] }>(input: {
     resolved: readonly Descriptor[],
   ): DescriptorVersionRequirement[] => {
     const requirements = [
-      ...input.requirements.filter((entry) => entry.id === id),
+      ...seedRequirements.filter((entry) => entry.id === id),
       ...(input.resolveDependencies
         ? resolved.flatMap((descriptor) =>
             descriptor.dependencies?.[id] === undefined
@@ -172,7 +197,12 @@ export function selectVersions<T, R extends { items: T[] }>(input: {
     ];
     return requirements.length ? requirements : [{ id, range: '*', source: 'implicit selection' }];
   };
-  const finish = (result: R): R & { versions: DescriptorVersionSelection[] } => {
+  const finish = (
+    result: R,
+  ): R & {
+    versions: DescriptorVersionSelection[];
+    requirements: readonly DescriptorVersionRequirement[];
+  } => {
     const resolved = result.items.map(input.getDescriptor);
     // Validate effective dependency targets as well as selected roots. Provider
     // rewriting has already removed only the losing choices and their constraints.
@@ -185,7 +215,7 @@ export function selectVersions<T, R extends { items: T[] }>(input: {
     const versions = result.items.map((item) => {
       const descriptor = input.getDescriptor(item);
       const requirements = requirementsFor(descriptor.id, resolved);
-      if (!requirements.every((entry) => satisfies(descriptor.version, entry.range)))
+      if (!requirements.every((entry) => matches(descriptor.version, entry)))
         throw conflict(descriptor.id, input.resolveDependencies ? resolved : []);
       const source = input.getSource?.(item) ?? descriptor.location;
       return {
@@ -195,7 +225,7 @@ export function selectVersions<T, R extends { items: T[] }>(input: {
         requirements,
       };
     });
-    return { ...result, versions };
+    return { ...result, versions, requirements: seedRequirements };
   };
 
   // When only versions and host metadata vary, provider precedence and the active
@@ -224,7 +254,7 @@ export function selectVersions<T, R extends { items: T[] }>(input: {
       const match = groups
         .get(descriptor.id)
         ?.find((item) =>
-          requirements.every((entry) => satisfies(input.getDescriptor(item).version, entry.range)),
+          requirements.every((entry) => matches(input.getDescriptor(item).version, entry)),
         );
       if (!match) throw conflict(descriptor.id, resolved);
       selected.set(descriptor.id, match);
@@ -275,7 +305,12 @@ export function selectVersions<T, R extends { items: T[] }>(input: {
   const search = (
     index: number,
     chosen: T[],
-  ): (R & { versions: DescriptorVersionSelection[] }) | undefined => {
+  ):
+    | (R & {
+        versions: DescriptorVersionSelection[];
+        requirements: readonly DescriptorVersionRequirement[];
+      })
+    | undefined => {
     try {
       checkMandatory(chosen);
       if (index < choices.length) {

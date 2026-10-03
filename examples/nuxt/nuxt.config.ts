@@ -10,6 +10,7 @@ import {
 } from '@lorion-org/capability-composition';
 import { contributionRelationDescriptor } from '@lorion-org/composition-graph';
 import { resolvePackageSources } from '@lorion-org/descriptor-discovery';
+import versionPolicy from './version-policy.json';
 
 // The same grouping model the React examples use: a bundles.json declares the
 // groupings, this host names which of them runs by default. No extension package
@@ -33,9 +34,17 @@ const groupings = loadBundleManifest({ cwd: __dirname });
 const extensionBootstrap = createNuxtExtensionBootstrap({
   rootDir: __dirname,
   options: {
+    versionSelectors: {
+      beta: ({ prerelease }) => prerelease[0] === 'beta',
+      next: ({ prerelease }) => prerelease[0] === 'beta',
+      curated: ({ id, version }) =>
+        versionPolicy.curated.some(
+          (candidate) => candidate.id === id && candidate.version === version,
+        ),
+    },
     virtualDescriptors: groupings,
     baseDescriptors: [optionalProviderSlot],
-    defaultSelection: [defaultBundle],
+    defaultSelection: [defaultBundle, 'shop-coffee'],
     // Discovery follows the snapshot instead of a pattern of its own, so the second
     // root takes part like any other and nothing is discovered twice.
     descriptorPaths: [
@@ -111,18 +120,29 @@ export default defineNuxtConfig({
           const code = chunks.map((chunk) => chunk.code).join('\n');
           if (code.includes('LORION_PRIVATE_CONFIG_PROBE'))
             throw new Error('Private configuration entered an application bundle.');
+          const coffeeImplementations = [
+            '/layer-extensions/shop-coffee/',
+            '/prototypes/shop-coffee/',
+            '/layer-extensions/shop-coffee-beta-v2/',
+            '/layer-extensions/shop-coffee-beta-v3/',
+          ];
+          const selectedCoffee =
+            profile.startsWith('legacy') || profile === 'curated-compatible'
+              ? '/prototypes/shop-coffee/'
+              : profile === 'beta-compatible' || profile === 'curated'
+                ? '/layer-extensions/shop-coffee-beta-v2/'
+                : profile.startsWith('beta')
+                  ? '/layer-extensions/shop-coffee-beta-v3/'
+                  : '/layer-extensions/shop-coffee/';
           const forbidden =
             profile === 'inactive'
               ? [
                   '/layer-extensions/checkout/',
                   '/layer-extensions/payments/',
                   '/layer-extensions/shops/',
-                  '/layer-extensions/shop-coffee/',
-                  '/prototypes/shop-coffee/',
+                  ...coffeeImplementations,
                 ]
-              : profile.startsWith('legacy')
-                ? ['/layer-extensions/shop-coffee/']
-                : ['/prototypes/shop-coffee/'];
+              : coffeeImplementations.filter((path) => path !== selectedCoffee);
           for (const fragment of forbidden)
             if (modules.some((id) => id.includes(fragment)))
               throw new Error(

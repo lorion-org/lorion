@@ -108,6 +108,29 @@ assert.throws(
 );
 
 const tempRoot = mkdtempSync(join(tmpdir(), 'lorion-bun-'));
+const channelResult = selectDescriptorsWithProviders({
+  items: [
+    descriptor('feature', '3.0.0'),
+    descriptor('feature', '3.0.0-beta.2'),
+    descriptor('feature', '2.0.0-beta.1'),
+    descriptor('app', '1.0.0', { feature: '^2.0.0-beta.0' }),
+  ],
+  getDescriptor: (item) => item,
+  withDescriptor: (_item, selected) => selected,
+  seed: {
+    selected: ['app', 'feature@preview'],
+    selectionSeed: false,
+    versionSelectors: { preview: ({ prerelease }) => prerelease[0] === 'beta' },
+  },
+});
+assert.equal(channelResult.items.find(({ id }) => id === 'feature')?.version, '2.0.0-beta.1');
+assert.deepEqual(channelResult.seed.requested, ['app', 'feature@preview']);
+assert.deepEqual(
+  channelResult.versions
+    .find(({ id }) => id === 'feature')
+    ?.requirements.find(({ selector }) => selector === 'preview')?.versions,
+  ['3.0.0-beta.2', '2.0.0-beta.1'],
+);
 
 try {
   writeFileSync(

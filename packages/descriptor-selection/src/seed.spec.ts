@@ -23,6 +23,24 @@ function select(selected: string[], items = candidates) {
 }
 
 describe('versioned seeds', () => {
+  it('captures named requirements separately from SemVer requirements and keeps their sources', () => {
+    const seed = resolveDescriptorSeed({
+      versionSelectors: { curated: () => true },
+      selected: ['@acme/feature@curated', '@acme/feature@2'],
+      baseDescriptors: ['@acme/feature@curated'],
+      selectionSeed: false,
+    });
+    expect(seed.requested).toEqual(['@acme/feature@2', '@acme/feature@curated']);
+    expect(seed.selected).toEqual(['@acme/feature']);
+    expect(seed.baseDescriptors).toEqual(['@acme/feature']);
+    expect(seed.requirements).toEqual([
+      { id: '@acme/feature', range: '2', source: 'seed.selected' },
+    ]);
+    expect(seed.selectors).toEqual([
+      { id: '@acme/feature', selector: 'curated', source: 'seed.selected' },
+      { id: '@acme/feature', selector: 'curated', source: 'seed.baseDescriptors' },
+    ]);
+  });
   it.each([
     ['feature', '2.4.0'],
     ['feature@*', '2.4.0'],

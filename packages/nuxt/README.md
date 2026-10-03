@@ -638,6 +638,16 @@ selects a compatible 1.x implementation. Bootstrap `versionSelection` retains
 chosen sources and requirements for the server-side composition log; public
 runtime selection continues to contain logical ids and resolved versions.
 
+The module accepts the shared map as `lorion.extensions.versionSelectors`;
+`createNuxtExtensionBootstrap` accepts it as `options.versionSelectors`.
+`selected: ['shop-coffee@beta']` or `--capabilities=shop-coffee@beta` uses the same
+registered predicate, without changing dependency SemVer matching. Bootstrap
+`requestedExtensions` preserves the original named request and `versionSelection`
+retains the selector and exact eligible versions. `resolveExtensionSelection`
+accepts the map to parse named requests into logical ids; it does not evaluate
+candidate membership. The [core contract](../descriptor-selection/README.md#caller-defined-version-selectors)
+owns evaluation, name validation and intersection with active requirements.
+
 ## Composition-bound contributions
 
 Enable `contributions: true` on the Lorion module alongside `extensionBootstrap` or
