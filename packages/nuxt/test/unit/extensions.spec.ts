@@ -3,6 +3,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  resolveDescriptorSeed,
+  type DescriptorSelectionSeed,
+} from '@lorion-org/descriptor-selection';
+import {
   createNuxtProviderSelectionRuntimeConfig,
   createNuxtExtensionBootstrap,
   createNuxtExtensionCatalog,
@@ -41,6 +45,112 @@ function createExtension(
 }
 
 describe('Nuxt extension bootstrap', () => {
+  it.each([null, false, 0, ''])('rejects a malformed falsy selector registry: %j', (value) => {
+    const root = createTempRoot();
+    const versionSelectors = value as unknown as NonNullable<
+      DescriptorSelectionSeed['versionSelectors']
+    >;
+    const seed = { selected: ['feature'], selectionSeed: false as const, versionSelectors };
+    const expected = /versionSelectors must be a record of synchronous predicates/;
+    expect(() => resolveDescriptorSeed(seed)).toThrow(expected);
+    expect(() => resolveExtensionSelection(seed)).toThrow(expected);
+    expect(() =>
+      createNuxtExtensionBootstrap({
+        rootDir: root,
+        options: {
+          ...seed,
+          descriptorPaths: [],
+          virtualDescriptors: [{ id: 'feature', version: '1.0.0' }],
+        },
+      }),
+    ).toThrow(expected);
+  });
+
+  it('accepts omitted and empty selector registries', () => {
+    const root = createTempRoot();
+    for (const registry of [{}, { versionSelectors: {} }]) {
+      const seed = { selected: ['feature'], selectionSeed: false as const, ...registry };
+      expect(resolveExtensionSelection(seed)).toEqual(['feature']);
+      expect(
+        createNuxtExtensionBootstrap({
+          rootDir: root,
+          options: {
+            ...seed,
+            descriptorPaths: [],
+            virtualDescriptors: [{ id: 'feature', version: '1.0.0' }],
+          },
+        }).resolvedExtensionIds,
+      ).toEqual(['feature']);
+    }
+  });
+
+  it('rejects a named request in an enabled empty catalog while retaining disabled behavior', () => {
+    const root = createTempRoot();
+    const options = {
+      descriptorPaths: [],
+      selected: ['coffee@beta'],
+      selectionSeed: false as const,
+      versionSelectors: { beta: () => true },
+    };
+    expect(() => createNuxtExtensionBootstrap({ rootDir: root, options })).toThrow(/coffee/);
+    expect(
+      createNuxtExtensionBootstrap({ rootDir: root, options: { ...options, enabled: false } })
+        .resolvedExtensionIds,
+    ).toEqual([]);
+    expect(
+      createNuxtExtensionBootstrap({
+        rootDir: root,
+        options: { descriptorPaths: [], selected: ['coffee'], selectionSeed: false },
+      }).resolvedExtensionIds,
+    ).toEqual([]);
+  });
+
+  it('mounts a channel winner, intersects an active dependency and preserves selector provenance', () => {
+    const root = createTempRoot();
+    for (const [folder, version] of [
+      ['coffee-stable', '3.0.0'],
+      ['coffee-beta-v2', '2.0.0-beta.1'],
+      ['coffee-beta-v3', '3.0.0-beta.2'],
+    ]) {
+      createExtension(root, folder!, { id: 'coffee', version }, ['app']);
+      writeFileSync(join(root, 'extensions', folder!, 'nuxt.config.ts'), 'export default {};');
+    }
+    const options = {
+      versionSelectors: {
+        preview: ({ prerelease }: { prerelease: readonly (string | number)[] }) =>
+          prerelease[0] === 'beta',
+      },
+      selectionSeed: { argv: [], env: { LORION_CAPABILITIES: 'consumer,coffee@preview' } },
+      virtualDescriptors: [
+        { id: 'consumer', version: '1.0.0', dependencies: { coffee: '^2.0.0-beta.0' } },
+      ],
+    };
+    const result = createNuxtExtensionBootstrap({ rootDir: root, options });
+    expect(result.requestedExtensions).toEqual(['coffee@preview', 'consumer']);
+    expect(createNuxtExtensionLayerPaths(result)).toEqual([
+      join(root, 'extensions/coffee-beta-v2'),
+    ]);
+    expect(result.versionSelection).toMatchObject([
+      {
+        id: 'coffee',
+        version: '2.0.0-beta.1',
+        source: join(root, 'extensions/coffee-beta-v2'),
+      },
+      { id: 'consumer', version: '1.0.0' },
+    ]);
+    expect(result.versionSelection?.[0]?.requirements).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          selector: 'preview',
+          versions: ['3.0.0-beta.2', '2.0.0-beta.1'],
+        }),
+      ]),
+    );
+    expect(result.publicRuntimeConfig.public.extensionSelection).toMatchObject({
+      resolvedExtensionVersions: { coffee: '2.0.0-beta.1' },
+    });
+  });
+
   afterEach(() => {
     if (!tempRoot) return;
 

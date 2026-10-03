@@ -9,6 +9,7 @@ import {
   composeCapabilities,
   conventionActivation,
   createWorkspaceLoad,
+  createWorkspaceCompositionRun,
   resolveSelectedCapabilities,
   resolveWorkspaceRoot,
   type ResolvedCapability,
@@ -554,6 +555,37 @@ type OptionsMissingFromList = Exclude<DeclaredOption, CapabilitySelectionOption>
 type ListedButUndeclared = Exclude<CapabilitySelectionOption, DeclaredOption>;
 
 describe('CAPABILITY_SELECTION_OPTIONS', () => {
+  it('captures named selectors once in a workspace run and forwards the effective restriction', () => {
+    const workspaceRoot = createWorkspace([]);
+    const env = { PICK: '@acme/search@preview' };
+    const run = createWorkspaceCompositionRun({
+      root: workspaceRoot,
+      patterns: ['capabilities/*'],
+      virtualDescriptors: [
+        { id: '@acme/search', version: '2.0.0' },
+        { id: '@acme/search', version: '2.0.0-beta.1' },
+        { id: '@acme/search', version: '3.0.0-beta.2' },
+      ],
+      seed: {
+        versionSelectors: { preview: ({ prerelease }) => prerelease[0] === 'beta' },
+        selectionSeed: { argv: [], env, envKeys: ['PICK'] },
+      },
+    });
+    env.PICK = '@acme/search@2';
+    expect(run.report().requested).toEqual(['@acme/search@preview']);
+    expect(run.report().resolvedVersions).toEqual({ '@acme/search': '3.0.0-beta.2' });
+    expect(run.report().versionSelection?.[0]?.requirements).toMatchObject([
+      {
+        selector: 'preview',
+        versions: ['3.0.0-beta.2', '2.0.0-beta.1'],
+      },
+    ]);
+    expect(formatCompositionReport(run.report()).join('\n')).toContain(
+      '@acme/search@preview (3.0.0-beta.2 || 2.0.0-beta.1)',
+    );
+    expect(run.capabilities().map((entry) => entry.descriptor.version)).toEqual(['3.0.0-beta.2']);
+  });
+
   it('names exactly the options the selection input declares', () => {
     const conforms: [OptionsMissingFromList, ListedButUndeclared] extends [never, never]
       ? true

@@ -21,6 +21,17 @@ import * as runtimeConfig from '@lorion-org/runtime-config';
 import type * as runtimeConfigNode from '@lorion-org/runtime-config-node';
 import type * as surfaceActivation from '@lorion-org/surface-activation';
 
+const versionSelectors: NonNullable<
+  descriptorSelection.DescriptorSelectionSeed['versionSelectors']
+> = {
+  beta: ({ prerelease }) => prerelease[0] === 'beta',
+};
+export const channelSeed: capabilityComposition.CapabilitySelectionSeed = {
+  versionSelectors,
+  selected: ['search@beta'],
+};
+export const channelReactOptions: reactVite.CapabilityLoaderOptions = { versionSelectors };
+
 export type PublishedCommonJsEntryPoints = {
   contributions: typeof contributions;
   reactContributions: typeof reactContributions;

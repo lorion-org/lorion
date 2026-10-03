@@ -1,22 +1,132 @@
 import { describe, expect, it } from 'vitest';
 import type { Descriptor } from '@lorion-org/composition-graph';
-import { selectDescriptorsWithProviders } from './index';
+import { selectDescriptorsWithProviders, type DescriptorSelectionSeed } from './index';
 
 const descriptor = (
   id: string,
   version = '1.0.0',
   dependencies?: Record<string, string>,
 ): Descriptor => ({ id, version, ...(dependencies ? { dependencies } : {}) });
-const select = (items: Descriptor[], selected = ['app']) =>
+const select = (
+  items: Descriptor[],
+  selected = ['app'],
+  options: Pick<DescriptorSelectionSeed, 'versionSelectors'> = {},
+) =>
   selectDescriptorsWithProviders({
     items,
     getDescriptor: (item) => item,
     withDescriptor: (_, item) => item,
-    seed: { selected, selectionSeed: false },
+    seed: { ...options, selected, selectionSeed: false },
   });
 const identities = (items: Descriptor[]) => items.map(({ id, version }) => `${id}@${version}`);
 
 describe('version-aware descriptor selection', () => {
+  it('reports the implicit stable requirement without an invented physical source', () => {
+    const result = select([descriptor('feature'), descriptor('feature', '2.0.0-beta.1')], []);
+    expect(identities(result.items)).toEqual(['feature@1.0.0']);
+    expect(result.versions).toStrictEqual([
+      {
+        id: 'feature',
+        version: '1.0.0',
+        requirements: [{ id: 'feature', range: '*', source: 'implicit selection' }],
+      },
+    ]);
+  });
+
+  it('reports only the conflicting id requirements and its enabled candidate inventory', () => {
+    const items = [
+      descriptor('app', '1.0.0', { feature: '1' }),
+      descriptor('feature'),
+      descriptor('feature', '2.0.0-beta.1'),
+      descriptor('feature', '3.0.0-beta.1'),
+      { ...descriptor('feature', '4.0.0-beta.1'), disabled: true },
+    ];
+    expect(() =>
+      select(items, ['app', 'feature@beta'], {
+        versionSelectors: { beta: ({ prerelease }) => prerelease[0] === 'beta' },
+      }),
+    ).toThrowError(
+      new Error(
+        'No compatible version for "feature": app@1.0.0 requires feature@1; seed.selected requires feature@beta (3.0.0-beta.1 || 2.0.0-beta.1). Available: 3.0.0-beta.1, 2.0.0-beta.1, 1.0.0.',
+      ),
+    );
+  });
+
+  it('keeps ordinary range diagnostics free of named-selector annotations', () => {
+    expect(() =>
+      select([descriptor('feature'), descriptor('feature', '2.0.0')], ['feature@1', 'feature@2']),
+    ).toThrowError(
+      new Error(
+        'No compatible version for "feature": seed.selected requires feature@1; seed.selected requires feature@2. Available: 2.0.0, 1.0.0.',
+      ),
+    );
+  });
+
+  it.each([
+    { locations: [undefined, undefined], sources: 'first source and second source' },
+    { locations: ['', 'packages/duplicate'], sources: 'first source and packages/duplicate' },
+  ])(
+    'keeps duplicate identity diagnostics useful when a source label is unavailable: $sources',
+    ({ locations, sources }) => {
+      const items = locations.map((location) => ({
+        ...descriptor('app'),
+        ...(location === undefined ? {} : { location }),
+      }));
+      expect(() => select(items)).toThrowError(
+        new Error(`Duplicate descriptor id "app" at version "1.0.0" (${sources}).`),
+      );
+    },
+  );
+
+  it('keeps exact named membership in the uniform candidate path', () => {
+    const items = [
+      descriptor('app', '1.0.0', { feature: '1' }),
+      descriptor('feature', '1.0.0+aaa-other'),
+      descriptor('feature', '1.0.0+allowed'),
+      descriptor('feature', '2.0.0+allowed'),
+    ];
+    const result = select(items, ['app', 'feature@curated'], {
+      versionSelectors: { curated: ({ version }) => version.endsWith('+allowed') },
+    });
+    expect(identities(result.items)).toEqual(['app@1.0.0', 'feature@1.0.0+allowed']);
+    expect(result.versions.find(({ id }) => id === 'feature')?.requirements).toEqual([
+      {
+        id: 'feature',
+        range: '2.0.0+allowed || 1.0.0+allowed',
+        source: 'seed.selected',
+        selector: 'curated',
+        versions: ['2.0.0+allowed', '1.0.0+allowed'],
+      },
+      { id: 'feature', range: '1', source: 'app@1.0.0' },
+    ]);
+  });
+
+  it('backtracks changing dependency edges while retaining the named candidate restriction', () => {
+    const items = [
+      descriptor('app', '1.0.0', { shared: '1' }),
+      descriptor('feature', '1.0.0'),
+      descriptor('feature', '2.0.0-beta.1', { shared: '1' }),
+      descriptor('feature', '3.0.0-beta.1', { shared: '2' }),
+      descriptor('shared'),
+      descriptor('shared', '2.0.0'),
+    ];
+    const options: Pick<DescriptorSelectionSeed, 'versionSelectors'> = {
+      versionSelectors: {
+        beta: ({ prerelease }) => prerelease[0] === 'beta',
+      },
+    };
+    for (const order of [items, [...items].reverse()]) {
+      expect(identities(select(order, ['app', 'feature@beta'], options).items)).toEqual([
+        'app@1.0.0',
+        'feature@2.0.0-beta.1',
+        'shared@1.0.0',
+      ]);
+      expect(() => select(order, ['app', 'feature@beta', 'feature@1'], options)).toThrow(
+        /feature@1.*feature@beta \(3\.0\.0-beta\.1 \|\| 2\.0\.0-beta\.1\)/,
+      );
+    }
+  });
+
   it('keeps exactly one compatible candidate and its source independent of discovery order', () => {
     const items = [
       descriptor('app', '1.0.0', { feature: '^1.0.0' }),
@@ -28,9 +138,9 @@ describe('version-aware descriptor selection', () => {
       expect(identities(select(order).items)).toEqual(['app@1.0.0', 'feature@1.10.0']);
     }
     items[0]!.dependencies = { feature: '1.2.0' };
-    expect(select(items).items.find(({ id }) => id === 'feature')?.location).toBe(
-      'prototype/feature',
-    );
+    const result = select(items);
+    expect(result.items.find(({ id }) => id === 'feature')?.location).toBe('prototype/feature');
+    expect(result.versions.find(({ id }) => id === 'feature')?.source).toBe('prototype/feature');
   });
 
   it('backtracks the parent version when its newest dependency closure is incompatible', () => {

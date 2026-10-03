@@ -106,6 +106,7 @@ export function resolveExtensionSelection(
   input: {
     defaultSelection?: readonly string[];
     selected?: readonly string[];
+    versionSelectors?: DescriptorSelectionSeed['versionSelectors'];
   } = {},
 ): string[] {
   // Resolved through the shared seed resolver, which rejects a string where a list
@@ -114,6 +115,7 @@ export function resolveExtensionSelection(
     ...(input.selected ? { selected: input.selected } : {}),
     defaultSelection: input.defaultSelection ?? defaultExtensionOptions.defaultSelection,
     selectionSeed: false,
+    ...(input.versionSelectors !== undefined ? { versionSelectors: input.versionSelectors } : {}),
   });
 }
 
@@ -297,6 +299,9 @@ export function createNuxtExtensionBootstrap(input: {
 }): NuxtExtensionBootstrap {
   const options = input.options ?? {};
   const seedInput: DescriptorSelectionSeed = {
+    ...(options.versionSelectors !== undefined
+      ? { versionSelectors: options.versionSelectors }
+      : {}),
     defaultSelection: options.defaultSelection ?? defaultExtensionOptions.defaultSelection,
     ...(options.selected ? { selected: options.selected } : {}),
     baseDescriptors: options.baseDescriptors ?? [],
@@ -327,19 +332,21 @@ export function createNuxtExtensionBootstrap(input: {
         });
   if (!entries.length) {
     const seed = resolveDescriptorSeed(seedInput);
-    return {
-      versionSelection: [],
-      activeExtensions: [],
-      baseExtensionIds: options.enabled === false ? [] : [...seed.baseDescriptors],
-      catalog: createCatalog(entries),
-      discoveredExtensions: entries,
-      publicRuntimeConfig: { public: {} },
-      providerSelection: emptyProviderSelection(),
-      requestedExtensions: seed.requested ? [...seed.requested] : null,
-      resolvedExtensionIds: [],
-      resolvedExtensions: [],
-      selectedExtensions: [...seed.selected],
-    };
+    if (options.enabled === false || !seed.selectors?.length) {
+      return {
+        versionSelection: [],
+        activeExtensions: [],
+        baseExtensionIds: options.enabled === false ? [] : [...seed.baseDescriptors],
+        catalog: createCatalog(entries),
+        discoveredExtensions: entries,
+        publicRuntimeConfig: { public: {} },
+        providerSelection: emptyProviderSelection(),
+        requestedExtensions: seed.requested ? [...seed.requested] : null,
+        resolvedExtensionIds: [],
+        resolvedExtensions: [],
+        selectedExtensions: [...seed.selected],
+      };
+    }
   }
 
   // One selection brain. Rebuilding this pipeline here is how the disabled filter

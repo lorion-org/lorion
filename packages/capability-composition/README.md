@@ -156,6 +156,16 @@ projection reads that resolution. `run.descriptors()` is the
 versioned candidate inventory; `run.report().discovered` remains the deduplicated
 logical-id summary.
 
+The seed accepts the shared [named version selectors](../descriptor-selection/README.md#caller-defined-version-selectors)
+as `seed.versionSelectors`. A run captures their eligible candidate sets during
+creation. `run.report().requested` preserves named requests, and
+`run.report().versionSelection` carries selector names and exact eligible versions
+alongside the chosen physical sources and active requirements. Later projections
+use that captured selection rather than invoking the predicates again.
+The host supplies channel membership and any fallback between selections. The run
+uses Lorion's normal ordering within the captured set. Its report is selection
+evidence, not an executable seed or a replay lockfile.
+
 Here, sealed means that later filesystem changes cannot alter the run's package or
 descriptor inputs. The returned JavaScript objects are not deep-frozen; callers
 that mutate them also mutate the values they hold.

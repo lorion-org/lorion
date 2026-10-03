@@ -14,6 +14,11 @@ export type {
   ResolvedDescriptorSeed,
 } from './seed';
 export type { DescriptorVersionSelection } from './versions';
+export type {
+  DescriptorVersionCandidate,
+  DescriptorVersionSelector,
+  DescriptorNamedVersionRequirement,
+} from './selectors';
 import { selectVersions, type DescriptorVersionSelection } from './versions';
 import {
   assertKnownDescriptorIds,
@@ -396,12 +401,14 @@ export function selectDescriptorsWithProviders<T>(
     dependencyRelation.direction !== 'incoming' &&
     dependencyRelation.targetMode !== 'values',
   );
-  const result = selectVersions({
+  const { requirements, ...result } = selectVersions({
     items: input.items,
     getDescriptor: input.getDescriptor,
     ...(input.getSource ? { getSource: input.getSource } : {}),
     resolve: (items) => selectSingleVersionDescriptors({ ...input, items }, seed),
     requirements: seed.requirements,
+    namedRequirements: seed.selectors ?? [],
+    ...(input.seed.versionSelectors ? { versionSelectors: input.seed.versionSelectors } : {}),
     ...(input.getSelectionGroupMembers
       ? { getSelectionGroupMembers: input.getSelectionGroupMembers }
       : {}),
@@ -409,7 +416,7 @@ export function selectDescriptorsWithProviders<T>(
     resolutionRelations,
     roots: [...seed.selected, ...seed.baseDescriptors],
   });
-  return { ...result, seed };
+  return { ...result, seed: { ...seed, requirements } };
 }
 
 function selectSingleVersionDescriptors<T>(

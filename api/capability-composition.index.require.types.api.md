@@ -23,7 +23,7 @@ interface AdditionalPackageRoot {
 }
 
 // @public (undocumented)
-export const CAPABILITY_SELECTION_OPTIONS: readonly ["capabilitiesDir", "descriptorPaths", "descriptorSchema", "virtualDescriptors", "bundles", "nestedField", "relationDescriptors", "policy", "baseDescriptors", "defaultSelection", "selected", "selectionSeed"];
+export const CAPABILITY_SELECTION_OPTIONS: readonly ["capabilitiesDir", "descriptorPaths", "descriptorSchema", "virtualDescriptors", "bundles", "nestedField", "relationDescriptors", "policy", "baseDescriptors", "defaultSelection", "selected", "selectionSeed", "versionSelectors"];
 
 // @public (undocumented)
 export interface CapabilityCompositionInput extends CapabilitySelectionInput {
@@ -362,6 +362,16 @@ type DescriptorDocument = {
 type DescriptorId = string;
 
 // @public (undocumented)
+interface DescriptorNamedVersionRequirement {
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    selector: string;
+    // (undocumented)
+    source: string;
+}
+
+// @public (undocumented)
 interface DescriptorSelectionSeed {
     // (undocumented)
     baseDescriptors?: readonly DescriptorId[];
@@ -377,6 +387,18 @@ interface DescriptorSelectionSeed {
         cliKeys?: string[];
         envKeys?: string[];
     };
+    // (undocumented)
+    versionSelectors?: Readonly<Record<string, DescriptorVersionSelector>>;
+}
+
+// @public (undocumented)
+interface DescriptorVersionCandidate {
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly prerelease: readonly (string | number)[];
+    // (undocumented)
+    readonly version: string;
 }
 
 // @public (undocumented)
@@ -386,7 +408,11 @@ interface DescriptorVersionRequirement {
     // (undocumented)
     range: string;
     // (undocumented)
+    selector?: string;
+    // (undocumented)
     source: string;
+    // (undocumented)
+    versions?: readonly string[];
 }
 
 // @public (undocumented)
@@ -400,6 +426,9 @@ interface DescriptorVersionSelection {
     // (undocumented)
     version: string;
 }
+
+// @public (undocumented)
+type DescriptorVersionSelector = (candidate: DescriptorVersionCandidate) => boolean;
 
 // @public (undocumented)
 export interface DiscoveredCapabilityDescriptor {
@@ -566,6 +595,8 @@ interface ResolvedDescriptorSeed {
     requirements: readonly DescriptorVersionRequirement[];
     // (undocumented)
     selected: readonly DescriptorId[];
+    // (undocumented)
+    selectors?: readonly DescriptorNamedVersionRequirement[];
 }
 
 // @public (undocumented)
