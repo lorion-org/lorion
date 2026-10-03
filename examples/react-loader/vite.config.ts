@@ -15,6 +15,7 @@ import { conventionActivation, fileSurfaceConvention } from '@lorion-org/surface
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import { capabilityLoader } from '@lorion-org/react/vite';
+import versionPolicy from './version-policy.json';
 
 const projectRoot = dirname(fileURLToPath(import.meta.url));
 
@@ -39,8 +40,16 @@ const run = createWorkspaceCompositionRun({
   additionalRoots: [{ root: 'external', patterns: ['capabilities/*'] }],
   bundles: { cwd: projectRoot },
   seed: {
+    versionSelectors: {
+      beta: ({ prerelease }) => prerelease[0] === 'beta',
+      next: ({ prerelease }) => prerelease[0] === 'beta',
+      curated: ({ id, version }) =>
+        versionPolicy.curated.some(
+          (candidate) => candidate.id === id && candidate.version === version,
+        ),
+    },
     baseDescriptors: ['commerce', 'product-theme'],
-    defaultSelection: ['storefront'],
+    defaultSelection: ['storefront', 'shop-coffee'],
     selectionSeed: { cliKeys: ['features'], envKeys: ['LORION_FEATURES'] },
   },
   // The declared contribution relation: a capability owner offers named points and

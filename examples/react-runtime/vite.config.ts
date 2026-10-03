@@ -4,6 +4,7 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import { lorionReact } from '@lorion-org/react/vite';
+import versionPolicy from './version-policy.json';
 
 const projectRoot = dirname(fileURLToPath(import.meta.url));
 const routesDirectory = resolve(projectRoot, 'src/routes');
@@ -17,6 +18,14 @@ const defaultBundle = 'storefront';
 
 const lorion = lorionReact({
   workspaceRoot: projectRoot,
+  versionSelectors: {
+    beta: ({ prerelease }) => prerelease[0] === 'beta',
+    next: ({ prerelease }) => prerelease[0] === 'beta',
+    curated: ({ id, version }) =>
+      versionPolicy.curated.some(
+        (candidate) => candidate.id === id && candidate.version === version,
+      ),
+  },
   contributions: true,
   runtimeConfig: { source: { paths: ['tests/runtime-config/*/capability.runtime.json'] } },
   descriptorPaths: [
@@ -38,7 +47,7 @@ const lorion = lorionReact({
   baseDescriptors: ['inactive', 'provider-only'].includes(process.env.LORION_EXAMPLE_PROFILE ?? '')
     ? [optionalProviderSlot]
     : [baseBundle, optionalProviderSlot],
-  defaultSelection: [defaultBundle],
+  defaultSelection: [defaultBundle, 'shop-coffee'],
   selectionSeed: { cliKeys: ['features'], envKeys: ['LORION_FEATURES'] },
 });
 
@@ -71,18 +80,29 @@ export default defineConfig({
         const code = chunks.map((chunk) => chunk.code).join('\n');
         if (code.includes('LORION_PRIVATE_CONFIG_PROBE'))
           throw new Error('Private configuration entered an application bundle.');
+        const coffeeImplementations = [
+          '/capabilities/shop-coffee/',
+          '/prototypes/shop-coffee/',
+          '/capabilities/shop-coffee-beta-v2/',
+          '/capabilities/shop-coffee-beta-v3/',
+        ];
+        const selectedCoffee =
+          profile.startsWith('legacy') || profile === 'curated-compatible'
+            ? '/prototypes/shop-coffee/'
+            : profile === 'beta-compatible' || profile === 'curated'
+              ? '/capabilities/shop-coffee-beta-v2/'
+              : profile.startsWith('beta')
+                ? '/capabilities/shop-coffee-beta-v3/'
+                : '/capabilities/shop-coffee/';
         const forbidden =
           profile === 'inactive'
             ? [
                 '/capabilities/checkout/',
                 '/capabilities/payments/',
                 '/capabilities/shops/',
-                '/capabilities/shop-coffee/',
-                '/prototypes/shop-coffee/',
+                ...coffeeImplementations,
               ]
-            : profile.startsWith('legacy')
-              ? ['/capabilities/shop-coffee/']
-              : ['/prototypes/shop-coffee/'];
+            : coffeeImplementations.filter((path) => path !== selectedCoffee);
         for (const fragment of forbidden)
           if (modules.some((id) => id.includes(fragment)))
             throw new Error(`Unselected implementation entered an application bundle: ${fragment}`);

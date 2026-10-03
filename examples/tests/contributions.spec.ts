@@ -1,5 +1,21 @@
 import { expect, test as base } from '@playwright/test';
 const profile = process.env.LORION_EXAMPLE_PROFILE ?? 'actions';
+const coffeeVersion =
+  profile.startsWith('legacy') || profile === 'curated-compatible'
+    ? '1.0.0'
+    : profile === 'beta-compatible' || profile === 'curated'
+      ? '2.0.0-beta.1'
+      : profile.startsWith('beta')
+        ? '3.0.0-beta.2'
+        : '2.0.0';
+const coffeeName =
+  profile.startsWith('legacy') || profile === 'curated-compatible'
+    ? 'Bean Supply'
+    : profile === 'beta-compatible' || profile === 'curated'
+      ? 'Bean Supply Beta 2'
+      : profile.startsWith('beta')
+        ? 'Bean Supply Beta 3'
+        : 'Bean Supply Plus';
 const test = base.extend<{ errors: string[] }>({
   errors: async ({ page }, use) => {
     const errors: string[] = [];
@@ -49,24 +65,16 @@ test('selected composition, native rendering and isolated application lifetime',
     'shop-coffee',
     'shop-stationery',
   ]);
-  expect(report.find((row) => row.id === 'shop-coffee')?.source.version).toBe(
-    profile.startsWith('legacy') ? '1.0.0' : '2.0.0',
-  );
+  expect(report.find((row) => row.id === 'shop-coffee')?.source.version).toBe(coffeeVersion);
   const provider = profile === 'invoice' ? 'invoice' : 'stripe';
   expect(report.filter((row) => row.target.owner === 'payments').map((row) => row.id)).toEqual([
     `payment-provider-${provider}`,
   ]);
   await page.getByRole('link', { name: 'Back', exact: true }).click();
   await expect(page).toHaveURL(/\/$/);
-  await expect(
-    page
-      .getByRole('link')
-      .filter({ hasText: profile.startsWith('legacy') ? 'Bean Supply' : 'Bean Supply Plus' }),
-  ).toHaveCount(1);
+  await expect(page.getByRole('link').filter({ hasText: coffeeName })).toHaveCount(1);
   await page.goto('/shops/coffee');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-    profile.startsWith('legacy') ? 'Bean Supply' : 'Bean Supply Plus',
-  );
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(coffeeName);
   await page.getByRole('link', { name: /Checkout with/ }).click();
   await expect(page).toHaveURL(new RegExp(`/providers/payment-provider-${provider}/checkout`));
   if (profile === 'actions') {

@@ -15,7 +15,7 @@
         "checkout": "^1.0.0",
         "payments": "^1.0.0",
         "shops": "^1.0.0",
-        "shop-coffee": "1 || 2",
+        "shop-coffee": "1 || 2 || 2.0.0-beta.1 || 3.0.0-beta.2",
         "shop-stationery": "^1.0.0",
         "receipts": "^1.0.0"
       }

@@ -1,0 +1,8 @@
+{
+  "name": "@acme/shop-coffee-beta-v2",
+  "type": "module",
+  "exports": {
+    "./capability": "./src/capability.ts",
+    "./contributions": "./contributions.ts"
+  }
+}
