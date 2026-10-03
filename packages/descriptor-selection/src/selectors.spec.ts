@@ -6,6 +6,7 @@ import {
   type DescriptorSelectionSeed,
 } from './index';
 import policy from '../snippets/version-policy.json';
+import { resolveNamedVersionRequirements } from './selectors';
 
 const inventory: Descriptor[] = [
   { id: 'search', version: '1.0.0' },
@@ -168,6 +169,37 @@ describe('caller-defined version selectors', () => {
       expect(result.seed.requirements[0]?.versions).toEqual(['1.0.0+a', '1.0.0+m', '1.0.0+z']);
     }
   });
+  it('keeps membership order deterministic when ids and equal-precedence builds are interleaved', () => {
+    const items = [
+      { id: 'alpha', version: '1.0.0+a' },
+      { id: 'alpha', version: '2.0.0' },
+      { id: 'zeta', version: '2.0.0' },
+      { id: 'alpha', version: '1.0.0+z' },
+      { id: 'zeta', version: '1.0.0+a' },
+      { id: 'zeta', version: '1.0.0+z' },
+    ];
+    for (const order of [items, [...items].reverse()]) {
+      const result = select(
+        { selected: ['alpha@all', 'zeta@all'], versionSelectors: { all: () => true } },
+        order,
+      );
+      expect(result.seed.requirements.map(({ id, versions }) => ({ id, versions }))).toEqual([
+        { id: 'alpha', versions: ['2.0.0', '1.0.0+a', '1.0.0+z'] },
+        { id: 'zeta', versions: ['2.0.0', '1.0.0+a', '1.0.0+z'] },
+      ]);
+    }
+  });
+
+  it('reports the same malformed registry entry regardless of registration order', () => {
+    for (const registry of [
+      { zeta: 'invalid', alpha: 'invalid' },
+      { alpha: 'invalid', zeta: 'invalid' },
+    ]) {
+      expect(() =>
+        resolveDescriptorSeed({ versionSelectors: registry } as unknown as DescriptorSelectionSeed),
+      ).toThrowError(new TypeError('Version selector "alpha" must be a synchronous predicate.'));
+    }
+  });
   it('intersects selectors, ranges, base requirements and active JSON constraints', () => {
     const result = select({
       selected: ['search@beta', 'search@^2.0.0-beta.1'],
@@ -319,5 +351,31 @@ describe('caller-defined version selectors', () => {
       selectedProviderId: 'new',
     });
     expect(result.items.some((x) => x.id === 'old')).toBe(false);
+  });
+});
+
+describe('named requirement validation', () => {
+  it('attributes a missing predicate to the selector name at the internal boundary', () => {
+    expect(() =>
+      resolveNamedVersionRequirements({
+        named: [{ id: 'feature', selector: 'missing', source: 'seed.selected' }],
+        selectors: {},
+        descriptors: [{ id: 'feature', version: '1.0.0' }],
+      }),
+    ).toThrowError(new Error('Unknown version selector "missing" for "feature".'));
+  });
+
+  it('reports no enabled candidates without evaluating a predicate', () => {
+    const predicate = vi.fn(() => true);
+    expect(() =>
+      resolveNamedVersionRequirements({
+        named: [{ id: 'feature', selector: 'curated', source: 'seed.selected' }],
+        selectors: { curated: predicate },
+        descriptors: [{ id: 'feature', version: '1.0.0', disabled: true }],
+      }),
+    ).toThrowError(
+      new Error('No enabled versions match selector "curated" for "feature". Available: none.'),
+    );
+    expect(predicate).not.toHaveBeenCalled();
   });
 });

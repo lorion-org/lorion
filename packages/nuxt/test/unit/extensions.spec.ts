@@ -1,7 +1,7 @@
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   resolveDescriptorSeed,
   type DescriptorSelectionSeed,
@@ -224,6 +224,22 @@ describe('Nuxt extension bootstrap', () => {
         defaultSelection: ['default'],
       }),
     ).toEqual(['settings']);
+  });
+
+  it('parses a named default without evaluating it or reading the process environment', () => {
+    const predicate = vi.fn(() => true);
+    vi.stubEnv('LORION_CAPABILITIES', 'other@unregistered');
+    try {
+      expect(
+        resolveExtensionSelection({
+          defaultSelection: ['coffee@curated'],
+          versionSelectors: { curated: predicate },
+        }),
+      ).toEqual(['coffee']);
+      expect(predicate).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('derives selected extensions from the shared capability seed keys', () => {
