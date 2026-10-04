@@ -16,6 +16,7 @@ jobs:
         node-version:
           - 20.19
           - 22.17
+          - 24
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -45,55 +46,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check Prettier
-        run: pnpm run format:check
-
-      - name: Build packages
-        run: pnpm run build
-
-      - name: Verify package runtime on Node.js
-        run: pnpm run runtime:check
-
-      - name: Run ESLint
-        run: pnpm run lint
-
-      - name: Run TypeScript
-        run: pnpm run typecheck
-
-      - name: Run tests
-        run: pnpm run test
-
-      - name: Check example snippets
-        run: pnpm run snippets:check
-
-      - name: Check package output
-        run: pnpm run package:check
-
-      - name: Check types across resolvers
-        run: pnpm run attw
-
-      - name: Read published declarations as a consumer does
-        run: pnpm run declarations:check
-
-      - name: Check published API reports
-        run: pnpm run api:check
-
-      - name: Validate bundle manifests
-        run: pnpm run manifests:check
-
       - name: Setup Bun for examples
         uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: .bun-version
 
-      - name: Verify examples (dev-only; not part of the package build/typecheck gates)
-        run: pnpm run examples:verify
-
       - name: Install browser for contribution acceptance
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Verify contribution playgrounds against built exports
-        run: pnpm run examples:test
+      - name: Run quality gate
+        run: pnpm check
 
       - name: Require a changeset for package changes
         if: github.event_name == 'pull_request' && !startsWith(github.head_ref, 'changeset-release/')
