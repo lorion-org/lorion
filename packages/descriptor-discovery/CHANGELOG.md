@@ -1,5 +1,12 @@
 # @lorion-org/descriptor-discovery
 
+## 1.0.0-beta.10
+
+### Patch Changes
+
+- @lorion-org/composition-graph@1.0.0-beta.10
+- @lorion-org/runtime-config@1.0.0-beta.10
+
 ## 1.0.0-beta.9
 
 ### Major Changes
