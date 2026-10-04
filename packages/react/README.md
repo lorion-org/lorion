@@ -610,6 +610,15 @@ selection during `configResolved`; the run-backed loader uses the run's captured
 selection. `describeCapabilityComposition` includes source and requirement
 provenance in `versionSelection`.
 
+The options-only loader and `lorionReact` accept `versionSelectors` alongside
+`selected` and `selectionSeed`; a run-backed loader inherits `seed.versionSelectors`
+from its composition run. A request such as `shop-coffee@beta` restricts selection
+to the candidates admitted by the registered predicate, including requests through
+CLI/environment. `describeCapabilityComposition` retains the original named
+request and the selector's exact eligible versions in its normal report. The
+[core contract](../descriptor-selection/README.md#caller-defined-version-selectors)
+owns name validation, predicate inputs and intersection with SemVer requirements.
+
 ## Composition-bound contributions
 
 Opt in with `lorionReact({ contributions: true, ... })` or

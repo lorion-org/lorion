@@ -55,3 +55,18 @@ export const validatorRegistry = new runtimeConfig.RuntimeConfigValidatorRegistr
 
 // Check the complete published augmentation, including its optionality.
 expectTypeOf<Pick<NuxtConfig, 'lorion'>>().toEqualTypeOf<{ lorion?: LorionNuxtModuleOptions }>();
+
+const versionSelectors: NonNullable<
+  descriptorSelection.DescriptorSelectionSeed['versionSelectors']
+> = {
+  beta: ({ prerelease }) => prerelease[0] === 'beta',
+};
+export const channelSeed: capabilityComposition.CapabilitySelectionSeed = {
+  versionSelectors,
+  selected: ['search@beta'],
+};
+export const channelReactOptions: reactVite.CapabilityLoaderOptions = { versionSelectors };
+export const channelNuxtOptions: LorionNuxtModuleOptions = { extensions: { versionSelectors } };
+expectTypeOf<
+  Parameters<descriptorSelection.DescriptorVersionSelector>[0]
+>().toEqualTypeOf<descriptorSelection.DescriptorVersionCandidate>();

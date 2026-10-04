@@ -1,22 +1,228 @@
 import { describe, expect, it } from 'vitest';
+import { Range, SemVer } from 'semver';
 import type { Descriptor } from '@lorion-org/composition-graph';
-import { selectDescriptorsWithProviders } from './index';
+import { selectDescriptorsWithProviders, type DescriptorSelectionSeed } from './index';
+import { selectVersions } from './versions';
 
 const descriptor = (
   id: string,
   version = '1.0.0',
   dependencies?: Record<string, string>,
 ): Descriptor => ({ id, version, ...(dependencies ? { dependencies } : {}) });
-const select = (items: Descriptor[], selected = ['app']) =>
+const select = (
+  items: Descriptor[],
+  selected = ['app'],
+  options: Pick<DescriptorSelectionSeed, 'versionSelectors'> = {},
+) =>
   selectDescriptorsWithProviders({
     items,
     getDescriptor: (item) => item,
     withDescriptor: (_, item) => item,
-    seed: { selected, selectionSeed: false },
+    seed: { ...options, selected, selectionSeed: false },
   });
 const identities = (items: Descriptor[]) => items.map(({ id, version }) => `${id}@${version}`);
 
+describe('version selection validation', () => {
+  it('validates internal requirement targets when named configuration is omitted', () => {
+    const items = [{ descriptor: descriptor('app'), packageName: 'host-app' }];
+    const input = {
+      items,
+      getDescriptor: (item: (typeof items)[number]) => item.descriptor,
+      resolve: (selected: typeof items) => ({ items: selected }),
+      resolveDependencies: true,
+      roots: ['app'],
+      resolutionRelations: [],
+      requirements: [],
+    };
+    expect(selectVersions(input).versions).toEqual([
+      {
+        id: 'app',
+        version: '1.0.0',
+        requirements: [{ id: 'app', range: '*', source: 'implicit selection' }],
+      },
+    ]);
+    expect(() =>
+      selectVersions({
+        ...input,
+        requirements: [{ id: 'missing', range: '1', source: 'seed.selected' }],
+      }),
+    ).toThrowError(
+      new Error(
+        'No compatible version for "missing": seed.selected requires missing@1. Available: none.',
+      ),
+    );
+  });
+});
+
 describe('version-aware descriptor selection', () => {
+  it('rejects a parsed SemVer instance where a version string is required', () => {
+    const version = new SemVer('1.0.0');
+    const malformed = { id: 'app', version } as unknown as Descriptor;
+    expect(() => select([malformed])).toThrowError(
+      new Error(`Descriptor "app" has invalid version ${JSON.stringify(version)}.`),
+    );
+  });
+
+  it('rejects a parsed Range instance where a dependency range string is required', () => {
+    const range = new Range('^1.0.0');
+    const malformed = {
+      id: 'app',
+      version: '1.0.0',
+      dependencies: { feature: range },
+    } as unknown as Descriptor;
+    expect(() => select([malformed, descriptor('feature')])).toThrowError(
+      new Error(
+        `Descriptor "app@1.0.0" requires "feature" with invalid version range ${JSON.stringify(range)}.`,
+      ),
+    );
+  });
+
+  it.each([true, false])(
+    'explains the implicit stable requirement when dependency resolution is %s',
+    (dependencies) => {
+      expect(() =>
+        selectDescriptorsWithProviders({
+          items: [descriptor('feature', '1.0.0-beta.1')],
+          getDescriptor: (item) => item,
+          withDescriptor: (_, item) => item,
+          seed: { selectionSeed: false },
+          ...(dependencies ? {} : { policy: { resolutionRelationIds: [] } }),
+        }),
+      ).toThrowError(
+        new Error(
+          'No compatible version for "feature": stable version required. Available: 1.0.0-beta.1.',
+        ),
+      );
+    },
+  );
+
+  it.each(['app@1', 'app@curated'])(
+    'attributes conflicts to the allowed parent version for %s',
+    (request) => {
+      expect(() =>
+        select(
+          [
+            descriptor('app', '1.0.0', { required: '2' }),
+            descriptor('app', '2.0.0', { excluded: '1' }),
+            descriptor('required'),
+          ],
+          [request],
+          { versionSelectors: { curated: ({ version }) => version === '1.0.0' } },
+        ),
+      ).toThrowError(
+        new Error(
+          'No compatible version for "required": app@1.0.0 requires required@2. Available: 1.0.0.',
+        ),
+      );
+    },
+  );
+
+  it('reports the implicit stable requirement without an invented physical source', () => {
+    const result = select([descriptor('feature'), descriptor('feature', '2.0.0-beta.1')], []);
+    expect(identities(result.items)).toEqual(['feature@1.0.0']);
+    expect(result.versions).toStrictEqual([
+      {
+        id: 'feature',
+        version: '1.0.0',
+        requirements: [{ id: 'feature', range: '*', source: 'implicit selection' }],
+      },
+    ]);
+  });
+
+  it('reports only the conflicting id requirements and its enabled candidate inventory', () => {
+    const items = [
+      descriptor('app', '1.0.0', { feature: '1' }),
+      descriptor('feature'),
+      descriptor('feature', '2.0.0-beta.1'),
+      descriptor('feature', '3.0.0-beta.1'),
+      { ...descriptor('feature', '4.0.0-beta.1'), disabled: true },
+    ];
+    expect(() =>
+      select(items, ['app', 'feature@beta'], {
+        versionSelectors: { beta: ({ prerelease }) => prerelease[0] === 'beta' },
+      }),
+    ).toThrowError(
+      new Error(
+        'No compatible version for "feature": app@1.0.0 requires feature@1; seed.selected requires feature@beta (3.0.0-beta.1 || 2.0.0-beta.1). Available: 3.0.0-beta.1, 2.0.0-beta.1, 1.0.0.',
+      ),
+    );
+  });
+
+  it('keeps ordinary range diagnostics free of named-selector annotations', () => {
+    expect(() =>
+      select([descriptor('feature'), descriptor('feature', '2.0.0')], ['feature@1', 'feature@2']),
+    ).toThrowError(
+      new Error(
+        'No compatible version for "feature": seed.selected requires feature@1; seed.selected requires feature@2. Available: 2.0.0, 1.0.0.',
+      ),
+    );
+  });
+
+  it.each([
+    { locations: [undefined, undefined], sources: 'first source and second source' },
+    { locations: ['', 'packages/duplicate'], sources: 'first source and packages/duplicate' },
+  ])(
+    'keeps duplicate identity diagnostics useful when a source label is unavailable: $sources',
+    ({ locations, sources }) => {
+      const items = locations.map((location) => ({
+        ...descriptor('app'),
+        ...(location === undefined ? {} : { location }),
+      }));
+      expect(() => select(items)).toThrowError(
+        new Error(`Duplicate descriptor id "app" at version "1.0.0" (${sources}).`),
+      );
+    },
+  );
+
+  it('keeps exact named membership in the uniform candidate path', () => {
+    const items = [
+      descriptor('app', '1.0.0', { feature: '1' }),
+      descriptor('feature', '1.0.0+aaa-other'),
+      descriptor('feature', '1.0.0+allowed'),
+      descriptor('feature', '2.0.0+allowed'),
+    ];
+    const result = select(items, ['app', 'feature@curated'], {
+      versionSelectors: { curated: ({ version }) => version.endsWith('+allowed') },
+    });
+    expect(identities(result.items)).toEqual(['app@1.0.0', 'feature@1.0.0+allowed']);
+    expect(result.versions.find(({ id }) => id === 'feature')?.requirements).toEqual([
+      {
+        id: 'feature',
+        range: '2.0.0+allowed || 1.0.0+allowed',
+        source: 'seed.selected',
+        selector: 'curated',
+        versions: ['2.0.0+allowed', '1.0.0+allowed'],
+      },
+      { id: 'feature', range: '1', source: 'app@1.0.0' },
+    ]);
+  });
+
+  it('backtracks changing dependency edges while retaining the named candidate restriction', () => {
+    const items = [
+      descriptor('app', '1.0.0', { shared: '1' }),
+      descriptor('feature', '1.0.0'),
+      descriptor('feature', '2.0.0-beta.1', { shared: '1' }),
+      descriptor('feature', '3.0.0-beta.1', { shared: '2' }),
+      descriptor('shared'),
+      descriptor('shared', '2.0.0'),
+    ];
+    const options: Pick<DescriptorSelectionSeed, 'versionSelectors'> = {
+      versionSelectors: {
+        beta: ({ prerelease }) => prerelease[0] === 'beta',
+      },
+    };
+    for (const order of [items, [...items].reverse()]) {
+      expect(identities(select(order, ['app', 'feature@beta'], options).items)).toEqual([
+        'app@1.0.0',
+        'feature@2.0.0-beta.1',
+        'shared@1.0.0',
+      ]);
+      expect(() => select(order, ['app', 'feature@beta', 'feature@1'], options)).toThrow(
+        /feature@1.*feature@beta \(3\.0\.0-beta\.1 \|\| 2\.0\.0-beta\.1\)/,
+      );
+    }
+  });
+
   it('keeps exactly one compatible candidate and its source independent of discovery order', () => {
     const items = [
       descriptor('app', '1.0.0', { feature: '^1.0.0' }),
@@ -28,9 +234,9 @@ describe('version-aware descriptor selection', () => {
       expect(identities(select(order).items)).toEqual(['app@1.0.0', 'feature@1.10.0']);
     }
     items[0]!.dependencies = { feature: '1.2.0' };
-    expect(select(items).items.find(({ id }) => id === 'feature')?.location).toBe(
-      'prototype/feature',
-    );
+    const result = select(items);
+    expect(result.items.find(({ id }) => id === 'feature')?.location).toBe('prototype/feature');
+    expect(result.versions.find(({ id }) => id === 'feature')?.source).toBe('prototype/feature');
   });
 
   it('backtracks the parent version when its newest dependency closure is incompatible', () => {
@@ -42,6 +248,116 @@ describe('version-aware descriptor selection', () => {
       descriptor('shared', '2.0.0'),
     ];
     expect(identities(select(items).items)).toEqual(['app@1.0.0', 'feature@1.0.0', 'shared@1.0.0']);
+  });
+
+  it.each([{ selected: ['app'] }, { selected: [] }])(
+    'rejects contradictory fixed dependencies before exploring unrelated combinations: %j',
+    ({ selected }) => {
+      const dependencies: Record<string, string> = { a: '1', b: '1' };
+      const items = [
+        descriptor('a', '1.0.0', { shared: '1' }),
+        descriptor('b', '1.0.0', { shared: '2' }),
+        descriptor('shared'),
+      ];
+      for (let index = 0; index < 7; index++) {
+        const id = `feature-${index}`;
+        dependencies[id] = '*';
+        items.push(
+          descriptor(id, '1.0.0', { shared: '*' }),
+          descriptor(id, '2.0.0', { shared: '1' }),
+        );
+      }
+      items.push(descriptor('app', '1.0.0', dependencies));
+      let copies = 0;
+      expect(() =>
+        selectDescriptorsWithProviders({
+          items,
+          getDescriptor: (item) => item,
+          withDescriptor: (_, item) => {
+            copies++;
+            return item;
+          },
+          seed: { selected, selectionSeed: false },
+        }),
+      ).toThrow(
+        /No compatible version for "shared".*a@1.0.0 requires shared@1.*b@1.0.0 requires shared@2/,
+      );
+      expect(copies).toBeLessThan(100);
+    },
+  );
+
+  it('reports missing dependencies with opaque host-owned items', () => {
+    expect(() =>
+      selectDescriptorsWithProviders({
+        items: [
+          { descriptor: descriptor('app', '1.0.0', { missing: '1' }), packageName: 'host-app' },
+        ],
+        getDescriptor: (item) => item.descriptor,
+        withDescriptor: (item, next) => ({ ...item, descriptor: next }),
+        seed: { selected: ['app'], selectionSeed: false },
+      }),
+    ).toThrowError(
+      new Error(
+        'No compatible version for "missing": app@1.0.0 requires missing@1. Available: none.',
+      ),
+    );
+  });
+
+  it.each([true, false])(
+    'ignores inactive changing versions when provider roles are %s',
+    (providers) => {
+      const items: Descriptor[] = [
+        descriptor('app', '1.0.0', { slot: '1', 'z-provider': '2' }),
+        descriptor('slot'),
+        { ...descriptor('z-provider'), providesFor: 'slot' },
+      ];
+      for (let index = 0; index < 7; index++) {
+        const id = `unused-${index}`;
+        const role = providers ? { providesFor: 'slot' } : {};
+        items.push(
+          { ...descriptor(id), ...role },
+          { ...descriptor(id, '2.0.0', { missing: '1' }), ...role },
+        );
+      }
+      let copies = 0;
+      expect(() =>
+        selectDescriptorsWithProviders({
+          items,
+          getDescriptor: (item) => item,
+          withDescriptor: (_, item) => {
+            copies++;
+            return item;
+          },
+          seed: { selected: ['app'], selectionSeed: false },
+        }),
+      ).toThrow(/No compatible version for "z-provider"/);
+      expect(copies).toBeLessThan(100);
+    },
+  );
+
+  it('keeps implicit roots separate from unused providers and their version combinations', () => {
+    const items: Descriptor[] = [
+      descriptor('slot', '1.0.0', { chosen: '2' }),
+      { ...descriptor('chosen'), providesFor: 'slot' },
+    ];
+    for (let index = 0; index < 7; index++)
+      items.push(
+        { ...descriptor(`unused-${index}`), providesFor: 'slot' },
+        { ...descriptor(`unused-${index}`, '2.0.0', { missing: '1' }), providesFor: 'slot' },
+      );
+    let copies = 0;
+    expect(() =>
+      selectDescriptorsWithProviders({
+        items,
+        getDescriptor: (item) => item,
+        withDescriptor: (_, item) => {
+          copies++;
+          return item;
+        },
+        seed: { selectionSeed: false },
+      }),
+    ).toThrow(/No compatible version for "chosen"/);
+    expect(copies).toBeLessThan(100);
   });
 
   it('reports both incompatible requirements and available versions', () => {

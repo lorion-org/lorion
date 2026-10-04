@@ -114,8 +114,9 @@ as defined by `node-semver`.
 Seed entries in `selected`, `defaultSelection`, and `baseDescriptors` accept an id
 or `id@<SemVer range>`. An unqualified id means `id@*`: the highest compatible
 stable version. A prerelease needs an explicit matching range, such as
-`feature@3.0.0-beta.2` or `feature@^3.0.0-beta.1`. Registry tags (`latest`, `beta`)
-are not version ranges and fail with an invalid-request error.
+`feature@3.0.0-beta.2` or `feature@^3.0.0-beta.1`. Names such as `latest` or `beta`
+are accepted only when the caller registers a named selector, described below.
+Lorion does not resolve npm registry tags.
 
 ```ts
 seed: { selected: ['feature@2', 'search@^1.4.0'], selectionSeed: false }
@@ -174,3 +175,77 @@ effective relation targets, selection resolves the provider outcome once and
 chooses compatible versions independently. A fixed conflict in that case fails
 without enumerating unrelated version combinations. Candidates with different
 relations use backtracking; its work can grow with the combinations explored.
+
+### Caller-defined version selectors
+
+`DescriptorSelectionSeed.versionSelectors` registers names as synchronous, pure
+candidate predicates. The input is a record of names and functions with the public
+`DescriptorVersionSelector` signature. The caller defines names and membership;
+Lorion parses requests, captures eligible candidates and solves their composition.
+For example:
+
+```ts
+seed: {
+  versionSelectors: {
+    beta: ({ prerelease }) => prerelease[0] === 'beta',
+    preview: ({ version }) => version === '1.0.0' || version === '2.0.0-beta.1',
+  },
+  selected: ['search@beta'],
+  selectionSeed: false,
+}
+```
+
+The predicate receives a frozen `{ id, version, prerelease }` value. `version` is
+the exact declared SemVer string, including build metadata; `prerelease` contains
+the identifiers parsed by `node-semver`. A predicate must return a boolean, must
+not mutate inputs or external state, and must not return a Promise. It must return
+the same result for the same candidate and unchanged configuration.
+Capture external policy data before creating the seed. Frozen arguments prevent
+input mutation; Lorion cannot enforce purity of a callback's external reads.
+Lorion evaluates each requested name once per enabled candidate of the requested id,
+after validating the catalog. It captures the eligible versions before solving;
+backtracking and later projections of one composition run do not rerun predicates.
+Unused selectors and candidates of other ids are not evaluated.
+
+A selector restricts exact candidate membership. Lorion still chooses the first
+complete compatible assignment in its normal order. Additional seed selectors,
+seed ranges and active dependency ranges all intersect. A bare request still means
+`*`; combining `search` with a beta-only selector does not permit prereleases.
+A selector that admits stable versions can select them. Selectors define membership,
+not preference or ordered fallback. If a selector admits `2.0.0` and
+`3.0.0-beta.1`, normal ordering prefers the latter when its dependencies can be
+satisfied. The caller owns any fallback between candidate sets, including whether
+it applies when no stable candidate exists or when a stable composition cannot be
+resolved. Lorion never escapes the captured set of a selection.
+Descriptor `dependencies` continue to accept SemVer ranges only, not selector
+names. Registering a selector does not change ordinary prerelease range matching.
+
+Names must be nonempty tokens without whitespace, commas or `@`, and must not be
+valid SemVer ranges. For example, `beta` and `canary` are valid names; `2`, `v2`,
+`x` and `*` are rejected to prevent collisions with existing requests. Unregistered
+names fail at request parsing. Unknown or disabled-only requested ids fail the
+existing id validation first. For a known enabled id, a registered selector matching
+no candidate fails with the name, id and available versions. A nonempty eligible set that cannot
+satisfy all active requirements produces a version conflict with its selector and
+other requirements. Callback failures abort selection with the selector and
+candidate identity; the thrown error retains the original exception as `cause`.
+
+Programmatic seeds, CLI and environment requests share `id@name` parsing,
+including scoped ids such as `@acme/search@beta`. `resolveDescriptorSeed` captures
+named requirements in `selectors` without evaluating the catalog. After selection,
+`seed.requirements` and each chosen identity's `requirements` retain the
+`selector` name, exact eligible `versions` and their effective `range` union.
+The `versions` list is authoritative for named membership, since SemVer range
+matching ignores build metadata. The original request remains in `seed.requested`
+when supplied explicitly or through CLI/environment. No callback is serialized
+into selection reports or application code.
+
+A caller can also read a JSON list of allowed `{ id, version }` candidates and
+register a predicate that tests membership in that list. The JSON format and its
+meaning remain caller-owned; Lorion accepts the resulting functions. The
+[policy snippet](./snippets/select-version-policy.ts) demonstrates a name unrelated
+to prerelease identifiers and an exact build-metadata restriction.
+
+Reports describe the captured selection. They do not contain an executable selector
+definition or provide a replay lockfile. Preserve the seed configuration and
+candidate inventory separately when another run must reproduce the selection.

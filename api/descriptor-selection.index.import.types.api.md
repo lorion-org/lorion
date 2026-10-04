@@ -162,6 +162,16 @@ type DescriptorIds = DescriptorId[];
 type DescriptorMap = Map<DescriptorId, Descriptor>;
 
 // @public (undocumented)
+export interface DescriptorNamedVersionRequirement {
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    selector: string;
+    // (undocumented)
+    source: string;
+}
+
+// @public (undocumented)
 type DescriptorProfile = {
     id: DescriptorId;
     location?: string;
@@ -225,6 +235,18 @@ export interface DescriptorSelectionSeed {
         cliKeys?: string[];
         envKeys?: string[];
     };
+    // (undocumented)
+    versionSelectors?: Readonly<Record<string, DescriptorVersionSelector>>;
+}
+
+// @public (undocumented)
+export interface DescriptorVersionCandidate {
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly prerelease: readonly (string | number)[];
+    // (undocumented)
+    readonly version: string;
 }
 
 // @public (undocumented)
@@ -234,7 +256,11 @@ export interface DescriptorVersionRequirement {
     // (undocumented)
     range: string;
     // (undocumented)
+    selector?: string;
+    // (undocumented)
     source: string;
+    // (undocumented)
+    versions?: readonly string[];
 }
 
 // @public (undocumented)
@@ -248,6 +274,9 @@ export interface DescriptorVersionSelection {
     // (undocumented)
     version: string;
 }
+
+// @public (undocumented)
+export type DescriptorVersionSelector = (candidate: DescriptorVersionCandidate) => boolean;
 
 // @public (undocumented)
 type ProviderId = string;
@@ -310,6 +339,8 @@ export interface ResolvedDescriptorSeed {
     requirements: readonly DescriptorVersionRequirement[];
     // (undocumented)
     selected: readonly DescriptorId[];
+    // (undocumented)
+    selectors?: readonly DescriptorNamedVersionRequirement[];
 }
 
 // @public (undocumented)

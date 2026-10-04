@@ -28,6 +28,60 @@ import {
 import { conventionActivation, fileSurfaceConvention } from '@lorion-org/surface-activation';
 
 describe('React capability Vite helpers', () => {
+  it('binds a named channel to its physical implementation and keeps report provenance', () => {
+    const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-channel-'));
+    for (const [folder, version] of [
+      ['home-stable', '3.0.0'],
+      ['home-beta-v2', '2.0.0-beta.1'],
+      ['home-beta-v3', '3.0.0-beta.2'],
+    ]) {
+      writeCapability(workspaceRoot, folder!, `@react-workspace/${folder}`);
+      writeFileSync(
+        join(workspaceRoot, `capabilities/${folder}/capability.json`),
+        JSON.stringify({ id: 'home', version }),
+      );
+    }
+    const options = {
+      workspaceRoot,
+      routesDirectory: join(workspaceRoot, 'src/routes'),
+      versionSelectors: {
+        preview: ({ prerelease }: { prerelease: readonly (string | number)[] }) =>
+          prerelease[0] === 'beta',
+      },
+      selectionSeed: {
+        argv: ['--features=home@preview,home@^2.0.0-beta.0'],
+        env: {},
+        cliKeys: ['features'],
+      },
+    };
+    const report = describeCapabilityComposition(workspaceRoot, options);
+    expect(report.requested).toEqual(['home@^2.0.0-beta.0', 'home@preview']);
+    expect(report.resolvedVersions).toEqual({ home: '2.0.0-beta.1' });
+    expect(report.versionSelection).toMatchObject([
+      {
+        id: 'home',
+        version: '2.0.0-beta.1',
+        source: join(workspaceRoot, 'capabilities/home-beta-v2'),
+      },
+    ]);
+    expect(report.versionSelection?.[0]?.requirements).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          selector: 'preview',
+          versions: ['3.0.0-beta.2', '2.0.0-beta.1'],
+        }),
+      ]),
+    );
+    for (const plugin of [capabilityLoader(options), lorionReact(options).capabilityLoader]) {
+      plugin.configResolved({ root: workspaceRoot });
+      const emitted = plugin.load(plugin.resolveId('virtual:capabilities')!);
+      expect(emitted).toContain("from '@react-workspace/home-beta-v2/capability'");
+      expect(emitted).not.toContain('home-beta-v3');
+      expect(emitted).not.toContain('home-stable');
+      expect(emitted).toContain('"home":"2.0.0-beta.1"');
+    }
+  });
+
   it('renders from a sealed composition run without rediscovering changed descriptors', () => {
     const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-run-loader-'));
     writeFileSync(
@@ -1222,6 +1276,14 @@ describe('core option forwarding', () => {
     },
     selected: (root) => {
       expect(ids(root, { selected: ['beta'] })).toEqual(['beta']);
+    },
+    versionSelectors: (root) => {
+      expect(
+        ids(root, { selected: ['beta@demo'], versionSelectors: { demo: () => true } }),
+      ).toEqual(['beta']);
+      expect(() =>
+        ids(root, { selected: ['beta@demo'], versionSelectors: { demo: () => false } }),
+      ).toThrow(/No enabled versions match selector/);
     },
     selectionSeed: (root) => {
       expect(

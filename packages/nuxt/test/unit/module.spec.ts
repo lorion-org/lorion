@@ -329,6 +329,14 @@ describe('core option forwarding', () => {
     selected: (root) => {
       expect(ids(root, { selected: ['beta'] })).toEqual(['beta']);
     },
+    versionSelectors: (root) => {
+      expect(
+        ids(root, { selected: ['beta@demo'], versionSelectors: { demo: () => true } }),
+      ).toEqual(['beta']);
+      expect(() =>
+        ids(root, { selected: ['beta@demo'], versionSelectors: { demo: () => false } }),
+      ).toThrow(/No enabled versions match selector/);
+    },
     selectionSeed: (root) => {
       expect(
         ids(root, { selectionSeed: { argv: [], env: { PICK: 'beta' }, envKeys: ['PICK'] } }),

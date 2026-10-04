@@ -1,7 +1,13 @@
 import { readDescriptorSelectionSeed, type DescriptorId } from '@lorion-org/composition-graph';
 import { validRange } from 'semver';
+import {
+  readVersionSelectors,
+  type DescriptorNamedVersionRequirement,
+  type DescriptorVersionSelector,
+} from './selectors';
 
 export interface DescriptorSelectionSeed {
+  versionSelectors?: Readonly<Record<string, DescriptorVersionSelector>>;
   baseDescriptors?: readonly DescriptorId[];
   defaultSelection?: readonly DescriptorId[];
   selected?: readonly DescriptorId[];
@@ -20,6 +26,8 @@ export interface DescriptorVersionRequirement {
   id: DescriptorId;
   range: string;
   source: string;
+  selector?: string;
+  versions?: readonly string[];
 }
 
 export interface ResolvedDescriptorSeed {
@@ -27,6 +35,7 @@ export interface ResolvedDescriptorSeed {
   selected: readonly DescriptorId[];
   baseDescriptors: readonly DescriptorId[];
   requirements: readonly DescriptorVersionRequirement[];
+  selectors?: readonly DescriptorNamedVersionRequirement[];
 }
 
 function specs(value: readonly string[] | undefined, field: string): string[] {
@@ -85,33 +94,48 @@ export function resolveRequestedSelection(seed: DescriptorSelectionSeed): string
   return named.length ? named : null;
 }
 
-function requirement(spec: string, source: string): DescriptorVersionRequirement {
+function requirement(
+  spec: string,
+  source: string,
+  selectors: ReadonlyMap<string, DescriptorVersionSelector>,
+): DescriptorVersionRequirement | DescriptorNamedVersionRequirement {
   const separator = spec.lastIndexOf('@');
   const id = separator > 0 ? spec.slice(0, separator) : spec;
   const range = separator > 0 ? spec.slice(separator + 1).trim() : '*';
+  if (!/\s/.test(id) && selectors.has(range)) return { id, selector: range, source };
   if (/\s/.test(id) || !range || validRange(range) === null) {
     throw new Error(
-      `Invalid version request ${JSON.stringify(spec)} in ${source}. Use id or id@<SemVer range>; registry tags are not supported.`,
+      `Invalid version request ${JSON.stringify(spec)} in ${source}. Use id or id@<SemVer range>, or register a named version selector. Unknown selector or invalid range: ${JSON.stringify(range)}.`,
     );
   }
   return { id, range, source };
 }
 
 export function resolveDescriptorSeed(seed: DescriptorSelectionSeed): ResolvedDescriptorSeed {
+  const selectors = readVersionSelectors(seed.versionSelectors);
   const defaults = specs(seed.defaultSelection, 'defaultSelection');
   const requested = resolveRequestedSelection(seed);
   const source = seed.selected?.length ? 'seed.selected' : 'seed.selectionSeed';
   const selected = (requested ?? defaults).map((spec) =>
-    requirement(spec, requested ? source : 'seed.defaultSelection'),
+    requirement(spec, requested ? source : 'seed.defaultSelection', selectors),
   );
   const base = specs(seed.baseDescriptors, 'baseDescriptors').map((spec) =>
-    requirement(spec, 'seed.baseDescriptors'),
+    requirement(spec, 'seed.baseDescriptors', selectors),
   );
   return {
     requested,
     selected: [...new Set(selected.map((entry) => entry.id))].sort(),
     baseDescriptors: [...new Set(base.map((entry) => entry.id))].sort(),
-    requirements: [...selected, ...base],
+    requirements: [...selected, ...base].filter(
+      (entry): entry is DescriptorVersionRequirement => 'range' in entry,
+    ),
+    ...([...selected, ...base].some((entry) => !('range' in entry))
+      ? {
+          selectors: [...selected, ...base].filter(
+            (entry): entry is DescriptorNamedVersionRequirement => !('range' in entry),
+          ),
+        }
+      : {}),
   };
 }
 

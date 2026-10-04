@@ -264,7 +264,7 @@ export function formatCompositionReport(
     );
     for (const requirement of choice.requirements) {
       lines.push(
-        `${LIST_INDENT}  ${requirement.source} requires ${requirement.id}@${requirement.range}`,
+        `${LIST_INDENT}  ${requirement.source} requires ${requirement.id}@${requirement.selector ?? requirement.range}${requirement.selector ? ` (${requirement.range})` : ''}`,
       );
     }
   }

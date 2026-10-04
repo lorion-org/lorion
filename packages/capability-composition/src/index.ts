@@ -156,6 +156,7 @@ export const CAPABILITY_SELECTION_OPTIONS = [
   'defaultSelection',
   'selected',
   'selectionSeed',
+  'versionSelectors',
 ] as const;
 
 export type CapabilitySelectionOption = (typeof CAPABILITY_SELECTION_OPTIONS)[number];
