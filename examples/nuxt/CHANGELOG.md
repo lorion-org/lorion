@@ -1,5 +1,16 @@
 # @lorion-examples/nuxt
 
+## 0.0.1-beta.6
+
+### Patch Changes
+
+- Updated dependencies [e1bc6dc]
+  - @lorion-org/capability-composition@1.0.0-beta.10
+  - @lorion-org/nuxt@1.0.0-beta.10
+  - @lorion-org/composition-graph@1.0.0-beta.10
+  - @lorion-org/contributions@1.0.0-beta.10
+  - @lorion-org/descriptor-discovery@1.0.0-beta.10
+
 ## 0.0.1-beta.5
 
 ### Patch Changes

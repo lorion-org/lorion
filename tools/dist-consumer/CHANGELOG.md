@@ -1,5 +1,23 @@
 # @lorion-tools/dist-consumer
 
+## 0.0.1-beta.1
+
+### Patch Changes
+
+- Updated dependencies [e1bc6dc]
+  - @lorion-org/descriptor-selection@1.0.0-beta.10
+  - @lorion-org/capability-composition@1.0.0-beta.10
+  - @lorion-org/react@1.0.0-beta.10
+  - @lorion-org/nuxt@1.0.0-beta.10
+  - @lorion-org/composition-graph@1.0.0-beta.10
+  - @lorion-org/contributions@1.0.0-beta.10
+  - @lorion-org/descriptor-discovery@1.0.0-beta.10
+  - @lorion-org/provider-selection@1.0.0-beta.10
+  - @lorion-org/registry-hub@1.0.0-beta.10
+  - @lorion-org/runtime-config@1.0.0-beta.10
+  - @lorion-org/runtime-config-node@1.0.0-beta.10
+  - @lorion-org/surface-activation@1.0.0-beta.10
+
 ## 0.0.1-beta.0
 
 ### Patch Changes

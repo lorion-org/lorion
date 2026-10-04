@@ -42,6 +42,7 @@
     "id-order-in-every-path",
     "indirect-group-membership",
     "manifest-declares-descriptors-only",
+    "named-version-selectors",
     "native-layer-contributions",
     "nested-descriptors-are-virtual",
     "nested-descriptors-react",

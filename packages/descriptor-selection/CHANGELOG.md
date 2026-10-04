@@ -1,5 +1,22 @@
 # @lorion-org/descriptor-selection
 
+## 1.0.0-beta.10
+
+### Minor Changes
+
+- e1bc6dc: Support caller-defined named version selectors in programmatic, CLI and environment
+  seeds. Register synchronous candidate predicates with `versionSelectors` and request
+  `id@name`; selection intersects their exact eligible sets with active SemVer
+  requirements using the existing ordering and backtracking. Reports preserve named
+  requests, selector names and eligible versions. Composition and both framework
+  adapters forward the shared contract; ordinary ranges, stable defaults, provider
+  precedence and descriptor dependency grammar remain unchanged.
+
+### Patch Changes
+
+- @lorion-org/composition-graph@1.0.0-beta.10
+- @lorion-org/provider-selection@1.0.0-beta.10
+
 ## 1.0.0-beta.9
 
 ### Major Changes

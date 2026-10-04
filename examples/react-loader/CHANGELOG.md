@@ -1,5 +1,16 @@
 # @lorion-examples/react-loader
 
+## 0.0.1-beta.7
+
+### Patch Changes
+
+- Updated dependencies [e1bc6dc]
+  - @lorion-org/capability-composition@1.0.0-beta.10
+  - @lorion-org/react@1.0.0-beta.10
+  - @lorion-org/composition-graph@1.0.0-beta.10
+  - @lorion-org/descriptor-discovery@1.0.0-beta.10
+  - @lorion-org/surface-activation@1.0.0-beta.10
+
 ## 0.0.1-beta.6
 
 ### Patch Changes
