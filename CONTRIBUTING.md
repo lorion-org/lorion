@@ -52,6 +52,20 @@ Run commands from the LORION repository root:
 - `pnpm changeset` records a release note for a package change
 - `pnpm check` runs the full local gate used by CI
 
+## CI validation
+
+The CI Node matrix runs `pnpm check` on Node 20.19, 22.17 and 24.
+Node 24 is also the release runtime. The gate checks formatting, builds, behavior,
+types, examples, package output, declarations, API reports, manifests and neutral
+vocabulary through the scripts in `package.json`; its output names the failing
+command. Each job starts with a fresh checkout and frozen dependency installation.
+Download caches may be reused; generated outputs and Turbo task caches are not
+restored.
+
+The separate Bun job checks package and example compatibility with `.bun-version`.
+Pull requests other than Changesets version branches also run `changeset:check`.
+A green PR requires all applicable CI jobs to pass for its latest revision.
+
 ## Fresh-install verification
 
 Changes to dependencies, build tooling, declaration generation or verification
