@@ -1,0 +1,10 @@
+{
+  "name": "@lorion-tools/vite-consumer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "vite7": "npm:vite@^7.3.2",
+    "vite8": "npm:vite@^8.3.4"
+  }
+}
