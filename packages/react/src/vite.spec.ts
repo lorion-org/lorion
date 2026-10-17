@@ -747,6 +747,41 @@ describe('React capability Vite helpers', () => {
     });
   });
 
+  it('respects disabled Vite env files while retaining process and resolved env', () => {
+    const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-env-disabled-'));
+    writeCapability(workspaceRoot, 'env-guard', '@react-workspace/env-guard');
+    writeRuntimeConfigSchema(workspaceRoot, 'env-guard', {
+      public: ['label', 'fileOnly'],
+      private: ['token'],
+    });
+    writeFileSync(
+      join(workspaceRoot, '.env.development'),
+      'VITE_ENV_GUARD_LABEL=from-file\nVITE_ENV_GUARD_FILE_ONLY=must-not-load\n',
+    );
+    const previousToken = process.env.ENV_GUARD_TOKEN;
+    process.env.ENV_GUARD_TOKEN = 'process-value';
+    try {
+      const config = createReactRuntimeConfig(
+        discoverSelectedCapabilities(workspaceRoot, { selected: ['env-guard'] }),
+        workspaceRoot,
+        { source: false, validation: false },
+        {
+          root: workspaceRoot,
+          mode: 'development',
+          envDir: false,
+          env: { VITE_ENV_GUARD_LABEL: 'resolved-value' },
+        },
+      );
+      expect(config).toEqual({
+        public: { 'env-guard': { label: 'resolved-value' } },
+        private: { 'env-guard': { token: 'process-value' } },
+      });
+    } finally {
+      if (previousToken === undefined) delete process.env.ENV_GUARD_TOKEN;
+      else process.env.ENV_GUARD_TOKEN = previousToken;
+    }
+  });
+
   it('loads runtime config from a configured var dir env key', () => {
     const workspaceRoot = mkdtempSync(join(tmpdir(), 'lorion-react-runtime-config-'));
     const varDir = mkdtempSync(join(tmpdir(), 'lorion-react-var-dir-'));

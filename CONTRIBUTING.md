@@ -34,6 +34,8 @@ Run commands from the LORION repository root:
 - `pnpm examples:verify` type-checks and builds the runnable example apps (`examples/`)
 - `pnpm runtime:check` verifies built package entry points and representative
   behavior with Node.js
+- `pnpm vite:check` checks the built React Vite entry with Vite 7 and 8, including
+  dev, SSR, builds and runtime config; `pnpm bun:check` repeats it under Bun
 - `pnpm bun:check` requires Bun and verifies package tests and built package output
   with the runtime version recorded in `.bun-version`
 - `pnpm examples:test` builds both contribution playgrounds against published exports and

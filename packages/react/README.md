@@ -184,6 +184,15 @@ import { capabilityLoader, lorionReact } from '@lorion-org/react/vite';
 `capabilityLoader` is the standalone loader used by Model B. `lorionReact()`
 bundles that loader with the Model A route config.
 
+The published Vite entry supports Vite 7 and 8 through both ESM and CommonJS.
+`pnpm vite:check` verifies both loader models against built exports; the Bun
+compatibility check runs the same dev, SSR and build cases under Bun.
+
+Use `@lorion-org/react/vite` in build configuration. It imports the Vite build
+tool. If a Node or Bun server also imports this entry, keep `vite` external in
+the server bundler, for example `external: ['vite']` with `Bun.build`. Vite support
+does not establish that a host can remove its existing deferred-loading boundary.
+
 The Vite helper discovers `capabilities/*/capability.json`, validates the descriptor shape with LORION, resolves selected descriptors through the LORION composition graph, resolves each active capability's activation entry, and exposes `virtual:capabilities`.
 
 ```ts
@@ -444,6 +453,9 @@ VITE_AUTH_OIDC_REALM=demo
 VITE_AUTH_OIDC_CLIENT_ID=web
 AUTH_OIDC_CLIENT_SECRET=server-only
 ```
+
+The resolved Vite `mode` and `envDir` select the env files. With `envDir: false`,
+the adapter skips env files and still accepts process env and resolved Vite env.
 
 Env values override runtime files. Only `public` config is emitted through
 `virtual:capability-runtime-config`; server code can opt into

@@ -776,7 +776,7 @@ function resolveRuntimeConfigEnv(
     typeof viteConfig.envDir === 'string' ? viteConfig.envDir : (viteConfig.root ?? process.cwd());
 
   return {
-    ...loadEnv(mode, envDir, ''),
+    ...(viteConfig.envDir === false ? {} : loadEnv(mode, envDir, '')),
     ...process.env,
     ...(viteConfig.env ?? {}),
   };
